@@ -307,6 +307,102 @@ export const roomCharges = [
   { id: 4, roomType: 'Operation Room', dailyRate: 10000, beds: 4, occupied: 2 },
 ]
 
+/** Room inventory with individual beds for transfer management */
+const ROOM_INVENTORY_CONFIG = [
+  { id: 'ROOM-GW', roomType: 'General Ward', dailyRate: 1500, prefix: 'GW', bedCount: 20 },
+  { id: 'ROOM-PR', roomType: 'Private Room', dailyRate: 5000, prefix: 'PR', bedCount: 12 },
+  { id: 'ROOM-ICU', roomType: 'ICU', dailyRate: 8000, prefix: 'ICU', bedCount: 8 },
+  { id: 'ROOM-OP', roomType: 'Operation', dailyRate: 10000, prefix: 'OP', bedCount: 4 },
+]
+
+export function buildHospitalRooms(occupiedBeds = {}) {
+  return ROOM_INVENTORY_CONFIG.map((room) => ({
+    id: room.id,
+    roomType: room.roomType,
+    dailyRate: room.dailyRate,
+    beds: Array.from({ length: room.bedCount }, (_, i) => {
+      const label = `${room.prefix}-${String(i + 1).padStart(2, '0')}`
+      const bedId = `BED-${label}`
+      const occupant = occupiedBeds[label]
+      return {
+        id: bedId,
+        label,
+        status: occupant ? 'occupied' : 'available',
+        patientId: occupant || null,
+      }
+    }),
+  }))
+}
+
+export function buildInitialRoomAssignments(admittedPatients) {
+  const assignments = []
+  admittedPatients.forEach((patient) => {
+    if (patient.status === 'discharged') return
+    const roomConfig = ROOM_INVENTORY_CONFIG.find((r) => r.roomType === patient.room)
+    if (!roomConfig) return
+    const bedLabel = patient.bed
+    const bedId = `BED-${bedLabel}`
+    assignments.push({
+      id: `RA-${patient.id}-001`,
+      admission_id: patient.id,
+      room_id: roomConfig.id,
+      bed_id: bedId,
+      start_date: patient.admissionDate,
+      end_date: null,
+      daily_rate: roomConfig.dailyRate,
+      transfer_reason: 'Initial admission',
+      assigned_by: 'Sara Bekele',
+    })
+  })
+  return assignments
+}
+
+export function getRoomById(rooms, roomId) {
+  return rooms.find((r) => r.id === roomId)
+}
+
+export function getBedById(rooms, bedId) {
+  for (const room of rooms) {
+    const bed = room.beds.find((b) => b.id === bedId)
+    if (bed) return { room, bed }
+  }
+  return null
+}
+
+export function getAvailableBedsForRooms(rooms, roomType = null) {
+  const list = []
+  rooms.forEach((room) => {
+    if (roomType && room.roomType !== roomType) return
+    room.beds.forEach((bed) => {
+      if (bed.status === 'available') {
+        list.push({ room, bed })
+      }
+    })
+  })
+  return list
+}
+
+export function getRoomAssignmentForDate(assignments, admissionId, date) {
+  return assignments.find(
+    (a) =>
+      a.admission_id === admissionId &&
+      a.start_date <= date &&
+      (a.end_date === null || a.end_date > date)
+  )
+}
+
+export function getServiceNameForRoomType(roomType) {
+  const bed = bedTypes.find((b) => b.name === roomType)
+  return bed?.serviceName || `${roomType} - Daily Rate`
+}
+
+const occupiedBedMap = Object.fromEntries(
+  patients.filter((p) => p.status !== 'discharged').map((p) => [p.bed, p.id])
+)
+
+export const hospitalRooms = buildHospitalRooms(occupiedBedMap)
+export const initialRoomAssignments = buildInitialRoomAssignments(patients)
+
 export const users = [
   { id: 1, name: 'Sara Bekele', email: 'sara.bekele@stgabriel.et', role: 'Reception', status: 'active' },
   { id: 2, name: 'Helen Tadesse', email: 'helen.tadesse@stgabriel.et', role: 'Reception', status: 'active' },

@@ -1,5 +1,14 @@
 import * as React from 'react'
-import { patients as initialPatients, depositHistory } from '@/data/mockData'
+import {
+  patients as initialPatients,
+  depositHistory,
+  hospitalRooms as initialHospitalRooms,
+  initialRoomAssignments,
+  getRoomById,
+  getBedById,
+  getRoomAssignmentForDate as findAssignmentForDate,
+  getServiceNameForRoomType,
+} from '@/data/mockData'
 
 const PatientsContext = React.createContext(null)
 
@@ -22,9 +31,15 @@ function withRoomHistory(patient) {
 export function PatientsProvider({ children }) {
   const [patients, setPatients] = React.useState(() => initialPatients.map(withRoomHistory))
   const [deposits, setDeposits] = React.useState(depositHistory)
+  const [rooms, setRooms] = React.useState(initialHospitalRooms)
+  const [roomAssignments, setRoomAssignments] = React.useState(initialRoomAssignments)
 
   const addPatient = React.useCallback((patientData) => {
     const id = `PAT-${String(Date.now()).slice(-6)}`
+    const roomConfig = initialHospitalRooms.find((r) => r.roomType === patientData.room)
+    const bedLabel = patientData.bed
+    const bedId = `BED-${bedLabel}`
+
     const patient = withRoomHistory({
       id,
       status: 'admitted',
@@ -40,7 +55,37 @@ export function PatientsProvider({ children }) {
         },
       ],
     })
+
     setPatients((prev) => [patient, ...prev])
+
+    if (roomConfig) {
+      setRoomAssignments((prev) => [
+        ...prev,
+        {
+          id: `RA-${id}-001`,
+          admission_id: id,
+          room_id: roomConfig.id,
+          bed_id: bedId,
+          start_date: patientData.admissionDate,
+          end_date: null,
+          daily_rate: roomConfig.dailyRate,
+          transfer_reason: 'Initial admission',
+          assigned_by: 'Sara Bekele',
+        },
+      ])
+      setRooms((prev) =>
+        prev.map((room) =>
+          room.id === roomConfig.id
+            ? {
+                ...room,
+                beds: room.beds.map((b) =>
+                  b.id === bedId ? { ...b, status: 'occupied', patientId: id } : b
+                ),
+              }
+            : room
+        )
+      )
+    }
 
     if (patientData.initialDeposit > 0) {
       setDeposits((prev) => ({
@@ -90,20 +135,110 @@ export function PatientsProvider({ children }) {
     return entry
   }, [])
 
-  const transferRoom = React.useCallback((patientId, { room, bed, fromDate }) => {
-    setPatients((prev) =>
-      prev.map((p) => {
-        if (p.id !== patientId) return p
-        const history = [...(p.roomHistory || [])]
-        if (history.length) {
-          const last = history[history.length - 1]
-          if (!last.toDate) last.toDate = fromDate
-        }
-        history.push({ room, bed, fromDate, toDate: null })
-        return { ...p, room, bed, roomHistory: history }
+  const getRoomAssignments = React.useCallback(
+    (admissionId) => roomAssignments.filter((a) => a.admission_id === admissionId),
+    [roomAssignments]
+  )
+
+  const getRoomAssignmentForDate = React.useCallback(
+    (admissionId, date) => findAssignmentForDate(roomAssignments, admissionId, date),
+    [roomAssignments]
+  )
+
+  const transferPatientRoom = React.useCallback(
+    (patientId, { roomId, bedId, transferDate, transferReason, assignedBy = 'Sara Bekele' }) => {
+      const patient = patients.find((p) => p.id === patientId)
+      if (!patient || patient.status === 'discharged') return null
+
+      const target = getBedById(rooms, bedId)
+      if (!target || target.bed.status !== 'available' || target.room.id !== roomId) return null
+
+      const currentAssignment = roomAssignments.find(
+        (a) => a.admission_id === patientId && a.end_date === null
+      )
+      if (!currentAssignment) return null
+
+      const newAssignment = {
+        id: `RA-${patientId}-${Date.now()}`,
+        admission_id: patientId,
+        room_id: roomId,
+        bed_id: bedId,
+        start_date: transferDate,
+        end_date: null,
+        daily_rate: target.room.dailyRate,
+        transfer_reason: transferReason,
+        assigned_by: assignedBy,
+      }
+
+      setRoomAssignments((prev) =>
+        prev.map((a) =>
+          a.id === currentAssignment.id ? { ...a, end_date: transferDate } : a
+        ).concat(newAssignment)
+      )
+
+      setRooms((prev) =>
+        prev.map((room) => ({
+          ...room,
+          beds: room.beds.map((bed) => {
+            if (bed.id === currentAssignment.bed_id) {
+              return { ...bed, status: 'available', patientId: null }
+            }
+            if (bed.id === bedId) {
+              return { ...bed, status: 'occupied', patientId }
+            }
+            return bed
+          }),
+        }))
+      )
+
+      setPatients((prev) =>
+        prev.map((p) => {
+          if (p.id !== patientId) return p
+          const history = [...(p.roomHistory || [])]
+          if (history.length) {
+            const last = history[history.length - 1]
+            if (!last.toDate) last.toDate = transferDate
+          }
+          history.push({
+            room: target.room.roomType,
+            bed: target.bed.label,
+            fromDate: transferDate,
+            toDate: null,
+          })
+          return {
+            ...p,
+            room: target.room.roomType,
+            bed: target.bed.label,
+            roomHistory: history,
+          }
+        })
+      )
+
+      return {
+        assignment: newAssignment,
+        roomType: target.room.roomType,
+        bedLabel: target.bed.label,
+        dailyRate: target.room.dailyRate,
+      }
+    },
+    [patients, rooms, roomAssignments]
+  )
+
+  const transferRoom = React.useCallback(
+    (patientId, { room, bed, fromDate, transferReason = 'Room transfer', assignedBy = 'Sara Bekele' }) => {
+      const roomConfig = rooms.find((r) => r.roomType === room)
+      const bedId = `BED-${bed}`
+      if (!roomConfig) return null
+      return transferPatientRoom(patientId, {
+        roomId: roomConfig.id,
+        bedId,
+        transferDate: fromDate,
+        transferReason,
+        assignedBy,
       })
-    )
-  }, [])
+    },
+    [rooms, transferPatientRoom]
+  )
 
   const setDoctorVisitDisabled = React.useCallback((patientId, date, disabled) => {
     setPatients((prev) =>
@@ -117,16 +252,41 @@ export function PatientsProvider({ children }) {
     )
   }, [])
 
-  const getRoomForDate = React.useCallback((patient, date) => {
-    const history = patient.roomHistory || []
-    for (let i = history.length - 1; i >= 0; i--) {
-      const h = history[i]
-      if (h.fromDate <= date && (!h.toDate || h.toDate > date)) {
-        return { room: h.room, bed: h.bed }
+  const getRoomForDate = React.useCallback(
+    (patient, date) => {
+      const assignment = findAssignmentForDate(roomAssignments, patient.id, date)
+      if (assignment) {
+        const room = getRoomById(rooms, assignment.room_id)
+        const bed = room?.beds.find((b) => b.id === assignment.bed_id)
+        return {
+          room: room?.roomType || patient.room,
+          bed: bed?.label || patient.bed,
+          dailyRate: assignment.daily_rate,
+          serviceName: getServiceNameForRoomType(room?.roomType || patient.room),
+          assignmentId: assignment.id,
+        }
       }
-    }
-    return { room: patient.room, bed: patient.bed }
-  }, [])
+      const history = patient.roomHistory || []
+      for (let i = history.length - 1; i >= 0; i--) {
+        const h = history[i]
+        if (h.fromDate <= date && (!h.toDate || h.toDate > date)) {
+          return {
+            room: h.room,
+            bed: h.bed,
+            dailyRate: getRoomById(rooms, rooms.find((r) => r.roomType === h.room)?.id)?.dailyRate,
+            serviceName: getServiceNameForRoomType(h.room),
+          }
+        }
+      }
+      return {
+        room: patient.room,
+        bed: patient.bed,
+        dailyRate: getRoomById(rooms, rooms.find((r) => r.roomType === patient.room)?.id)?.dailyRate,
+        serviceName: getServiceNameForRoomType(patient.room),
+      }
+    },
+    [roomAssignments, rooms]
+  )
 
   const getTotalDeposit = React.useCallback(
     (patientId) => {
@@ -140,12 +300,17 @@ export function PatientsProvider({ children }) {
     <PatientsContext.Provider
       value={{
         patients,
+        rooms,
+        roomAssignments,
         addPatient,
         getPatient,
         getPatientDeposits,
         addDeposit,
         getTotalDeposit,
         transferRoom,
+        transferPatientRoom,
+        getRoomAssignments,
+        getRoomAssignmentForDate,
         setDoctorVisitDisabled,
         getRoomForDate,
       }}

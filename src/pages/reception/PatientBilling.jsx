@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, AlertTriangle, Plus, Printer, User, Phone, Calendar,
-  Bed, Wallet, Receipt, History, CheckCircle2, XCircle, Clock,
+  Bed, Wallet, Receipt, History, CheckCircle2, XCircle, Clock, ArrowRightLeft,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,7 @@ import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
 import { RecordTimeline } from '@/components/shared/RecordTimeline'
 import { RecordDetailView } from '@/components/shared/RecordTimeline'
 import { DepositReceipt } from '@/components/shared/DepositReceipt'
+import { RoomHistoryTable, RoomTransferPanel } from '@/components/shared/RoomTransferPanel'
 import { hospitalSettings, depositTypes } from '@/data/mockData'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
@@ -33,7 +34,7 @@ export default function PatientBilling() {
   const navigate = useNavigate()
   const location = useLocation()
   const { toast } = useToast()
-  const { getPatient, getPatientDeposits, addDeposit, setDoctorVisitDisabled } = usePatients()
+  const { getPatient, getPatientDeposits, addDeposit, setDoctorVisitDisabled, getRoomAssignments, rooms } = usePatients()
   const {
     getPatientRecords,
     getPatientBalance,
@@ -88,6 +89,7 @@ export default function PatientBilling() {
   const { totalCharges, remainingBalance, pendingCharges } = balance
   const isLowBalance = remainingBalance < hospitalSettings.lowBalanceThreshold
   const approvedBillItems = getApprovedLineItems(patientId)
+  const roomAssignments = getRoomAssignments(patientId)
 
   const today = new Date().toISOString().split('T')[0]
   const doctorVisitDates = (() => {
@@ -226,9 +228,19 @@ export default function PatientBilling() {
         )}
 
         <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" />{patient.name}</CardTitle>
-            <CardDescription>Patient ID: {patient.id}</CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" />{patient.name}</CardTitle>
+              <CardDescription>Patient ID: {patient.id}</CardDescription>
+            </div>
+            {patient.status === 'admitted' && (
+              <RoomTransferPanel
+                patientId={patientId}
+                assignedBy={CURRENT_RECEPTIONIST}
+                compact
+                onTransferred={() => ensureAutomaticDailyCharges(patientId)}
+              />
+            )}
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -251,6 +263,21 @@ export default function PatientBilling() {
           />
           <StatCard title="Pending Charges" value={formatCurrency(pendingCharges)} subtitle="Not yet on bill" icon={Clock} iconClassName="bg-amber-100 text-amber-600" />
         </div>
+
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-primary" />
+              Room History
+            </CardTitle>
+            <CardDescription>
+              All room assignments for this admission. Charges on the invoice use each period&apos;s stored daily rate.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RoomHistoryTable assignments={roomAssignments} rooms={rooms} />
+          </CardContent>
+        </Card>
 
         <div className="mb-8">
           <ServiceRecordBuilder

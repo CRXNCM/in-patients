@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useBillingConfig } from '@/context/BillingConfigContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
+import { RoomTransferPanel } from '@/components/shared/RoomTransferPanel'
 import { formatCurrency } from '@/lib/utils'
 import { BILLING_TYPES } from '@/data/mockData'
 import { cn } from '@/lib/utils'
@@ -38,7 +39,7 @@ export function ServiceRecordBuilder({
   const [activeCategory, setActiveCategory] = useState(manualCategories[0]?.name || categories[0]?.name || '')
   const [cart, setCart] = useState([])
   const [returnCart, setReturnCart] = useState([])
-  const [selectedServices, setSelectedServices] = useState([])
+  const [checkedItems, setCheckedItems] = useState({})
   const [form, setForm] = useState({ serviceName: '', quantity: 1, notes: '' })
   const [returnForm, setReturnForm] = useState({ serviceName: '', quantity: 1, reason: '' })
   const [editingRecordId, setEditingRecordId] = useState(null)
@@ -64,54 +65,89 @@ export function ServiceRecordBuilder({
   }, [pendingReturn?.id])
 
   useEffect(() => {
-    setSelectedServices([])
+    setCheckedItems({})
     setForm({ serviceName: '', quantity: 1, notes: '' })
   }, [activeCategory])
 
-  const addQuantityItem = () => {
-    if (!form.serviceName) {
-      toast({ title: 'Select an item', variant: 'destructive' })
-      return
-    }
-    const svc = activeCat?.services.find((s) => s.name === form.serviceName)
-    if (!svc) return
-    const line = buildServiceLine({
-      category: activeCategory,
-      serviceName: form.serviceName,
-      quantity: form.quantity,
-      unitPrice: svc.price,
-      notes: form.notes,
+  const toggleCheckItem = (serviceName, defaultQty = 1) => {
+    setCheckedItems((prev) => {
+      const next = { ...prev }
+      if (next[serviceName] !== undefined) delete next[serviceName]
+      else next[serviceName] = defaultQty
+      return next
     })
-    setCart((prev) => [...prev, line])
-    setForm({ serviceName: '', quantity: 1, notes: '' })
-    toast({ title: 'Added to record', description: form.serviceName, variant: 'success' })
   }
 
-  const toggleSelection = (serviceName) => {
-    setSelectedServices((prev) =>
-      prev.includes(serviceName) ? prev.filter((s) => s !== serviceName) : [...prev, serviceName]
-    )
+  const setItemQuantity = (serviceName, qty) => {
+    const num = Math.max(1, Number(qty) || 1)
+    setCheckedItems((prev) => ({ ...prev, [serviceName]: num }))
   }
 
-  const addSelectedToCart = () => {
-    if (selectedServices.length === 0) {
-      toast({ title: 'Select at least one service', variant: 'destructive' })
+  const addCheckedToCart = () => {
+    const names = Object.keys(checkedItems)
+    if (names.length === 0) {
+      toast({ title: 'Select at least one item', variant: 'destructive' })
       return
     }
-    const lines = selectedServices.map((name) => {
+    const lines = names.map((name) => {
       const svc = activeCat.services.find((s) => s.name === name)
       return buildServiceLine({
         category: activeCategory,
         serviceName: name,
-        quantity: 1,
+        quantity: checkedItems[name],
         unitPrice: svc.price,
         notes: '',
       })
     })
     setCart((prev) => [...prev, ...lines])
-    setSelectedServices([])
-    toast({ title: 'Services added', description: `${lines.length} service(s) added to record`, variant: 'success' })
+    setCheckedItems({})
+    toast({ title: 'Items added', description: `${lines.length} item(s) added to record`, variant: 'success' })
   }
+
+  const renderChecklistPanel = (description) => (
+    <div>
+      <p className="text-xs text-muted-foreground mb-3">{description}</p>
+      <div className="grid gap-2 sm:grid-cols-2 mb-4">
+        {activeCat.services.map((svc) => {
+          const checked = checkedItems[svc.name] !== undefined
+          return (
+            <div
+              key={svc.name}
+              className={cn(
+                'flex items-center gap-3 rounded-lg border p-3 transition-colors',
+                checked ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+              )}
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-input shrink-0"
+                checked={checked}
+                onChange={() => toggleCheckItem(svc.name)}
+              />
+              <span className="flex-1 text-sm font-medium min-w-0">{svc.name}</span>
+              {!hideMoney && (
+                <span className="text-xs text-muted-foreground shrink-0">{formatCurrency(svc.price)}</span>
+              )}
+              <div className="flex items-center gap-1 shrink-0">
+                <Label className="text-xs text-muted-foreground sr-only">Qty</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  className="h-8 w-16 text-center"
+                  value={checked ? checkedItems[svc.name] : 1}
+                  disabled={!checked}
+                  onChange={(e) => setItemQuantity(svc.name, e.target.value)}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <Button type="button" onClick={addCheckedToCart} disabled={Object.keys(checkedItems).length === 0}>
+        <Plus className="h-4 w-4 mr-1" /> Add Selected ({Object.keys(checkedItems).length})
+      </Button>
+    </div>
+  )
 
   const handleDoneServices = () => {
     if (cart.length === 0) {
@@ -183,101 +219,48 @@ export function ServiceRecordBuilder({
     if (activeCat.billingType === BILLING_TYPES.AUTOMATIC_DAILY) {
       const isRoom = activeCat.id === 'room'
       return (
-        <div className="rounded-xl border bg-muted/30 p-6 text-center space-y-3">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mx-auto">
-            {isRoom ? <Bed className="h-6 w-6" /> : <Stethoscope className="h-6 w-6" />}
-          </div>
-          <h3 className="font-semibold">{activeCat.name}</h3>
-          <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            {isRoom
-              ? 'Room charges are calculated automatically from the patient\'s room assignment history.'
-              : 'This category is billed automatically once per admission day.'}
-          </p>
-          {!isRoom && !hideMoney && (
-            <p className="text-sm font-medium text-primary">
-              Daily fee: {formatCurrency(settings.dailyDoctorVisitFee)}
-            </p>
-          )}
-          <div className="flex items-start gap-2 text-left text-xs text-muted-foreground bg-background rounded-lg p-3 border max-w-md mx-auto">
-            <Info className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>
+        <div className="space-y-6">
+          <div className="rounded-xl border bg-muted/30 p-6 text-center space-y-3">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mx-auto">
+              {isRoom ? <Bed className="h-6 w-6" /> : <Stethoscope className="h-6 w-6" />}
+            </div>
+            <h3 className="font-semibold">{activeCat.name}</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
               {isRoom
-                ? 'If the room changes, the correct rate applies from the transfer date onward. No manual entry needed.'
-                : 'Reception can disable a specific day\'s doctor visit if the doctor did not visit. No manual entry needed.'}
-            </span>
+                ? 'Room charges are calculated automatically from the patient\'s room assignment history.'
+                : 'This category is billed automatically once per admission day.'}
+            </p>
+            {!isRoom && !hideMoney && (
+              <p className="text-sm font-medium text-primary">
+                Daily fee: {formatCurrency(settings.dailyDoctorVisitFee)}
+              </p>
+            )}
+            <div className="flex items-start gap-2 text-left text-xs text-muted-foreground bg-background rounded-lg p-3 border max-w-md mx-auto">
+              <Info className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>
+                {isRoom
+                  ? 'If the room changes, the correct rate applies from the transfer date onward. No manual entry needed.'
+                  : 'Reception can disable a specific day\'s doctor visit if the doctor did not visit. No manual entry needed.'}
+              </span>
+            </div>
           </div>
+          {isRoom && !hideMoney && (
+            <div className="rounded-xl border p-4 text-left">
+              <RoomTransferPanel patientId={patientId} assignedBy={recordedBy} />
+            </div>
+          )}
         </div>
       )
     }
 
-    if (activeCat.billingType === BILLING_TYPES.SELECTION) {
-      return (
-        <div>
-          <p className="text-xs text-muted-foreground mb-3">{activeCat.description} — select one or more, no quantity.</p>
-          <div className="grid gap-2 sm:grid-cols-2 mb-4">
-            {activeCat.services.map((svc) => {
-              const checked = selectedServices.includes(svc.name)
-              return (
-                <label
-                  key={svc.name}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
-                    checked ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-input"
-                    checked={checked}
-                    onChange={() => toggleSelection(svc.name)}
-                  />
-                  <span className="flex-1 text-sm font-medium">{svc.name}</span>
-                  {!hideMoney && <span className="text-xs text-muted-foreground">{formatCurrency(svc.price)}</span>}
-                </label>
-              )
-            })}
-          </div>
-          <Button type="button" onClick={addSelectedToCart} disabled={selectedServices.length === 0}>
-            <Plus className="h-4 w-4 mr-1" /> Add Selected ({selectedServices.length})
-          </Button>
-        </div>
-      )
+    if (
+      activeCat.billingType === BILLING_TYPES.SELECTION ||
+      activeCat.billingType === BILLING_TYPES.QUANTITY
+    ) {
+      return renderChecklistPanel(`${activeCat.description} — select items and set quantity for each.`)
     }
 
-    // Quantity based
-    return (
-      <div>
-        <p className="text-xs text-muted-foreground mb-3">{activeCat.description}</p>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end mb-4">
-          <div className="lg:col-span-2">
-            <Label>{activeCat.id === 'pharmacy' ? 'Medicine' : 'Item'}</Label>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={form.serviceName}
-              onChange={(e) => setForm((p) => ({ ...p, serviceName: e.target.value }))}
-            >
-              <option value="">Select...</option>
-              {activeCat.services.map((s) => (
-                <option key={s.name} value={s.name}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <Label>Quantity</Label>
-            <Input type="number" min="1" value={form.quantity} onChange={(e) => setForm((p) => ({ ...p, quantity: e.target.value }))} />
-          </div>
-          <div>
-            <Button type="button" onClick={addQuantityItem} className="w-full">
-              <Plus className="h-4 w-4 mr-1" /> Add
-            </Button>
-          </div>
-        </div>
-        <div>
-          <Label>Notes (optional)</Label>
-          <Input placeholder="Notes..." value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
