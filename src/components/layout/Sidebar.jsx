@@ -66,7 +66,7 @@ export function Sidebar({ role, collapsed, onToggle }) {
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-primary">MedBill Pro</p>
+            <p className="truncate text-sm font-bold text-primary">InCare</p>
             <p className="truncate text-xs text-muted-foreground">Central City</p>
           </div>
         )}

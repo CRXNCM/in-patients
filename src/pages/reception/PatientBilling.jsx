@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, AlertTriangle, Plus, Printer, User, Phone, Calendar,
   Bed, Wallet, Receipt, History, CheckCircle2, XCircle, Clock, ArrowRightLeft,
@@ -32,9 +32,8 @@ import { cn } from '@/lib/utils'
 export default function PatientBilling() {
   const { patientId } = useParams()
   const navigate = useNavigate()
-  const location = useLocation()
   const { toast } = useToast()
-  const { getPatient, getPatientDeposits, addDeposit, setDoctorVisitDisabled, getRoomAssignments, rooms } = usePatients()
+  const { getPatient, getPatientDeposits, addDeposit, setDoctorVisitDisabled, getRoomAssignments, rooms, loading } = usePatients()
   const {
     getPatientRecords,
     getPatientBalance,
@@ -63,15 +62,9 @@ export default function PatientBilling() {
     return () => window.removeEventListener('afterprint', onAfterPrint)
   }, [])
 
-  useEffect(() => {
-    if (!location.state?.printInitialDeposit || !patientId) return
-    const patientDeposits = getPatientDeposits(patientId)
-    if (patientDeposits.length === 0) return
-    const initial = patientDeposits.find((d) => d.isInitial) || patientDeposits[0]
-    setPrintDeposit(initial)
-    setTimeout(() => window.print(), 200)
-    navigate(location.pathname, { replace: true, state: {} })
-  }, [location.state, patientId, getPatientDeposits, location.pathname, navigate])
+  if (loading) {
+    return <div className="text-center py-20 text-muted-foreground">Loading patient...</div>
+  }
 
   if (!patient) {
     return (
@@ -103,18 +96,22 @@ export default function PatientBilling() {
     return dates.slice(0, 14)
   })()
 
-  const handleAddDeposit = () => {
+  const handleAddDeposit = async () => {
     const amount = Number(newDeposit.amount)
     if (!amount || amount <= 0) {
       toast({ title: 'Error', description: 'Enter a valid amount', variant: 'destructive' })
       return
     }
-    const entry = addDeposit(patientId, { amount, method: newDeposit.method })
-    setNewDeposit({ amount: '', method: 'Cash' })
-    setShowDepositDialog(false)
-    toast({ title: 'Deposit Recorded', description: `${formatCurrency(amount)} added`, variant: 'success' })
-    setPrintDeposit(entry)
-    setTimeout(() => window.print(), 150)
+    try {
+      const entry = await addDeposit(patientId, { amount, method: newDeposit.method })
+      setNewDeposit({ amount: '', method: 'Cash' })
+      setShowDepositDialog(false)
+      toast({ title: 'Deposit Recorded', description: `${formatCurrency(amount)} added`, variant: 'success' })
+      setPrintDeposit(entry)
+      setTimeout(() => window.print(), 150)
+    } catch (err) {
+      toast({ title: 'Deposit failed', description: err.message, variant: 'destructive' })
+    }
   }
 
   const handlePrintDeposit = (deposit) => {
@@ -122,30 +119,42 @@ export default function PatientBilling() {
     setTimeout(() => window.print(), 150)
   }
 
-  const handleDoctorVisitToggle = (date, disabled) => {
-    setDoctorVisitDisabled(patientId, date, disabled)
-    ensureAutomaticDailyCharges(patientId)
-    toast({
-      title: disabled ? 'Doctor visit disabled' : 'Doctor visit enabled',
-      description: `${formatDate(date)} — automatic charge ${disabled ? 'removed' : 'restored'}`,
-      variant: 'success',
-    })
+  const handleDoctorVisitToggle = async (date, disabled) => {
+    try {
+      await setDoctorVisitDisabled(patientId, date, disabled)
+      await ensureAutomaticDailyCharges(patientId)
+      toast({
+        title: disabled ? 'Doctor visit disabled' : 'Doctor visit enabled',
+        description: `${formatDate(date)} — automatic charge ${disabled ? 'removed' : 'restored'}`,
+        variant: 'success',
+      })
+    } catch (err) {
+      toast({ title: 'Update failed', description: err.message, variant: 'destructive' })
+    }
   }
 
-  const handleApprove = (record) => {
-    approveRecord(record.id)
-    toast({ title: 'Approved', description: `Record for ${record.recordName} approved`, variant: 'success' })
+  const handleApprove = async (record) => {
+    try {
+      await approveRecord(record.id)
+      toast({ title: 'Approved', description: `Record for ${record.recordName} approved`, variant: 'success' })
+    } catch (err) {
+      toast({ title: 'Approve failed', description: err.message, variant: 'destructive' })
+    }
   }
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!rejectReason.trim()) {
       toast({ title: 'Provide a rejection reason', variant: 'destructive' })
       return
     }
-    rejectRecord(rejectRecordId, rejectReason)
-    toast({ title: 'Rejected', variant: 'success' })
-    setRejectRecordId(null)
-    setRejectReason('')
+    try {
+      await rejectRecord(rejectRecordId, rejectReason)
+      toast({ title: 'Rejected', variant: 'success' })
+      setRejectRecordId(null)
+      setRejectReason('')
+    } catch (err) {
+      toast({ title: 'Reject failed', description: err.message, variant: 'destructive' })
+    }
   }
 
   const billingTableColumns = [

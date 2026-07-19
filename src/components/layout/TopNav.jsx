@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useTheme } from '@/context/ThemeContext'
+import { useAuth } from '@/context/AuthContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { cn, formatDateTime } from '@/lib/utils'
 
@@ -15,17 +16,12 @@ const roleLabels = {
   manager: 'Manager',
 }
 
-const roleUsers = {
-  reception: { name: 'Sara Bekele', initials: 'SB' },
-  nurse: { name: 'Nurse Almaz Tsegaye', initials: 'AT' },
-  admin: { name: 'Admin User', initials: 'AU' },
-  manager: { name: 'Manager User', initials: 'MU' },
-}
-
 export function TopNav({ role, sidebarCollapsed, onMenuClick }) {
   const { darkMode, toggleDarkMode } = useTheme()
   const navigate = useNavigate()
-  const user = roleUsers[role] || roleUsers.reception
+  const { user: authUser, logout } = useAuth()
+  const displayName = authUser?.name || 'User'
+  const displayInitials = authUser?.initials || 'U'
   const [showNotifications, setShowNotifications] = useState(false)
 
   const {
@@ -128,17 +124,25 @@ export function TopNav({ role, sidebarCollapsed, onMenuClick }) {
         <div className="hidden sm:flex items-center gap-2 ml-2 pl-2 border-l">
           <Avatar className="h-8 w-8">
             <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-              {user.initials}
+              {displayInitials}
             </AvatarFallback>
           </Avatar>
           <div className="hidden lg:block">
-            <p className="text-sm font-medium leading-none">{user.name}</p>
+            <p className="text-sm font-medium leading-none">{displayName}</p>
             <p className="text-xs text-muted-foreground">{roleLabels[role]}</p>
           </div>
           <ChevronDown className="h-4 w-4 text-muted-foreground hidden lg:block" />
         </div>
 
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')} title="Switch role">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            logout()
+            navigate('/login')
+          }}
+          title="Sign out"
+        >
           <LogOut className="h-4 w-4" />
         </Button>
       </div>

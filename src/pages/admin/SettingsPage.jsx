@@ -15,9 +15,13 @@ export default function SettingsPage() {
   const { categories, settings, updateSettings, updateCategoryBillingType } = useBillingConfig()
   const [local, setLocal] = useState({ ...settings })
 
-  const handleSave = () => {
-    updateSettings(local)
-    toast({ title: 'Settings Saved', description: 'Hospital and billing configuration updated', variant: 'success' })
+  const handleSave = async () => {
+    try {
+      await updateSettings(local)
+      toast({ title: 'Settings Saved', description: 'Hospital and billing configuration updated', variant: 'success' })
+    } catch (err) {
+      toast({ title: 'Save failed', description: err.message, variant: 'destructive' })
+    }
   }
 
   return (
@@ -101,9 +105,13 @@ export default function SettingsPage() {
                       <select
                         className="flex h-9 rounded-md border border-input bg-background px-2 text-sm"
                         value={cat.billingType}
-                        onChange={(e) => {
-                          updateCategoryBillingType(cat.id, e.target.value)
-                          toast({ title: 'Billing Type Updated', description: `${cat.name} → ${BILLING_TYPE_LABELS[e.target.value]}`, variant: 'success' })
+                        onChange={async (e) => {
+                          try {
+                            await updateCategoryBillingType(cat.id, e.target.value)
+                            toast({ title: 'Billing Type Updated', description: `${cat.name} → ${BILLING_TYPE_LABELS[e.target.value]}`, variant: 'success' })
+                          } catch (err) {
+                            toast({ title: 'Update failed', description: err.message, variant: 'destructive' })
+                          }
                         }}
                       >
                         <option value={BILLING_TYPES.QUANTITY}>{BILLING_TYPE_LABELS.quantity}</option>

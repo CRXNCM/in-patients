@@ -149,28 +149,33 @@ export function ServiceRecordBuilder({
     </div>
   )
 
-  const handleDoneServices = () => {
+  const handleDoneServices = async () => {
     if (cart.length === 0) {
       toast({ title: 'No services in record', description: 'Add services first, then click Done', variant: 'destructive' })
       return
     }
-    submitDailyRecord({
-      patientId,
-      services: cart,
-      source,
-      recordedBy,
-      existingRecordId: editingRecordId,
-    })
-    setCart([])
-    setEditingRecordId(null)
-    toast({
-      title: autoApprove ? 'Record Saved' : 'Daily Record Submitted',
-      description: autoApprove
-        ? `${patientName} — ${cart.length} service(s) added`
-        : `${patientName} — sent to reception for approval`,
-      variant: 'success',
-    })
-    onDone?.()
+    const count = cart.length
+    try {
+      await submitDailyRecord({
+        patientId,
+        services: cart,
+        source,
+        recordedBy,
+        existingRecordId: editingRecordId,
+      })
+      setCart([])
+      setEditingRecordId(null)
+      toast({
+        title: autoApprove ? 'Record Saved' : 'Daily Record Submitted',
+        description: autoApprove
+          ? `${patientName} — ${count} service(s) added`
+          : `${patientName} — sent to reception for approval`,
+        variant: 'success',
+      })
+      onDone?.()
+    } catch (err) {
+      toast({ title: 'Submit failed', description: err.message, variant: 'destructive' })
+    }
   }
 
   const addToReturnCart = () => {
@@ -191,26 +196,30 @@ export function ServiceRecordBuilder({
     toast({ title: 'Added to return', description: returnForm.serviceName, variant: 'success' })
   }
 
-  const handleDoneReturn = () => {
+  const handleDoneReturn = async () => {
     if (returnCart.length === 0) {
       toast({ title: 'No returns selected', variant: 'destructive' })
       return
     }
-    submitPharmacyReturn({
-      patientId,
-      returnItems: returnCart,
-      source,
-      recordedBy,
-      existingRecordId: editingReturnId,
-    })
-    setReturnCart([])
-    setEditingReturnId(null)
-    toast({
-      title: autoApprove ? 'Return Saved' : 'Pharmacy Return Submitted',
-      description: `${patientName} — reception will cross-check`,
-      variant: 'success',
-    })
-    onDone?.()
+    try {
+      await submitPharmacyReturn({
+        patientId,
+        returnItems: returnCart,
+        source,
+        recordedBy,
+        existingRecordId: editingReturnId,
+      })
+      setReturnCart([])
+      setEditingReturnId(null)
+      toast({
+        title: autoApprove ? 'Return Saved' : 'Pharmacy Return Submitted',
+        description: `${patientName} — reception will cross-check`,
+        variant: 'success',
+      })
+      onDone?.()
+    } catch (err) {
+      toast({ title: 'Submit failed', description: err.message, variant: 'destructive' })
+    }
   }
 
   const renderCategoryPanel = () => {

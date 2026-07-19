@@ -1,4 +1,4 @@
-# MedBill Pro — Hospital In-Patient Billing & Deposit Management System
+# InCare — Hospital In-Patient Billing & Deposit Management System
 
 A modern, professional hospital in-patient billing and deposit management dashboard for **Central City Hospital**. Built with React, Vite, Tailwind CSS, and shadcn/ui. All data is mock/sample data in **Ethiopian Birr (ETB)** — no backend required.
 
@@ -1128,4 +1128,4 @@ Reception → Patient Billing → Automatic Doctor Visits
 
 ---
 
-*MedBill Pro · Central City Hospital · Demo Application · Currency: ETB*
+*InCare · Central City Hospital · Demo Application · Currency: ETB*

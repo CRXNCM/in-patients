@@ -90,7 +90,7 @@ export function RoomTransferPanel({
   const selectedRoom = rooms.find((r) => r.id === form.roomId)
   const availableBedsInRoom = selectedRoom?.beds.filter((b) => b.status === 'available') || []
 
-  const handleTransfer = () => {
+  const handleTransfer = async () => {
     if (!form.roomId || !form.bedId) {
       toast({ title: 'Select room and bed', variant: 'destructive' })
       return
@@ -100,33 +100,37 @@ export function RoomTransferPanel({
       return
     }
 
-    const result = transferPatientRoom(patientId, {
-      roomId: form.roomId,
-      bedId: form.bedId,
-      transferDate: form.transferDate,
-      transferReason: form.transferReason.trim(),
-      assignedBy,
-    })
+    try {
+      const result = await transferPatientRoom(patientId, {
+        roomId: form.roomId,
+        bedId: form.bedId,
+        transferDate: form.transferDate,
+        transferReason: form.transferReason.trim(),
+        assignedBy,
+      })
 
-    if (!result) {
-      toast({ title: 'Transfer failed', description: 'Bed may no longer be available', variant: 'destructive' })
-      return
+      if (!result) {
+        toast({ title: 'Transfer failed', description: 'Bed may no longer be available', variant: 'destructive' })
+        return
+      }
+
+      await ensureAutomaticDailyCharges(patientId)
+      setOpen(false)
+      setForm({
+        roomId: '',
+        bedId: '',
+        transferDate: new Date().toISOString().split('T')[0],
+        transferReason: '',
+      })
+      toast({
+        title: 'Room Transfer Complete',
+        description: `${patient?.name} moved to ${result.roomType} · ${result.bedLabel}`,
+        variant: 'success',
+      })
+      onTransferred?.(result)
+    } catch (err) {
+      toast({ title: 'Transfer failed', description: err.message, variant: 'destructive' })
     }
-
-    ensureAutomaticDailyCharges(patientId)
-    setOpen(false)
-    setForm({
-      roomId: '',
-      bedId: '',
-      transferDate: new Date().toISOString().split('T')[0],
-      transferReason: '',
-    })
-    toast({
-      title: 'Room Transfer Complete',
-      description: `${patient?.name} moved to ${result.roomType} · ${result.bedLabel}`,
-      variant: 'success',
-    })
-    onTransferred?.(result)
   }
 
   if (!patient || patient.status === 'discharged') return null

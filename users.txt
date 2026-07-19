@@ -1,0 +1,9 @@
+Role	Email
+Reception
+sara.bekele@stgabriel.et
+Nurse
+almaz.tsegaye@stgabriel.et
+Admin
+admin@stgabriel.et
+Manager
+manager@stgabriel.et

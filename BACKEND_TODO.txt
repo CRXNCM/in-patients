@@ -1,0 +1,113 @@
+================================================================================
+InCare — MERN BACKEND TODO (Step-by-Step, Keep It Simple)
+================================================================================
+Stack: MongoDB + Express + Node.js  |  Frontend: React (existing)
+Auth: JWT  |  ODM: Mongoose  |  No Prisma, no Postgres for now
+
+Legend: [ ] todo  [~] in progress  [x] done
+
+================================================================================
+PHASE 0 — SERVER SETUP
+================================================================================
+[x] 0.1  Create /server folder
+[x] 0.2  package.json + scripts (dev, start)
+[x] 0.3  Install: express, mongoose, cors, dotenv, bcryptjs, jsonwebtoken
+[x] 0.4  .env.example (MONGODB_URI, JWT_SECRET, PORT, CORS_ORIGIN)
+[x] 0.5  Express app + GET /api/health
+[x] 0.6  MongoDB connect on startup
+[x] 0.7  CORS for http://localhost:5173
+
+================================================================================
+PHASE 1 — MONGOOSE MODELS (CORE ONLY)
+================================================================================
+[x] 1.1  User (email, password, name, role, status)
+[x] 1.2  Patient (info, admissionDate, status, depositTotal, disabledDoctorVisits)
+[x] 1.3  Deposit (patientId, amount, method, date, receivedBy, isInitial)
+[x] 1.4  RoomType + Bed (type, dailyRate, label, status)
+[x] 1.5  RoomAssignment (patientId, bedId, dates, dailyRate, reason, assignedBy)
+[x] 1.6  ServiceCategory + ServiceItem (billingType, name, price)
+[x] 1.7  ServiceRecord (patientId, date, type, status, lines, auditTrail, autoType)
+[x] 1.8  HospitalSettings (single doc or key-value — keep one settings document)
+
+================================================================================
+PHASE 2 — SEED SCRIPT
+================================================================================
+[x] 2.1  scripts/seed.js — clear + insert demo data
+[x] 2.2  Users with hashed password "password"
+[x] 2.3  Room types, beds, categories, service items, settings
+[x] 2.4  Optional: 2 sample patients
+[x] 2.5  npm run seed
+
+================================================================================
+PHASE 3 — AUTH
+================================================================================
+[x] 3.1  POST /api/auth/login
+[x] 3.2  GET  /api/auth/me
+[x] 3.3  auth middleware + requireRole()
+
+================================================================================
+PHASE 4 — PATIENTS (RECEPTION)
+================================================================================
+[x] 4.1  GET  /api/patients
+[x] 4.2  GET  /api/patients/:id  (+ balance, deposits, assignments)
+[x] 4.3  POST /api/patients  (admit: patient + bed + deposit + auto charges)
+[x] 4.4  POST /api/patients/:id/deposits
+[x] 4.5  GET  /api/beds/available
+
+================================================================================
+PHASE 5 — ROOM TRANSFER
+================================================================================
+[x] 5.1  POST /api/patients/:id/transfer-room
+[x] 5.2  Recalc room charges after transfer
+
+================================================================================
+PHASE 6 — SERVICE RECORDS
+================================================================================
+[x] 6.1  GET  /api/records/pending
+[x] 6.2  GET  /api/patients/:id/records
+[x] 6.3  POST /api/patients/:id/records  (nurse=pending, reception=approved)
+[x] 6.4  POST /api/patients/:id/returns
+[x] 6.5  POST /api/records/:id/approve
+[x] 6.6  POST /api/records/:id/reject
+
+================================================================================
+PHASE 7 — AUTO DAILY CHARGES
+================================================================================
+[x] 7.1  services/autoCharges.js — room + doctor (dedupe by patient+date)
+[x] 7.2  Call on admit, get patient, room transfer
+[x] 7.3  PATCH /api/patients/:id/doctor-visits/:date
+
+================================================================================
+PHASE 8 — SETTINGS (ADMIN)
+================================================================================
+[x] 8.1  GET /api/settings
+[x] 8.2  PUT /api/settings
+[x] 8.3  GET /api/settings/categories
+[x] 8.4  PATCH /api/settings/categories/:slug/billing-type
+
+================================================================================
+PHASE 9 — CONNECT REACT FRONTEND
+================================================================================
+[x] 9.1  src/api/client.js + VITE_API_URL
+[x] 9.2  AuthContext → real login
+[x] 9.3  PatientsContext → API (patients, rooms, deposits, transfer)
+[x] 9.4  ServiceEntriesContext → API (records, approve/reject)
+[x] 9.5  BillingConfigContext → API (settings, categories)
+
+================================================================================
+HOW TO RUN
+================================================================================
+Backend:
+  cd server
+  npm install
+  npm run seed
+  npm run dev
+
+Frontend (API on by default; set VITE_USE_API=false for mock-only):
+  npm run dev
+
+Demo login: sara.bekele@stgabriel.et / password
+
+================================================================================
+Last updated: 2026-07-19 — ALL PHASES COMPLETE
+================================================================================

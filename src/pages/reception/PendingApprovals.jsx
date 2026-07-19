@@ -27,22 +27,33 @@ export default function PendingApprovals() {
 
   const pending = getPendingRecords()
 
-  const handleApprove = (record) => {
-    approveRecord(record.id, record.type === 'pharmacy_return' ? 'Pharmacy return verified' : 'Daily record verified and approved')
-    toast({ title: 'Record Approved', description: `${record.recordName} — added to billing`, variant: 'success' })
-    setSelectedRecord(null)
+  const handleApprove = async (record) => {
+    try {
+      await approveRecord(
+        record.id,
+        record.type === 'pharmacy_return' ? 'Pharmacy return verified' : 'Daily record verified and approved'
+      )
+      toast({ title: 'Record Approved', description: `${record.recordName} — added to billing`, variant: 'success' })
+      setSelectedRecord(null)
+    } catch (err) {
+      toast({ title: 'Approve failed', description: err.message, variant: 'destructive' })
+    }
   }
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!rejectReason.trim()) {
       toast({ title: 'Provide a rejection reason', variant: 'destructive' })
       return
     }
-    rejectRecord(rejectRecordId, rejectReason)
-    toast({ title: 'Record Rejected', variant: 'success' })
-    setRejectRecordId(null)
-    setRejectReason('')
-    setSelectedRecord(null)
+    try {
+      await rejectRecord(rejectRecordId, rejectReason)
+      toast({ title: 'Record Rejected', variant: 'success' })
+      setRejectRecordId(null)
+      setRejectReason('')
+      setSelectedRecord(null)
+    } catch (err) {
+      toast({ title: 'Reject failed', description: err.message, variant: 'destructive' })
+    }
   }
 
   const columns = [
@@ -169,10 +180,24 @@ export function PendingApprovalsPanel({ limit = 5 }) {
               </div>
               <div className="flex items-center gap-2">
                 <StatusBadge status="pending" />
-                <Button size="sm" variant="outline" className="text-emerald-600" onClick={() => { approveRecord(record.id); toast({ title: 'Approved', variant: 'success' }) }}>
+                <Button size="sm" variant="outline" className="text-emerald-600" onClick={async () => {
+                  try {
+                    await approveRecord(record.id)
+                    toast({ title: 'Approved', variant: 'success' })
+                  } catch (err) {
+                    toast({ title: 'Approve failed', description: err.message, variant: 'destructive' })
+                  }
+                }}>
                   <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
                 </Button>
-                <Button size="sm" variant="outline" className="text-red-600" onClick={() => { rejectRecord(record.id, 'Rejected from dashboard'); toast({ title: 'Rejected', variant: 'success' }) }}>
+                <Button size="sm" variant="outline" className="text-red-600" onClick={async () => {
+                  try {
+                    await rejectRecord(record.id, 'Rejected from dashboard')
+                    toast({ title: 'Rejected', variant: 'success' })
+                  } catch (err) {
+                    toast({ title: 'Reject failed', description: err.message, variant: 'destructive' })
+                  }
+                }}>
                   <XCircle className="h-4 w-4" />
                 </Button>
               </div>
