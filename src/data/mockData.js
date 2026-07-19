@@ -404,13 +404,10 @@ export const hospitalRooms = buildHospitalRooms(occupiedBedMap)
 export const initialRoomAssignments = buildInitialRoomAssignments(patients)
 
 export const users = [
-  { id: 1, name: 'Sara Bekele', email: 'sara.bekele@stgabriel.et', role: 'Reception', status: 'active' },
-  { id: 2, name: 'Helen Tadesse', email: 'helen.tadesse@stgabriel.et', role: 'Reception', status: 'active' },
-  { id: 3, name: 'Admin User', email: 'admin@stgabriel.et', role: 'Admin', status: 'active' },
-  { id: 4, name: 'Manager User', email: 'manager@stgabriel.et', role: 'Manager', status: 'active' },
-  { id: 5, name: 'Daniel Mekonnen', email: 'daniel.m@stgabriel.et', role: 'Reception', status: 'inactive' },
-  { id: 6, name: 'Nurse Almaz Tsegaye', email: 'almaz.tsegaye@stgabriel.et', role: 'Nurse', status: 'active' },
-  { id: 7, name: 'Nurse Bethlehem Haile', email: 'bethlehem.h@stgabriel.et', role: 'Nurse', status: 'active' },
+  { id: 1, name: 'Sara Bekele', email: 'reception@cc', role: 'Reception', status: 'active' },
+  { id: 3, name: 'Admin User', email: 'admin@cc', role: 'Admin', status: 'active' },
+  { id: 4, name: 'Manager User', email: 'manager@cc', role: 'Manager', status: 'active' },
+  { id: 6, name: 'Nurse Almaz Tsegaye', email: 'nurse@cc', role: 'Nurse', status: 'active' },
 ]
 
 /** Admin-defined service categories with billing behavior types */

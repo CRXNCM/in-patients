@@ -6,7 +6,7 @@ import { RoomAssignment } from '../models/RoomAssignment.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { authRequired } from '../middleware/auth.js'
 import { ensureAutomaticDailyCharges, calcPatientBalance, setDoctorVisitDisabled } from '../services/autoCharges.js'
-import { validateAdmitBody, validateDepositBody, validateTransferBody } from '../utils/validation.js'
+import { validateAdmitBody, validateDepositBody, validateTransferBody, computeAgeFromDob } from '../utils/validation.js'
 import {
   toFrontendPatient,
   toFrontendAssignment,
@@ -315,11 +315,16 @@ router.post('/', authRequired, async (req, res) => {
 
     const patientId = await nextPatientId()
     const deposit = Number(body.depositAmount)
+    const admissionDate = body.admissionDate
+    const ageValue =
+      body.age !== undefined && body.age !== null && body.age !== ''
+        ? Number(body.age)
+        : computeAgeFromDob(body.dateOfBirth)
 
     const patient = await Patient.create({
       patientId,
       name: String(body.name).trim(),
-      age: Number(body.age),
+      age: ageValue,
       dateOfBirth: body.dateOfBirth || null,
       gender: body.gender,
       phone: body.phone?.trim() || '',

@@ -68,6 +68,9 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ billingType }),
     }),
+
+  getManagerDashboard: () => apiFetch('/api/manager/dashboard'),
+  getManagerReport: (type) => apiFetch(`/api/manager/reports/${type}`),
 }
 
 export { API_URL, USE_API }

@@ -10,7 +10,13 @@ import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { validateRoomTransfer, firstError, trimText } from '@/lib/validation'
 import { hospitalRooms } from '@/data/mockData'
+
+function FieldError({ message }) {
+  if (!message) return null
+  return <p className="text-xs text-destructive mt-1">{message}</p>
+}
 
 export function RoomHistoryTable({ assignments, rooms = hospitalRooms }) {
   if (!assignments?.length) {
@@ -78,6 +84,8 @@ export function RoomTransferPanel({
     transferDate: new Date().toISOString().split('T')[0],
     transferReason: '',
   })
+  const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
 
   const patient = getPatient(patientId)
   const assignments = getRoomAssignments(patientId)
@@ -91,21 +99,24 @@ export function RoomTransferPanel({
   const availableBedsInRoom = selectedRoom?.beds.filter((b) => b.status === 'available') || []
 
   const handleTransfer = async () => {
-    if (!form.roomId || !form.bedId) {
-      toast({ title: 'Select room and bed', variant: 'destructive' })
-      return
+    const trimmed = {
+      ...form,
+      transferReason: trimText(form.transferReason),
     }
-    if (!form.transferReason.trim()) {
-      toast({ title: 'Transfer reason required', variant: 'destructive' })
+    const validationErrors = validateRoomTransfer(trimmed, patient, rooms)
+    if (Object.keys(validationErrors).length) {
+      setErrors(validationErrors)
+      toast({ title: 'Please fix the errors', description: firstError(validationErrors), variant: 'destructive' })
       return
     }
 
+    setSubmitting(true)
     try {
       const result = await transferPatientRoom(patientId, {
         roomId: form.roomId,
         bedId: form.bedId,
         transferDate: form.transferDate,
-        transferReason: form.transferReason.trim(),
+        transferReason: trimmed.transferReason,
         assignedBy,
       })
 
@@ -116,6 +127,7 @@ export function RoomTransferPanel({
 
       await ensureAutomaticDailyCharges(patientId)
       setOpen(false)
+      setErrors({})
       setForm({
         roomId: '',
         bedId: '',
@@ -130,6 +142,8 @@ export function RoomTransferPanel({
       onTransferred?.(result)
     } catch (err) {
       toast({ title: 'Transfer failed', description: err.message, variant: 'destructive' })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -147,10 +161,13 @@ export function RoomTransferPanel({
           patient={patient}
           form={form}
           setForm={setForm}
+          errors={errors}
+          setErrors={setErrors}
           rooms={rooms}
           availableBedsInRoom={availableBedsInRoom}
           availableCount={availableBeds.length}
           onTransfer={handleTransfer}
+          submitting={submitting}
         />
       </>
     )
@@ -186,10 +203,13 @@ export function RoomTransferPanel({
         patient={patient}
         form={form}
         setForm={setForm}
+        errors={errors}
+        setErrors={setErrors}
         rooms={rooms}
         availableBedsInRoom={availableBedsInRoom}
         availableCount={availableBeds.length}
         onTransfer={handleTransfer}
+        submitting={submitting}
       />
     </div>
   )
@@ -201,11 +221,19 @@ function TransferDialog({
   patient,
   form,
   setForm,
+  errors,
+  setErrors,
   rooms,
   availableBedsInRoom,
   availableCount,
   onTransfer,
+  submitting,
 }) {
+  const update = (key, val) => {
+    setForm((p) => ({ ...p, [key]: val }))
+    setErrors((e) => ({ ...e, [key]: undefined }))
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -217,20 +245,25 @@ function TransferDialog({
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div>
-            <Label>Transfer Date</Label>
+            <Label>Transfer Date *</Label>
             <Input
               type="date"
               min={patient?.admissionDate}
+              max={new Date().toISOString().split('T')[0]}
               value={form.transferDate}
-              onChange={(e) => setForm((p) => ({ ...p, transferDate: e.target.value }))}
+              onChange={(e) => update('transferDate', e.target.value)}
             />
+            <FieldError message={errors.transferDate} />
           </div>
           <div>
-            <Label>New Room Type</Label>
+            <Label>New Room Type *</Label>
             <select
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={form.roomId}
-              onChange={(e) => setForm((p) => ({ ...p, roomId: e.target.value, bedId: '' }))}
+              onChange={(e) => {
+                setForm((p) => ({ ...p, roomId: e.target.value, bedId: '' }))
+                setErrors((er) => ({ ...er, roomId: undefined, bedId: undefined }))
+              }}
             >
               <option value="">Select room type...</option>
               {rooms.map((room) => {
@@ -242,13 +275,14 @@ function TransferDialog({
                 )
               })}
             </select>
+            <FieldError message={errors.roomId} />
           </div>
           <div>
-            <Label>Available Bed</Label>
+            <Label>Available Bed *</Label>
             <select
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={form.bedId}
-              onChange={(e) => setForm((p) => ({ ...p, bedId: e.target.value }))}
+              onChange={(e) => update('bedId', e.target.value)}
               disabled={!form.roomId}
             >
               <option value="">Select bed...</option>
@@ -256,23 +290,25 @@ function TransferDialog({
                 <option key={bed.id} value={bed.id}>{bed.label}</option>
               ))}
             </select>
+            <FieldError message={errors.bedId} />
           </div>
           <div>
             <Label>Transfer Reason *</Label>
             <Input
               placeholder="Clinical need, upgrade, isolation..."
               value={form.transferReason}
-              onChange={(e) => setForm((p) => ({ ...p, transferReason: e.target.value }))}
+              onChange={(e) => update('transferReason', e.target.value)}
             />
+            <FieldError message={errors.transferReason} />
           </div>
           {availableCount === 0 && (
             <p className="text-sm text-amber-600">No available beds in the hospital right now.</p>
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={onTransfer} disabled={availableCount === 0}>
-            Confirm Transfer
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
+          <Button onClick={onTransfer} disabled={availableCount === 0 || submitting}>
+            {submitting ? 'Transferring...' : 'Confirm Transfer'}
           </Button>
         </DialogFooter>
       </DialogContent>

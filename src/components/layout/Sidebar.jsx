@@ -56,7 +56,7 @@ export function Sidebar({ role, collapsed, onToggle }) {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 flex h-screen flex-col border-r bg-card transition-all duration-300',
+        'no-print fixed left-0 top-0 z-40 flex h-screen flex-col border-r bg-card transition-all duration-300',
         collapsed ? 'w-[72px]' : 'w-64'
       )}
     >

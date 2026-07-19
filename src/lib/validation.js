@@ -19,6 +19,16 @@ export function todayStr() {
   return new Date().toISOString().slice(0, 10)
 }
 
+export function computeAgeFromDob(dob) {
+  if (!dob || !isValidDateString(dob)) return null
+  const birth = new Date(`${dob}T12:00:00`)
+  const now = new Date()
+  let age = now.getFullYear() - birth.getFullYear()
+  const monthDiff = now.getMonth() - birth.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) age -= 1
+  return age
+}
+
 export function validatePositiveNumber(value, label, { min = 0, allowZero = false } = {}) {
   const str = trimText(value)
   if (!str) return `${label} is required.`
@@ -128,6 +138,10 @@ export function validateAdmission(form, { rooms = [], existingPatients = [] } = 
   if (depositErr) errors.initialDeposit = depositErr
 
   if (!trimText(form.depositType)) errors.depositType = 'Payment method is required.'
+
+  if (NON_CASH_PAYMENT_METHODS.includes(form.depositType) && !trimText(form.referenceNumber)) {
+    errors.referenceNumber = 'Reference number is required for non-cash payments.'
+  }
 
   const room = rooms.find((r) => r.roomType === form.bedType)
   if (!room) {

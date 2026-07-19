@@ -82,12 +82,20 @@ export function PatientsProvider({ children }) {
         const res = await api.createPatient({
           name: patientData.name,
           age: patientData.age,
+          dateOfBirth: patientData.dateOfBirth,
           gender: patientData.gender,
           phone: patientData.phone,
+          address: patientData.address,
+          emergencyContact: patientData.emergencyContact,
+          emergencyPhone: patientData.emergencyPhone,
+          mrn: patientData.mrn,
+          nationalId: patientData.nationalId,
+          admissionReason: patientData.admissionReason,
           admissionDate: patientData.admissionDate,
           bedId: bedLabel,
           depositAmount: patientData.initialDeposit ?? patientData.deposit ?? 0,
           depositMethod: patientData.depositType || 'Cash',
+          referenceNumber: patientData.referenceNumber,
         })
         const patient = withRoomHistory(res.patient)
         setPatients((prev) => [patient, ...prev])
@@ -198,9 +206,13 @@ export function PatientsProvider({ children }) {
   )
 
   const addDeposit = React.useCallback(
-    async (patientId, { amount, method, receivedBy = 'Sara Bekele', isInitial = false }) => {
+    async (patientId, { amount, method, referenceNumber, receivedBy = 'Sara Bekele', isInitial = false }) => {
       if (USE_API) {
-        const entry = await api.addDeposit(patientId, { amount, method })
+        const entry = await api.addDeposit(patientId, {
+          amount,
+          method,
+          referenceNumber,
+        })
         setDeposits((prev) => ({
           ...prev,
           [patientId]: [...(prev[patientId] || []), { ...entry, receivedBy: entry.receivedBy || receivedBy }],
@@ -216,6 +228,7 @@ export function PatientsProvider({ children }) {
         date: new Date().toISOString().split('T')[0],
         amount: Number(amount),
         method,
+        referenceNumber: referenceNumber || '',
         receivedBy,
         isInitial,
       }

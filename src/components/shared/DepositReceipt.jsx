@@ -5,7 +5,7 @@ export function DepositReceipt({ patient, deposit, hospital = hospitalSettings }
   if (!patient || !deposit) return null
 
   return (
-    <div className="max-w-md mx-auto bg-white text-gray-900 p-8 rounded-xl border print:border-0">
+    <div className="max-w-md mx-auto bg-white text-gray-900 p-8 print:p-0 print:max-w-none rounded-xl border print:border-0 print:shadow-none">
       <div className="text-center border-b pb-4 mb-4">
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white font-bold mb-2">
           CC

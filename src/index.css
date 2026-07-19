@@ -67,14 +67,44 @@
 }
 
 @media print {
+  @page {
+    margin: 12mm;
+    size: A4;
+  }
+
   .no-print {
     display: none !important;
   }
-  .print-invoice,
-  .print-deposit {
+
+  .print-only {
     display: block !important;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 12mm;
+    background: white !important;
+    z-index: 99999;
+    overflow: visible;
+    box-sizing: border-box;
   }
+
+  body.print-invoice-mode .print-deposit {
+    display: none !important;
+  }
+
+  body.print-deposit-mode .print-invoice {
+    display: none !important;
+  }
+
   body {
     background: white !important;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none;
   }
 }

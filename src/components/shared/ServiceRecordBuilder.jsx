@@ -12,6 +12,13 @@ import { RoomTransferPanel } from '@/components/shared/RoomTransferPanel'
 import { formatCurrency } from '@/lib/utils'
 import { BILLING_TYPES } from '@/data/mockData'
 import { cn } from '@/lib/utils'
+import {
+  validateServiceCart,
+  validateReturnCart,
+  validatePositiveNumber,
+  firstError,
+  trimText,
+} from '@/lib/validation'
 
 export function ServiceRecordBuilder({
   patientId,
@@ -30,6 +37,7 @@ export function ServiceRecordBuilder({
     submitDailyRecord,
     submitPharmacyReturn,
     getPendingEditableRecord,
+    getPatientRecords,
   } = useServiceEntries()
 
   const manualCategories = categories.filter((c) => c.billingType !== BILLING_TYPES.AUTOMATIC_DAILY)
@@ -44,6 +52,8 @@ export function ServiceRecordBuilder({
   const [returnForm, setReturnForm] = useState({ serviceName: '', quantity: 1, reason: '' })
   const [editingRecordId, setEditingRecordId] = useState(null)
   const [editingReturnId, setEditingReturnId] = useState(null)
+  const [paperSlipRef, setPaperSlipRef] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
   const pendingDaily = getPendingEditableRecord(patientId, 'daily_services', today)
@@ -88,6 +98,15 @@ export function ServiceRecordBuilder({
     if (names.length === 0) {
       toast({ title: 'Select at least one item', variant: 'destructive' })
       return
+    }
+    if (activeCat?.billingType === BILLING_TYPES.QUANTITY) {
+      for (const name of names) {
+        const qtyErr = validatePositiveNumber(checkedItems[name], 'Quantity', { min: 0 })
+        if (qtyErr) {
+          toast({ title: 'Invalid quantity', description: qtyErr, variant: 'destructive' })
+          return
+        }
+      }
     }
     const lines = names.map((name) => {
       const svc = activeCat.services.find((s) => s.name === name)
@@ -150,21 +169,43 @@ export function ServiceRecordBuilder({
   )
 
   const handleDoneServices = async () => {
-    if (cart.length === 0) {
-      toast({ title: 'No services in record', description: 'Add services first, then click Done', variant: 'destructive' })
+    const cartErrors = validateServiceCart(cart, activeCategory, categories)
+    if (Object.keys(cartErrors).length) {
+      toast({ title: 'Validation error', description: firstError(cartErrors), variant: 'destructive' })
       return
     }
+
+    const slip = trimText(paperSlipRef)
+    if (slip) {
+      const cartKey = cart.map((s) => `${s.serviceName}:${s.quantity}`).sort().join('|')
+      const duplicate = getPatientRecords(patientId).find((r) => {
+        if (r.recordDate !== today || r.status === 'rejected') return false
+        const key = (r.services || []).map((s) => `${s.serviceName}:${s.quantity}`).sort().join('|')
+        return key === cartKey
+      })
+      if (duplicate && !window.confirm('A record with the same services already exists for today. Submit anyway?')) {
+        return
+      }
+    }
+
+    const servicesPayload = cart.map((line, i) =>
+      i === 0 && slip ? { ...line, notes: `${line.notes || ''} Paper slip #${slip}`.trim() } : line
+    )
+
+    setSubmitting(true)
     const count = cart.length
     try {
       await submitDailyRecord({
         patientId,
-        services: cart,
+        services: servicesPayload,
         source,
         recordedBy,
         existingRecordId: editingRecordId,
+        recordDate: today,
       })
       setCart([])
       setEditingRecordId(null)
+      setPaperSlipRef('')
       toast({
         title: autoApprove ? 'Record Saved' : 'Daily Record Submitted',
         description: autoApprove
@@ -175,12 +216,19 @@ export function ServiceRecordBuilder({
       onDone?.()
     } catch (err) {
       toast({ title: 'Submit failed', description: err.message, variant: 'destructive' })
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const addToReturnCart = () => {
     if (!returnForm.serviceName) {
       toast({ title: 'Select a medicine', variant: 'destructive' })
+      return
+    }
+    const qtyErr = validatePositiveNumber(returnForm.quantity, 'Return quantity', { min: 0 })
+    if (qtyErr) {
+      toast({ title: 'Invalid quantity', description: qtyErr, variant: 'destructive' })
       return
     }
     const med = pharmacyCategory?.services.find((s) => s.name === returnForm.serviceName)
@@ -197,10 +245,12 @@ export function ServiceRecordBuilder({
   }
 
   const handleDoneReturn = async () => {
-    if (returnCart.length === 0) {
-      toast({ title: 'No returns selected', variant: 'destructive' })
+    const returnErrors = validateReturnCart(returnCart)
+    if (Object.keys(returnErrors).length) {
+      toast({ title: 'Validation error', description: firstError(returnErrors), variant: 'destructive' })
       return
     }
+    setSubmitting(true)
     try {
       await submitPharmacyReturn({
         patientId,
@@ -219,6 +269,8 @@ export function ServiceRecordBuilder({
       onDone?.()
     } catch (err) {
       toast({ title: 'Submit failed', description: err.message, variant: 'destructive' })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -345,17 +397,26 @@ export function ServiceRecordBuilder({
             )}
 
             {activeCat?.billingType !== BILLING_TYPES.AUTOMATIC_DAILY && (
-              <div className="flex flex-wrap gap-2 mt-6">
+              <div className="flex flex-wrap gap-2 mt-6 items-end">
+                <div className="flex-1 min-w-[180px]">
+                  <Label className="text-xs">Paper Slip # (optional)</Label>
+                  <Input
+                    placeholder="e.g. 12345"
+                    value={paperSlipRef}
+                    onChange={(e) => setPaperSlipRef(e.target.value)}
+                    disabled={submitting}
+                  />
+                </div>
                 {pendingDaily && !editingRecordId && (
                   <Button variant="outline" onClick={() => {
                     setCart(pendingDaily.services.filter((s) => !['Room Services', 'Doctor Visits'].includes(s.category)))
                     setEditingRecordId(pendingDaily.id)
-                  }}>
+                  }} disabled={submitting}>
                     Edit Pending Record
                   </Button>
                 )}
-                <Button className="flex-1 sm:flex-none" size="lg" onClick={handleDoneServices}>
-                  <CheckCircle2 className="h-4 w-4 mr-2" /> Done — Save Record
+                <Button className="flex-1 sm:flex-none" size="lg" onClick={handleDoneServices} disabled={submitting || cart.length === 0}>
+                  <CheckCircle2 className="h-4 w-4 mr-2" /> {submitting ? 'Saving...' : 'Done — Save Record'}
                 </Button>
               </div>
             )}
@@ -422,8 +483,8 @@ export function ServiceRecordBuilder({
                 </table>
               </div>
             )}
-            <Button size="lg" variant="destructive" onClick={handleDoneReturn}>
-              <CheckCircle2 className="h-4 w-4 mr-2" /> Done — Submit Return
+            <Button size="lg" variant="destructive" onClick={handleDoneReturn} disabled={submitting || returnCart.length === 0}>
+              <CheckCircle2 className="h-4 w-4 mr-2" /> {submitting ? 'Submitting...' : 'Done — Submit Return'}
             </Button>
           </>
         )}

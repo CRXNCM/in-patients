@@ -28,6 +28,12 @@ import { computeRecordTotal } from '@/context/ServiceEntriesContext'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { useToast } from '@/context/ToastContext'
 import { cn } from '@/lib/utils'
+import { validateDeposit, firstError, trimText, NON_CASH_PAYMENT_METHODS } from '@/lib/validation'
+
+function FieldError({ message }) {
+  if (!message) return null
+  return <p className="text-xs text-destructive mt-1">{message}</p>
+}
 
 export default function PatientBilling() {
   const { patientId } = useParams()
@@ -46,21 +52,44 @@ export default function PatientBilling() {
 
   const patient = getPatient(patientId)
   const [showDepositDialog, setShowDepositDialog] = useState(false)
-  const [newDeposit, setNewDeposit] = useState({ amount: '', method: 'Cash' })
+  const [newDeposit, setNewDeposit] = useState({ amount: '', method: 'Cash', referenceNumber: '' })
+  const [depositErrors, setDepositErrors] = useState({})
+  const [depositSubmitting, setDepositSubmitting] = useState(false)
   const [rejectRecordId, setRejectRecordId] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
   const [detailRecord, setDetailRecord] = useState(null)
   const [printDeposit, setPrintDeposit] = useState(null)
+  const [pendingPrint, setPendingPrint] = useState(null)
 
   useEffect(() => {
     if (patientId) ensureAutomaticDailyCharges(patientId)
   }, [patientId, ensureAutomaticDailyCharges])
 
   useEffect(() => {
-    const onAfterPrint = () => setPrintDeposit(null)
+    const onAfterPrint = () => {
+      setPendingPrint(null)
+      setPrintDeposit(null)
+      document.body.classList.remove('print-invoice-mode', 'print-deposit-mode')
+    }
     window.addEventListener('afterprint', onAfterPrint)
     return () => window.removeEventListener('afterprint', onAfterPrint)
   }, [])
+
+  useEffect(() => {
+    if (!pendingPrint) return undefined
+    if (pendingPrint === 'deposit' && !printDeposit) return undefined
+
+    document.body.classList.remove('print-invoice-mode', 'print-deposit-mode')
+    document.body.classList.add(pendingPrint === 'deposit' ? 'print-deposit-mode' : 'print-invoice-mode')
+
+    const timer = window.setTimeout(() => window.print(), 200)
+    return () => window.clearTimeout(timer)
+  }, [pendingPrint, printDeposit])
+
+  const queuePrint = (mode) => {
+    if (mode === 'invoice') setPrintDeposit(null)
+    setPendingPrint(mode)
+  }
 
   if (loading) {
     return <div className="text-center py-20 text-muted-foreground">Loading patient...</div>
@@ -97,26 +126,42 @@ export default function PatientBilling() {
   })()
 
   const handleAddDeposit = async () => {
-    const amount = Number(newDeposit.amount)
-    if (!amount || amount <= 0) {
-      toast({ title: 'Error', description: 'Enter a valid amount', variant: 'destructive' })
+    const form = {
+      amount: trimText(newDeposit.amount),
+      method: newDeposit.method,
+      referenceNumber: trimText(newDeposit.referenceNumber),
+    }
+    const errors = validateDeposit(form, deposits)
+    if (Object.keys(errors).length) {
+      setDepositErrors(errors)
+      toast({ title: 'Please fix the errors', description: firstError(errors), variant: 'destructive' })
       return
     }
+
+    setDepositSubmitting(true)
     try {
-      const entry = await addDeposit(patientId, { amount, method: newDeposit.method })
-      setNewDeposit({ amount: '', method: 'Cash' })
+      const entry = await addDeposit(patientId, {
+        amount: Number(form.amount),
+        method: form.method,
+        referenceNumber: form.referenceNumber || undefined,
+        receivedBy: CURRENT_RECEPTIONIST,
+      })
+      setNewDeposit({ amount: '', method: 'Cash', referenceNumber: '' })
+      setDepositErrors({})
       setShowDepositDialog(false)
-      toast({ title: 'Deposit Recorded', description: `${formatCurrency(amount)} added`, variant: 'success' })
+      toast({ title: 'Deposit Recorded', description: `${formatCurrency(Number(form.amount))} added`, variant: 'success' })
       setPrintDeposit(entry)
-      setTimeout(() => window.print(), 150)
+      queuePrint('deposit')
     } catch (err) {
       toast({ title: 'Deposit failed', description: err.message, variant: 'destructive' })
+    } finally {
+      setDepositSubmitting(false)
     }
   }
 
   const handlePrintDeposit = (deposit) => {
     setPrintDeposit(deposit)
-    setTimeout(() => window.print(), 150)
+    queuePrint('deposit')
   }
 
   const handleDoctorVisitToggle = async (date, disabled) => {
@@ -182,8 +227,8 @@ export default function PatientBilling() {
   })
 
   return (
-    <div>
-      <div className="no-print mb-6">
+    <>
+      <div className="no-print">
         <Button variant="ghost" onClick={() => navigate('/reception')} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" /> Back to Dashboard
         </Button>
@@ -404,23 +449,12 @@ export default function PatientBilling() {
         </Card>
 
         <div className="flex justify-end mb-8">
-          <Button size="lg" onClick={() => { setPrintDeposit(null); window.print() }}>
+          <Button size="lg" onClick={() => queuePrint('invoice')}>
             <Printer className="h-4 w-4 mr-2" /> Print Invoice
           </Button>
         </div>
-      </div>
 
-      <div className="print-invoice hidden print:block">
-        <InvoicePreview patient={patient} items={approvedBillItems} deposit={patient.deposit} totalCharges={totalCharges} remainingBalance={remainingBalance} />
-      </div>
-
-      {printDeposit && (
-        <div className="print-deposit hidden print:block">
-          <DepositReceipt patient={patient} deposit={printDeposit} />
-        </div>
-      )}
-
-      <Card className="no-print">
+      <Card>
         <CardHeader><CardTitle>Invoice Preview — {patient.name}</CardTitle></CardHeader>
         <CardContent>
           <InvoicePreview patient={patient} items={approvedBillItems} deposit={patient.deposit} totalCharges={totalCharges} remainingBalance={remainingBalance} />
@@ -434,17 +468,54 @@ export default function PatientBilling() {
             <DialogDescription>Record deposit for {patient.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div><Label>Amount (ETB)</Label><Input type="number" value={newDeposit.amount} onChange={(e) => setNewDeposit((p) => ({ ...p, amount: e.target.value }))} /></div>
             <div>
-              <Label>Deposit Type</Label>
-              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newDeposit.method} onChange={(e) => setNewDeposit((p) => ({ ...p, method: e.target.value }))}>
+              <Label>Amount (ETB) *</Label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={newDeposit.amount}
+                onChange={(e) => {
+                  setNewDeposit((p) => ({ ...p, amount: e.target.value }))
+                  setDepositErrors((er) => ({ ...er, amount: undefined }))
+                }}
+              />
+              <FieldError message={depositErrors.amount} />
+            </div>
+            <div>
+              <Label>Payment Method *</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={newDeposit.method}
+                onChange={(e) => {
+                  setNewDeposit((p) => ({ ...p, method: e.target.value }))
+                  setDepositErrors((er) => ({ ...er, method: undefined }))
+                }}
+              >
                 {depositTypes.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
+              <FieldError message={depositErrors.method} />
             </div>
+            {NON_CASH_PAYMENT_METHODS.includes(newDeposit.method) && (
+              <div>
+                <Label>Payment Reference *</Label>
+                <Input
+                  value={newDeposit.referenceNumber}
+                  onChange={(e) => {
+                    setNewDeposit((p) => ({ ...p, referenceNumber: e.target.value }))
+                    setDepositErrors((er) => ({ ...er, referenceNumber: undefined }))
+                  }}
+                  placeholder="Transaction / reference number"
+                />
+                <FieldError message={depositErrors.referenceNumber} />
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDepositDialog(false)}>Cancel</Button>
-            <Button onClick={handleAddDeposit}>Record Deposit</Button>
+            <Button variant="outline" onClick={() => setShowDepositDialog(false)} disabled={depositSubmitting}>Cancel</Button>
+            <Button onClick={handleAddDeposit} disabled={depositSubmitting}>
+              {depositSubmitting ? 'Recording...' : 'Record Deposit'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -481,7 +552,18 @@ export default function PatientBilling() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+
+      <div className="print-only print-invoice">
+        <InvoicePreview patient={patient} items={approvedBillItems} deposit={patient.deposit} totalCharges={totalCharges} remainingBalance={remainingBalance} />
+      </div>
+
+      {printDeposit && (
+        <div className="print-only print-deposit">
+          <DepositReceipt patient={patient} deposit={printDeposit} />
+        </div>
+      )}
+    </>
   )
 }
 
@@ -491,7 +573,7 @@ function InvoicePreview({ patient, items, deposit, totalCharges, remainingBalanc
   const balancePositive = remainingBalance >= 0
 
   return (
-    <div className="max-w-3xl mx-auto bg-white text-gray-900 p-8 rounded-xl border print:border-0">
+    <div className="max-w-3xl mx-auto bg-white text-gray-900 p-8 print:p-0 print:max-w-none rounded-xl border print:border-0 print:shadow-none">
       <div className="flex items-start justify-between border-b pb-6 mb-6">
         <div className="flex items-center gap-4">
           <div className="h-16 w-16 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-xl">CC</div>

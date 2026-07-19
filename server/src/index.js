@@ -7,6 +7,7 @@ import patientRoutes from './routes/patients.routes.js'
 import bedRoutes from './routes/beds.routes.js'
 import settingsRoutes from './routes/settings.routes.js'
 import recordRoutes from './routes/records.routes.js'
+import managerRoutes from './routes/manager.routes.js'
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -23,6 +24,7 @@ app.use('/api/patients', patientRoutes)
 app.use('/api/beds', bedRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/records', recordRoutes)
+app.use('/api/manager', managerRoutes)
 
 async function start() {
   const uri = process.env.MONGODB_URI
