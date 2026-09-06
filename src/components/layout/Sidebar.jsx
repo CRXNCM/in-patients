@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils'
 import { hospitalSettings } from '@/data/mockData'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
+import { HospitalLogo } from '@/components/shared/HospitalLogo'
 
 const roleMenus = {
   reception: [
@@ -61,13 +62,11 @@ export function Sidebar({ role, collapsed, onToggle }) {
       )}
     >
       <div className="flex h-16 items-center gap-3 border-b px-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          {role === 'nurse' ? <HeartPulse className="h-5 w-5" /> : <Activity className="h-5 w-5" />}
-        </div>
+        <HospitalLogo size="sm" className="shrink-0" />
         {!collapsed && (
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-primary">InCare</p>
-            <p className="truncate text-xs text-muted-foreground">Central City</p>
+            <p className="truncate text-xs text-muted-foreground">{hospitalSettings.name}</p>
           </div>
         )}
       </div>

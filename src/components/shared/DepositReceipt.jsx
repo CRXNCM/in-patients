@@ -1,5 +1,6 @@
 import { hospitalSettings } from '@/data/mockData'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
+import { HospitalLogo } from '@/components/shared/HospitalLogo'
 
 export function DepositReceipt({ patient, deposit, hospital = hospitalSettings }) {
   if (!patient || !deposit) return null
@@ -7,9 +8,7 @@ export function DepositReceipt({ patient, deposit, hospital = hospitalSettings }
   return (
     <div className="max-w-md mx-auto bg-white text-gray-900 p-8 print:p-0 print:max-w-none rounded-xl border print:border-0 print:shadow-none">
       <div className="text-center border-b pb-4 mb-4">
-        <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white font-bold mb-2">
-          CC
-        </div>
+        <HospitalLogo size="md" className="mx-auto mb-2" />
         <h2 className="text-lg font-bold text-blue-700">{hospital.name}</h2>
         <p className="text-xs text-gray-600">{hospital.address}</p>
         <p className="text-xs text-gray-600">TIN: {hospital.tin}</p>

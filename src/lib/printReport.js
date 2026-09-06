@@ -1,4 +1,5 @@
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { hospitalLogoSrc } from '@/components/shared/HospitalLogo'
 
 export function printReport(report) {
   const win = window.open('', '_blank', 'width=900,height=700')
