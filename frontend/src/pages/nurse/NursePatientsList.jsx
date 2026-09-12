@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { PageHeader, DataTable } from '@/components/shared/CommonComponents'
+import { PageHeader, DataTable, StatusBadge } from '@/components/shared/CommonComponents'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { formatDate } from '@/lib/utils'
@@ -16,6 +16,7 @@ export default function NursePatientsList() {
     { key: 'name', header: 'Patient Name', render: (row) => <span className="font-medium">{row.name}</span> },
     { key: 'room', header: 'Room/Bed', render: (row) => `${row.room} / ${row.bed}` },
     { key: 'admissionDate', header: 'Admission Date', render: (row) => formatDate(row.admissionDate) },
+    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
     { key: 'pending', header: 'Pending Records', render: (row) => getPatientRecords(row.id).filter((r) => r.status === 'pending').length },
     {
       key: 'actions',

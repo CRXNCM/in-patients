@@ -129,7 +129,12 @@ Foreign keys are **application-level strings** (`patientId`, `bedLabel`), not Mo
 | admissionReason | String | optional; not collected on admit |
 | admissionDate | String | required on the document (`YYYY-MM-DD`); defaults to today if omitted on admit |
 | status | String | enum `admitted`, `pending-discharge`, `discharged`; default `admitted` |
-| pendingDischarge | Boolean | default false |
+| pendingDischarge | Boolean | synced with `status === 'pending-discharge'` |
+| dischargeRequestedBy / At / Notes | String / Date / String | current nurse request |
+| dischargeRejectedBy / At / Reason | String / Date / String | last rejection |
+| dischargeCompletedBy / At | String / Date | reception approval |
+| dischargeFinalCharges / Deposits / Balance | Number | snapshot at completion |
+| dischargeEvents | [{ action, by, at, note }] | request / reject / approve audit |
 | room | String | denormalized current room type |
 | bed | String | denormalized current bed label |
 | bedId | String | Bed `_id` string at admit/transfer |
@@ -140,7 +145,7 @@ Foreign keys are **application-level strings** (`patientId`, `bedLabel`), not Mo
 
 **Indexes:** unique `patientId`; sparse unique `mrn`, `nationalId`.  
 **Relationships:** 1:N Deposit, RoomAssignment, ServiceRecord.  
-**Lifecycle:** Created on admit with `status: 'admitted'`. Lists exclude `discharged`. No implemented transition to `discharged`.
+**Lifecycle:** Created on admit with `status: 'admitted'`. Nurse request → `pending-discharge`. Reception reject → `admitted`. Reception approve → `discharged`. Default lists exclude `discharged`; `GET /api/patients/discharged` returns history.
 
 **Admit uniqueness (application):** active (non-discharged) patients cannot share the same `mrn` or `nationalId` if those fields are provided.
 
@@ -180,7 +185,7 @@ Foreign keys are **application-level strings** (`patientId`, `bedLabel`), not Mo
 | createdAt / updatedAt | Date | timestamps |
 
 **Indexes:** unique `label`.  
-**Lifecycle:** Seeded. Occupied on admit/transfer; freed on transfer. Discharge does not free beds (discharge not implemented).
+**Lifecycle:** Seeded. Occupied on admit/transfer; freed on transfer and on completed discharge.
 
 ---
 

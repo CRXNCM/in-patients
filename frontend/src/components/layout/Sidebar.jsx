@@ -15,6 +15,8 @@ import {
   Activity,
   ClipboardCheck,
   HeartPulse,
+  LogOut,
+  Archive,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { hospitalSettings } from '@/data/mockData'
@@ -26,6 +28,8 @@ const roleMenus = {
     { label: 'Dashboard', path: '/reception', icon: LayoutDashboard },
     { label: 'Pending Approvals', path: '/reception/approvals', icon: ClipboardCheck, badge: true },
     { label: 'Patients', path: '/reception/patients', icon: Users },
+    { label: 'Pending Discharges', path: '/reception/pending-discharges', icon: LogOut },
+    { label: 'Discharged', path: '/reception/discharged', icon: Archive },
     { label: 'Add Patient', path: '/reception/add-patient', icon: Users },
   ],
   nurse: [

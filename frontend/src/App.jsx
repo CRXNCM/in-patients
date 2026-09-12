@@ -14,6 +14,8 @@ import PatientsList from '@/pages/reception/PatientsList'
 import PatientBilling from '@/pages/reception/PatientBilling'
 import PendingApprovals from '@/pages/reception/PendingApprovals'
 import AddPatient from '@/pages/reception/AddPatient'
+import PendingDischarges from '@/pages/reception/PendingDischarges'
+import DischargedPatients from '@/pages/reception/DischargedPatients'
 
 import NurseDashboard from '@/pages/nurse/NurseDashboard'
 import NursePatientsList from '@/pages/nurse/NursePatientsList'
@@ -48,6 +50,8 @@ export default function App() {
                       <Route path="/reception" element={<AppLayout role="reception" />}>
                         <Route index element={<ReceptionDashboard />} />
                         <Route path="patients" element={<PatientsList />} />
+                        <Route path="pending-discharges" element={<PendingDischarges />} />
+                        <Route path="discharged" element={<DischargedPatients />} />
                         <Route path="add-patient" element={<AddPatient />} />
                         <Route path="approvals" element={<PendingApprovals />} />
                         <Route path="patient/:patientId" element={<PatientBilling />} />

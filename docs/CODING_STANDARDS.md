@@ -39,7 +39,7 @@ Dates in business data are **`YYYY-MM-DD` strings**, not Date objects (except `r
 - Pages by **role folder**, not by feature folder.
 - Shared widgets in `src/components/shared`; primitives in `src/components/ui`.
 - One Express router per resource prefix.
-- Models are flat files in `server/src/models`.
+- Models are flat files in `server/models`.
 - Do not introduce `controllers/` or `repositories/` unless the project is later restructured — current code keeps handlers in routers.
 
 ---
@@ -76,7 +76,7 @@ Dates in business data are **`YYYY-MM-DD` strings**, not Date objects (except `r
 ## Validation
 
 - Client: `src/lib/validation.js` returns `{ field: message }` objects plus `firstError` / `hasErrors`.
-- Server: `server/src/utils/validation.js` returns **string arrays**; handlers send `errors[0]` as `{ error }`.
+- Server: `server/utils/validation.js` returns **string arrays**; handlers send `errors[0]` as `{ error }`.
 - Duplicate important rules on both sides (min deposit, transfer dates). When adding a rule, update **both** files and [BUSINESS_RULES.md](./BUSINESS_RULES.md).
 - Mongoose enums/required are a second line of defense, not the UX layer.
 
@@ -114,7 +114,7 @@ Details: [ERROR_HANDLING.md](./ERROR_HANDLING.md).
 ## State and data mapping
 
 - Keep dual-mode (`if (USE_API)`) when changing contexts, unless mock mode is being removed in that change.
-- Server responses must stay compatible with mappers in `server/src/utils/mappers.js` and the fields the SPA already reads (`id` not `patientId` on the client patient object, `type: 'daily_services'`, snake_case assignment fields, etc.).
+- Server responses must stay compatible with mappers in `server/utils/mappers.js` and the fields the SPA already reads (`id` not `patientId` on the client patient object, `type: 'daily_services'`, snake_case assignment fields, etc.).
 - Do not invent new collections when an existing string/enum field already models the concept (e.g. role on User).
 
 ---

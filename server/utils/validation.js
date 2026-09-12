@@ -77,9 +77,52 @@ export function validateDepositBody(body, existingRefs = []) {
   return errors
 }
 
+export function dischargeRequestStatusError(status) {
+  if (status === 'pending-discharge') return 'A discharge request is already pending.'
+  if (status === 'discharged') return 'Patient is already discharged.'
+  if (status !== 'admitted') return 'Discharge can only be requested for admitted patients.'
+  return null
+}
+
+export function dischargeApproveStatusError(status) {
+  if (status === 'discharged') return 'Patient is already discharged.'
+  if (status !== 'pending-discharge') return 'Patient does not have a pending discharge request.'
+  return null
+}
+
+export function dischargeRejectStatusError(status) {
+  if (status !== 'pending-discharge') return 'Patient does not have a pending discharge request.'
+  return null
+}
+
+export function validateDischargeRejectBody(body) {
+  const errors = []
+  if (!trimText(body?.reason)) errors.push('Rejection reason is required.')
+  return errors
+}
+
+export function inpatientActionError(patient, action) {
+  if (!patient) return 'Patient not found.'
+  if (patient.status === 'discharged') {
+    const messages = {
+      records: 'Cannot add inpatient services for a discharged patient.',
+      returns: 'Cannot add a pharmacy return for a discharged patient.',
+      deposits: 'Cannot add a deposit for a discharged patient.',
+      transfer: 'Cannot transfer a discharged patient.',
+      'doctor-visit': 'Cannot change doctor visits for a discharged patient.',
+    }
+    return messages[action] || 'This action is not allowed for a discharged patient.'
+  }
+  if (patient.status === 'pending-discharge' && action === 'transfer') {
+    return 'Cannot transfer a patient with a pending discharge request.'
+  }
+  return null
+}
+
 export function validateTransferBody(body, patient) {
   const errors = []
-  if (!patient || patient.status === 'discharged') errors.push('Patient must currently be admitted.')
+  const stayError = inpatientActionError(patient, 'transfer')
+  if (stayError) errors.push(stayError)
   if (!trimText(body.bedId)) errors.push('New bed is required.')
   if (!trimText(body.transferReason)) errors.push('Transfer reason is required.')
   if (!trimText(body.transferDate)) errors.push('Transfer date is required.')

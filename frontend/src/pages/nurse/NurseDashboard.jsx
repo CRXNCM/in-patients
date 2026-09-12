@@ -21,6 +21,7 @@ export default function NurseDashboard() {
     { key: 'name', header: 'Patient Name', render: (row) => <span className="font-medium">{row.name}</span> },
     { key: 'room', header: 'Room/Bed', render: (row) => `${row.room} / ${row.bed}` },
     { key: 'admissionDate', header: 'Admission', render: (row) => formatDate(row.admissionDate) },
+    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
     {
       key: 'records',
       header: 'Records',

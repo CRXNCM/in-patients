@@ -61,9 +61,19 @@ export function Pagination({ page, pageCount, onPageChange, total, pageSize }) {
   )
 }
 
-export function StatCard({ title, value, subtitle, icon: Icon, trend, className, iconClassName }) {
+export function StatCard({ title, value, subtitle, icon: Icon, trend, className, iconClassName, onClick }) {
   return (
-    <div className={cn('rounded-xl border bg-card p-6 shadow-sm transition-shadow hover:shadow-md', className)}>
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
+      className={cn(
+        'rounded-xl border bg-card p-6 shadow-sm transition-shadow hover:shadow-md',
+        onClick && 'cursor-pointer',
+        className
+      )}
+    >
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
@@ -97,6 +107,7 @@ export function StatusBadge({ status }) {
     'out-of-stock': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
     admitted: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     'pending-discharge': 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+    discharged: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
     pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
@@ -112,6 +123,7 @@ export function StatusBadge({ status }) {
     'out-of-stock': 'Out of Stock',
     admitted: 'Admitted',
     'pending-discharge': 'Pending Discharge',
+    discharged: 'Discharged',
     pending: 'Pending',
     approved: 'Approved',
     rejected: 'Rejected',

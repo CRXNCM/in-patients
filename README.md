@@ -23,14 +23,24 @@ A modern, professional hospital in-patient billing and deposit management dashbo
 ## Getting Started
 
 ```bash
+# API (MongoDB required)
+cd server
+npm install
+# copy .env.example → .env
+npm run seed
+npm run dev
+
+# SPA (other terminal)
+cd frontend
 npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) and select a role on the landing page.
+Open [http://localhost:5173](http://localhost:5173). From the repo root you can use `npm run dev:server` and `npm run dev:frontend`.
 
 ```bash
-npm run build    # Production build
+cd frontend
+npm run build    # Production build → frontend/dist
 npm run preview  # Preview production build
 ```
 

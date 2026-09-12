@@ -228,7 +228,7 @@ Additional checks: selected bed must be `available`; if `mrn` / `nationalId` pro
 | **Auth** | Required |
 | **Body** | `bedId`, `transferDate`, `transferReason` |
 
-**Validation:** patient exists and is not discharged; bed + reason + date required; date ≥ admission and ≤ today; target bed available; not the same room+bed; an open assignment must exist.
+**Validation:** patient exists and is not `discharged` or `pending-discharge`; bed + reason + date required; date ≥ admission and ≤ today; target bed available; not the same room+bed; an open assignment must exist.
 
 **Success `200`:** `{ roomType, bedLabel, dailyRate, patient, assignments, rooms }`.  
 **Errors:** `400` / `404` / `500` `Failed to transfer room`.
@@ -244,7 +244,65 @@ Additional checks: selected bed must be `available`; if `mrn` / `nationalId` pro
 | **Description** | Add/remove date from `disabledDoctorVisitDates`; delete or recreate doctor auto-record |
 
 **Success `200`:** mapped patient.  
-**Errors:** `404` / `500` `Failed to update doctor visit`.
+**Errors:** `404` / `400` if discharged / `500` `Failed to update doctor visit`.
+
+---
+
+### `GET /api/patients/pending-discharge`
+
+| | |
+|-|-|
+| **Auth** | Required |
+| **Description** | Patients with `status: pending-discharge` and computed balances |
+
+**Success `200`:** array of mapped patients including `discharge` metadata.
+
+---
+
+### `GET /api/patients/discharged`
+
+| | |
+|-|-|
+| **Auth** | Required |
+| **Description** | Completed stays (excluded from the default patient list) |
+
+**Success `200`:** array of mapped patients including `discharge` snapshot fields.
+
+---
+
+### `POST /api/patients/:id/discharge-request`
+
+| | |
+|-|-|
+| **Auth** | JWT role `Nurse` |
+| **Body** | `{ "notes": "optional" }` |
+| **Description** | `admitted` → `pending-discharge`. Bed and assignment stay open. |
+
+**Errors:** `403` wrong role; `400` invalid status; `409` concurrent second request; `404`.
+
+---
+
+### `POST /api/patients/:id/discharge/approve`
+
+| | |
+|-|-|
+| **Auth** | JWT role `Reception` or `Admin` |
+| **Description** | Final discharge: generate auto charges through today, close assignment, free bed, set `discharged`, store financial snapshot |
+
+**Success `200`:** `{ patient, assignments, rooms, balance }`.  
+**Errors:** `403`; `400` not pending or missing assignment/bed; `409` concurrent approve.
+
+---
+
+### `POST /api/patients/:id/discharge/reject`
+
+| | |
+|-|-|
+| **Auth** | JWT role `Reception` or `Admin` |
+| **Body** | `{ "reason": "required" }` |
+| **Description** | `pending-discharge` → `admitted`. Occupancy unchanged. |
+
+**Errors:** `403`; `400` missing reason or wrong status; `409` already reviewed.
 
 ---
 

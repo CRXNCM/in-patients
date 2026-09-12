@@ -2,7 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, User, Phone, Calendar, Bed } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { PageHeader } from '@/components/shared/CommonComponents'
+import { PageHeader, StatusBadge } from '@/components/shared/CommonComponents'
+import { RequestDischargeButton } from '@/components/shared/DischargeWorkflow'
 import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
 import { RecordTimeline } from '@/components/shared/RecordTimeline'
 import { usePatients } from '@/context/PatientsContext'
@@ -37,12 +38,13 @@ export default function PatientServiceEntry() {
       <PageHeader
         title={patient.name}
         description="Build today's record across all categories, then click Done. Edit anytime before reception approves."
+        action={<RequestDischargeButton patient={patient} />}
       />
 
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" />{patient.name}</CardTitle>
-          <CardDescription>ID: {patient.id}</CardDescription>
+          <CardDescription className="flex items-center gap-2">ID: {patient.id} <StatusBadge status={patient.status} /></CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
@@ -54,15 +56,25 @@ export default function PatientServiceEntry() {
         </CardContent>
       </Card>
 
-      <div className="mb-8">
-        <ServiceRecordBuilder
-          patientId={patientId}
-          patientName={patient.name}
-          source="nurse"
-          recordedBy={CURRENT_NURSE}
-          hideMoney
-        />
-      </div>
+      {patient.status === 'pending-discharge' && (
+        <div className="rounded-xl border border-purple-200 bg-purple-50/70 dark:bg-purple-950/20 dark:border-purple-900 p-4 mb-6 text-sm">
+          Discharge request is pending reception review. The patient still occupies {patient.room} / {patient.bed}.
+        </div>
+      )}
+
+      {patient.status !== 'discharged' ? (
+        <div className="mb-8">
+          <ServiceRecordBuilder
+            patientId={patientId}
+            patientName={patient.name}
+            source="nurse"
+            recordedBy={CURRENT_NURSE}
+            hideMoney
+          />
+        </div>
+      ) : (
+        <p className="mb-8 text-sm text-muted-foreground">This patient is discharged. New inpatient services cannot be recorded.</p>
+      )}
 
       <Card>
         <CardHeader>

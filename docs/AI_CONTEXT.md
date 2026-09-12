@@ -12,7 +12,7 @@ InCare — hospital **in-patient** billing and deposits for a demo hospital (Cen
 
 Two runtimes:
 
-- React SPA at repo root (`in-patients-billing`)
+- React SPA in `/frontend` (`in-patients-billing`)
 - Express + Mongo API in `/server` (`medbill-server`)
 
 Default SPA mode talks to the API (`VITE_USE_API !== 'false'`).
@@ -22,8 +22,8 @@ Default SPA mode talks to the API (`VITE_USE_API !== 'false'`).
 ## Architecture (short)
 
 - SPA + REST. Context API. No Redux, no repository layer, no DI.
-- Routes **are** controllers. Only service: `server/src/services/autoCharges.js`.
-- Response shaping: `server/src/utils/mappers.js`.
+- Routes **are** controllers. Services: `server/services/autoCharges.js`, `server/services/discharge.js`.
+- Response shaping: `server/utils/mappers.js`.
 - Dual-mode contexts: `if (USE_API)` vs `src/data/mockData.js`.
 - Provider order in `App.jsx`: Theme → Toast → Auth → Patients → BillingConfig → ServiceEntries → Router.
 
@@ -34,9 +34,9 @@ Details: [ARCHITECTURE.md](./ARCHITECTURE.md).
 ## Folder structure (short)
 
 ```
-src/pages/{reception,nurse,admin,manager}/
-src/context/   src/api/client.js   src/lib/   src/data/mockData.js
-server/src/{index.js,models,routes,services,middleware,utils,scripts/seed.js}
+frontend/src/pages/{reception,nurse,admin,manager}/
+frontend/src/context/   frontend/src/api/client.js   frontend/src/lib/   frontend/src/data/mockData.js
+server/{server.js,models,routes,services,middleware,utils,scripts/seed.js}
 ```
 
 No `controllers/`, `dto/`, `entities/`. See [FOLDER_STRUCTURE.md](./FOLDER_STRUCTURE.md).
@@ -83,12 +83,12 @@ Auto room/doctor lines: upsert by `{ patientId, date, autoType }`.
 | Need | Go here |
 |------|---------|
 | Login / JWT | `auth.routes.js`, `AuthContext.jsx`, `middleware/auth.js` |
-| Admit / deposit / transfer | `patients.routes.js`, `PatientsContext.jsx` |
+| Admit / deposit / transfer / discharge | `patients.routes.js`, `services/discharge.js`, `PatientsContext.jsx`, `DischargeWorkflow.jsx` |
 | Charges / approve | `records.routes.js`, `patients.routes.js` record posts, `ServiceEntriesContext.jsx` |
 | Daily room/doctor | `autoCharges.js` |
 | Settings | `settings.routes.js`, `BillingConfigContext.jsx` |
 | Charge UI | `ServiceRecordBuilder.jsx` |
-| Validation | `src/lib/validation.js` **and** `server/src/utils/validation.js` |
+| Validation | `frontend/src/lib/validation.js` **and** `server/utils/validation.js` |
 
 ---
 

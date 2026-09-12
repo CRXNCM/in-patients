@@ -23,6 +23,8 @@ import { DepositReceipt } from '@/components/shared/DepositReceipt'
 import { InvoicePreview } from '@/components/shared/InvoicePreview'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RoomHistoryTable, RoomTransferPanel } from '@/components/shared/RoomTransferPanel'
+import { DischargeReviewPanel } from '@/components/shared/DischargeWorkflow'
+import { api, USE_API } from '@/api/client'
 import { hospitalSettings, depositTypes } from '@/data/mockData'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
@@ -88,7 +90,8 @@ export default function PatientBilling() {
     CURRENT_RECEPTIONIST,
   } = useServiceEntries()
 
-  const patient = getPatient(patientId)
+  const listedPatient = getPatient(patientId)
+  const [remotePatient, setRemotePatient] = useState(null)
   const [showDepositDialog, setShowDepositDialog] = useState(false)
   const [newDeposit, setNewDeposit] = useState({ amount: '', method: 'Cash', referenceNumber: '' })
   const [depositErrors, setDepositErrors] = useState({})
@@ -101,8 +104,28 @@ export default function PatientBilling() {
   const [invoiceVariant, setInvoiceVariant] = useState('summary')
 
   useEffect(() => {
-    if (patientId) ensureAutomaticDailyCharges(patientId)
-  }, [patientId, ensureAutomaticDailyCharges])
+    if (listedPatient || !USE_API || !patientId) {
+      setRemotePatient(null)
+      return undefined
+    }
+    let cancelled = false
+    api.getPatient(patientId)
+      .then((data) => {
+        if (!cancelled) setRemotePatient(data.patient)
+      })
+      .catch(() => {
+        if (!cancelled) setRemotePatient(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [listedPatient, patientId])
+
+  const patient = listedPatient || remotePatient
+
+  useEffect(() => {
+    if (patientId && patient?.status !== 'discharged') ensureAutomaticDailyCharges(patientId)
+  }, [patientId, patient?.status, ensureAutomaticDailyCharges])
 
   useEffect(() => {
     const onAfterPrint = () => {
@@ -159,6 +182,9 @@ export default function PatientBilling() {
   const isLowBalance = remainingBalance < hospitalSettings.lowBalanceThreshold
   const approvedBillItems = getApprovedLineItems(patientId)
   const roomAssignments = getRoomAssignments(patientId)
+  const isDischarged = patient.status === 'discharged'
+  const canTransfer = patient.status === 'admitted'
+  const canAddCharges = patient.status !== 'discharged'
 
   const today = new Date().toISOString().split('T')[0]
   const doctorVisitDates = (() => {
@@ -280,7 +306,9 @@ export default function PatientBilling() {
           <ArrowLeft className="h-4 w-4 mr-2" /> Back to Dashboard
         </Button>
 
-        {isLowBalance && (
+        <DischargeReviewPanel patient={patient} />
+
+        {isLowBalance && !isDischarged && (
           <div className="flex items-center gap-3 rounded-xl border-2 border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-800 p-4 mb-6">
             <AlertTriangle className="h-6 w-6 text-red-600 shrink-0" />
             <div>
@@ -341,7 +369,7 @@ export default function PatientBilling() {
               <CardTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" />{patient.name}</CardTitle>
               <CardDescription>Patient ID: {patient.id}</CardDescription>
             </div>
-            {patient.status === 'admitted' && (
+            {canTransfer && (
               <RoomTransferPanel
                 patientId={patientId}
                 assignedBy={CURRENT_RECEPTIONIST}
@@ -387,6 +415,7 @@ export default function PatientBilling() {
           </CardContent>
         </Card>
 
+        {canAddCharges && (
         <div className="mb-8">
           <ServiceRecordBuilder
             patientId={patientId}
@@ -397,7 +426,9 @@ export default function PatientBilling() {
             autoApprove
           />
         </div>
+        )}
 
+        {canAddCharges && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -416,6 +447,7 @@ export default function PatientBilling() {
             />
           </CardContent>
         </Card>
+        )}
 
         <div className="mb-6">
           <h3 className="text-lg font-semibold mb-4">Approved Billing — {patient.name}</h3>
@@ -442,7 +474,9 @@ export default function PatientBilling() {
         <Card className="mb-6">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" /> Deposit History</CardTitle>
-            <Button onClick={() => setShowDepositDialog(true)}><Plus className="h-4 w-4 mr-2" /> Add Deposit</Button>
+            {!isDischarged && (
+              <Button onClick={() => setShowDepositDialog(true)}><Plus className="h-4 w-4 mr-2" /> Add Deposit</Button>
+            )}
           </CardHeader>
           <CardContent>
             {deposits.length === 0 ? (

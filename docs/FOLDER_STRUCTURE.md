@@ -11,31 +11,24 @@ Only folders that exist in the repository are documented. There is no `controlle
 ```
 in-patients/
 ├── docs/                 Project documentation (this folder)
-├── src/                  React SPA
-├── server/               Express API
-├── public/               Static assets copied by Vite
-├── dist/                 Vite production build output
-├── index.html            SPA HTML shell
-├── package.json          Frontend package
-├── vite.config.js        Vite + `@` alias
-├── tailwind.config.js
-├── postcss.config.js
-├── jsconfig.json         `@/*` path mapping
+├── frontend/             React / Vite SPA
+├── server/               Express + Mongo API
+├── package.json          Root helper scripts only
 ├── BACKEND_TODO.txt      Historical backend checklist (all items marked done)
 ├── users.txt             Outdated demo-email list
-└── README.md             Outdated mock-only product description
+└── README.md
 ```
 
-`dist/` is a build artifact, not a source of truth.
+`frontend/dist/` is a build artifact, not a source of truth.
 
 ---
 
-## `src/` — frontend application
+## `frontend/` — frontend application
 
 **Purpose:** Browser UI, routing, client state, API client.  
-**Relationships:** Consumes `/api/*`. Falls back to `src/data/mockData.js` when `VITE_USE_API=false`.
+**Relationships:** Consumes `/api/*`. Falls back to `frontend/src/data/mockData.js` when `VITE_USE_API=false`.
 
-### `src/api/`
+### `frontend/src/api/`
 
 | | |
 |-|-|
@@ -44,7 +37,7 @@ in-patients/
 | **Important files** | `client.js` |
 | **Relationships** | Used by all contexts and manager hooks |
 
-### `src/context/`
+### `frontend/src/context/`
 
 | | |
 |-|-|
@@ -53,19 +46,19 @@ in-patients/
 | **Important files** | `AuthContext.jsx`, `PatientsContext.jsx`, `BillingConfigContext.jsx`, `ServiceEntriesContext.jsx`, `ThemeContext.jsx`, `ToastContext.jsx` |
 | **Relationships** | Provider order is fixed in `App.jsx` |
 
-### `src/pages/`
+### `frontend/src/pages/`
 
 | Folder | Purpose |
 |--------|---------|
 | `pages/LoginPage.jsx` | Email/password login |
-| `pages/reception/` | Dashboard, patients, add patient, approvals, billing |
+| `pages/reception/` | Dashboard, patients, pending discharges, discharged, add patient, approvals, billing |
 | `pages/nurse/` | Dashboard, patients list, service entry |
 | `pages/admin/` | Dashboard, catalog screens, settings |
 | `pages/manager/` | Executive dashboard, reports |
 
 **Relationships:** Mounted under `RequireAuth` + `AppLayout` in `App.jsx`.
 
-### `src/components/auth/`
+### `frontend/src/components/auth/`
 
 | | |
 |-|-|
@@ -73,7 +66,7 @@ in-patients/
 | **Important files** | `RequireAuth.jsx` |
 | **Relationships** | Reads `useAuth()` |
 
-### `src/components/layout/`
+### `frontend/src/components/layout/`
 
 | | |
 |-|-|
@@ -81,7 +74,7 @@ in-patients/
 | **Important files** | `AppLayout.jsx`, `Sidebar.jsx`, `TopNav.jsx` |
 | **Relationships** | Sidebar menus are hardcoded per role |
 
-### `src/components/shared/`
+### `frontend/src/components/shared/`
 
 | File | Responsibility |
 |------|----------------|
@@ -94,11 +87,11 @@ in-patients/
 | `HospitalLogo.jsx` | Branding |
 | `ServiceTimeline.jsx` | Older timeline helper (still present) |
 
-### `src/components/ui/`
+### `frontend/src/components/ui/`
 
 Radix/shadcn primitives: button, input, dialog, alert-dialog, card, tabs, toast, select, switch, label, badge, avatar, separator.
 
-### `src/hooks/`
+### `frontend/src/hooks/`
 
 | File | Purpose |
 |------|---------|
@@ -106,7 +99,7 @@ Radix/shadcn primitives: button, input, dialog, alert-dialog, card, tabs, toast,
 
 No other custom hooks exist.
 
-### `src/lib/`
+### `frontend/src/lib/`
 
 | File | Purpose |
 |------|---------|
@@ -114,7 +107,7 @@ No other custom hooks exist.
 | `validation.js` | Client-side form rules |
 | `printReport.js` | Manager print window + CSV export |
 
-### `src/data/`
+### `frontend/src/data/`
 
 | File | Purpose |
 |------|---------|
@@ -122,7 +115,7 @@ No other custom hooks exist.
 
 Used for mock mode **and** still imported by several live-API screens (login demo list, admin catalog, reception “Today’s Deposits”, invoice header defaults).
 
-### `src/asset/`
+### `frontend/src/asset/`
 
 `central_logo.png`, `background.png` (login).
 
@@ -134,32 +127,31 @@ Used for mock mode **and** still imported by several live-API screens (login dem
 server/
 ├── package.json
 ├── .env.example
-└── src/
-    ├── index.js
-    ├── config/db.js
-    ├── middleware/auth.js
-    ├── models/
-    ├── routes/
-    ├── services/
-    ├── scripts/seed.js
-    └── utils/
+├── server.js
+├── config/db.js
+├── middleware/auth.js
+├── models/
+├── routes/
+├── services/
+├── scripts/seed.js
+└── utils/
 ```
 
-### `server/src/config/`
+### `server/config/`
 
 | | |
 |-|-|
 | **Purpose** | Mongo connection |
 | **Important files** | `db.js` (`mongoose.connect`, `strictQuery: true`) |
 
-### `server/src/middleware/`
+### `server/middleware/`
 
 | | |
 |-|-|
 | **Purpose** | Authn/authz |
 | **Important files** | `auth.js` — `authRequired`, `requireRole`, unused `attachUser` |
 
-### `server/src/models/`
+### `server/models/`
 
 Mongoose schemas. There is no separate RoomType collection; room type is a string on `Bed`.
 
@@ -176,7 +168,7 @@ Mongoose schemas. There is no separate RoomType collection; room type is a strin
 
 Details: [DATABASE.md](./DATABASE.md).
 
-### `server/src/routes/`
+### `server/routes/`
 
 Express routers. These **are** the controllers.
 
@@ -189,20 +181,21 @@ Express routers. These **are** the controllers.
 | `settings.routes.js` | `/api/settings` |
 | `manager.routes.js` | `/api/manager` |
 
-### `server/src/services/`
+### `server/services/`
 
 | File | Responsibility |
 |------|----------------|
 | `autoCharges.js` | Daily room/doctor upsert, doctor-visit disable, `calcPatientBalance` |
+| `discharge.js` | Request / reject / complete discharge |
 
-### `server/src/utils/`
+### `server/utils/`
 
 | File | Responsibility |
 |------|----------------|
 | `validation.js` | Admit / deposit / transfer validators; `MIN_INITIAL_DEPOSIT` |
 | `mappers.js` | Frontend DTO-like mapping |
 
-### `server/src/scripts/`
+### `server/scripts/`
 
 | File | Responsibility |
 |------|----------------|
@@ -218,6 +211,8 @@ Express routers. These **are** the controllers.
 | `/` | — | Redirect to `/login` |
 | `/reception` | reception | ReceptionDashboard |
 | `/reception/patients` | reception | PatientsList |
+| `/reception/pending-discharges` | reception | PendingDischarges |
+| `/reception/discharged` | reception | DischargedPatients |
 | `/reception/add-patient` | reception | AddPatient |
 | `/reception/approvals` | reception | PendingApprovals |
 | `/reception/patient/:patientId` | reception | PatientBilling |

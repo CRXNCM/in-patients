@@ -6,9 +6,9 @@ Related documents: [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) · [ROADMAP.md](./ROADMA
 
 ## Existing tests
 
-**None.** A search of the repository finds no `*.test.js`, `*.spec.js`, `*.test.jsx`, or `*.spec.tsx` files.
+**Server unit tests:** `server/utils/dischargeRules.test.js` via `npm test` in `/server` (`node --test`). Covers discharge status transitions, reject-reason validation, and inpatient write guards.
 
-There is no `test` script in the root or `server` `package.json`.
+There is still no frontend test runner and no API/E2E suite.
 
 ---
 
@@ -22,7 +22,7 @@ There is no `test` script in the root or `server` `package.json`.
 
 | Kind | Present |
 |------|---------|
-| Unit test runner | No |
+| Unit test runner | `node:test` (server discharge rules only) |
 | React Testing Library | No |
 | API integration tests | No |
 | E2E | No |

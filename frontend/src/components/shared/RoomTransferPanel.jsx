@@ -150,7 +150,7 @@ export function RoomTransferPanel({
     }
   }
 
-  if (!patient || patient.status === 'discharged') return null
+  if (!patient || patient.status === 'discharged' || patient.status === 'pending-discharge') return null
 
   if (compact) {
     return (

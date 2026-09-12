@@ -90,23 +90,23 @@ React Context only. No Redux, Zustand, or React Query. Lists are fetched once af
 
 ### UI kit
 
-`src/components/ui/*` are Radix-based primitives (shadcn-style). Shared domain widgets live in `src/components/shared/`. Layout chrome is `AppLayout` + `Sidebar` + `TopNav`.
+`frontend/src/components/ui/*` are Radix-based primitives (shadcn-style). Shared domain widgets live in `frontend/src/components/shared/`. Layout chrome is `AppLayout` + `Sidebar` + `TopNav`.
 
 ---
 
 ## Backend architecture
 
 ```
-server/src/index.js
+server/server.js
   ├── config/db.js
   ├── middleware/auth.js
   ├── routes/*.routes.js
   ├── models/*.js
-  ├── services/autoCharges.js
+  ├── services/{autoCharges,discharge}.js
   └── utils/{validation,mappers}.js
 ```
 
-`index.js` mounts:
+`server.js` mounts:
 
 | Prefix | Router file |
 |--------|-------------|
@@ -187,8 +187,8 @@ Cross-package: the SPA depends on the API contract documented in [API_REFERENCE.
 | `src/lib/utils.js` | `cn`, currency/date formatters, balance-status helper |
 | `src/lib/validation.js` | Client admission/deposit/transfer/cart rules |
 | `src/lib/printReport.js` | Manager report print HTML + CSV |
-| `server/src/utils/validation.js` | Server admit/deposit/transfer rules |
-| `server/src/utils/mappers.js` | API response shape for the SPA |
+| `server/utils/validation.js` | Server admit/deposit/transfer rules |
+| `server/utils/mappers.js` | API response shape for the SPA |
 
 Client and server validation overlap (minimum deposit, transfer dates, non-cash reference numbers) but are **duplicated**, not shared.
 

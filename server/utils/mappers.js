@@ -5,11 +5,32 @@ const ROOM_IDS = {
   Operation: 'ROOM-OP',
 }
 
+export function toFrontendDischarge(doc) {
+  if (!doc) return null
+  return {
+    requestedBy: doc.dischargeRequestedBy || null,
+    requestedAt: doc.dischargeRequestedAt?.toISOString?.() || doc.dischargeRequestedAt || null,
+    requestNotes: doc.dischargeRequestNotes || '',
+    rejectedBy: doc.dischargeRejectedBy || null,
+    rejectedAt: doc.dischargeRejectedAt?.toISOString?.() || doc.dischargeRejectedAt || null,
+    rejectionReason: doc.dischargeRejectionReason || '',
+    completedBy: doc.dischargeCompletedBy || null,
+    completedAt: doc.dischargeCompletedAt?.toISOString?.() || doc.dischargeCompletedAt || null,
+    finalCharges: doc.dischargeFinalCharges ?? null,
+    finalDeposits: doc.dischargeFinalDeposits ?? null,
+    finalBalance: doc.dischargeFinalBalance ?? null,
+    finalRoom: doc.room || null,
+    finalBed: doc.bed || null,
+    events: doc.dischargeEvents || [],
+  }
+}
+
 export function toFrontendPatient(doc, balance) {
   const disabled = (doc.disabledDoctorVisitDates || []).reduce((m, d) => {
     m[d] = true
     return m
   }, {})
+  const status = doc.status
   return {
     id: doc.patientId,
     name: doc.name,
@@ -20,9 +41,10 @@ export function toFrontendPatient(doc, balance) {
     bed: doc.bed,
     admissionDate: doc.admissionDate,
     deposit: doc.depositTotal,
-    totalCharges: balance?.totalCharges ?? 0,
-    status: doc.status,
-    pendingDischarge: doc.pendingDischarge,
+    totalCharges: balance?.totalCharges ?? doc.dischargeFinalCharges ?? 0,
+    status,
+    pendingDischarge: status === 'pending-discharge',
+    discharge: toFrontendDischarge(doc),
     disabledDoctorVisits: disabled,
   }
 }

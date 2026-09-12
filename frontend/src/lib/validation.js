@@ -179,11 +179,28 @@ export function findDuplicateNameAgeWarning(form, existingPatients = []) {
     : null
 }
 
+export function validateDischargeRequest(patient) {
+  if (!patient) return 'Patient not found.'
+  if (patient.status === 'pending-discharge') return 'A discharge request is already pending.'
+  if (patient.status === 'discharged') return 'Patient is already discharged.'
+  if (patient.status !== 'admitted') return 'Discharge can only be requested for admitted patients.'
+  return null
+}
+
+export function validateDischargeRejectReason(reason) {
+  if (!trimText(reason)) return 'Rejection reason is required.'
+  return null
+}
+
 export function validateRoomTransfer(form, patient, rooms) {
   const errors = {}
 
   if (!patient || patient.status === 'discharged') {
     errors.patient = 'Patient must currently be admitted.'
+    return errors
+  }
+  if (patient.status === 'pending-discharge') {
+    errors.patient = 'Cannot transfer a patient with a pending discharge request.'
     return errors
   }
 

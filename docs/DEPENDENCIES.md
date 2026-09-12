@@ -82,7 +82,7 @@ No express-validator, helmet, morgan, express-rate-limit, multer, or test runner
 
 ## Important configuration
 
-### CORS (`server/src/index.js`)
+### CORS (`server/server.js`)
 
 ```js
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173', credentials: true }))
@@ -90,7 +90,7 @@ app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173', crede
 
 Single origin string, not a list.
 
-### Mongo (`server/src/config/db.js`)
+### Mongo (`server/config/db.js`)
 
 `mongoose.set('strictQuery', true)` then `mongoose.connect(uri)`.
 

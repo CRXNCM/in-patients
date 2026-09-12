@@ -78,7 +78,7 @@ The following are **not implemented**. Do not treat them as product capabilities
 | Admin | `admin` | Hospital settings and category billing types; catalog screens are mostly demo UI |
 | Manager | `manager` | KPIs, charts, and report print/CSV export |
 
-Demo accounts created by `server/src/scripts/seed.js`:
+Demo accounts created by `server/scripts/seed.js`:
 
 | Role | Email | Password |
 |------|-------|----------|
@@ -108,8 +108,8 @@ Details: [DEPENDENCIES.md](./DEPENDENCIES.md) · [ENVIRONMENT.md](./ENVIRONMENT.
 ## Architecture style
 
 - **Frontend:** SPA with nested role routes, Context providers, and a thin `src/api/client.js` fetch layer. Dual-mode: live API (default) or mock data.
-- **Backend:** Express routers over Mongoose models. Business logic lives mostly in route handlers. The only dedicated service module is automatic daily charges (`server/src/services/autoCharges.js`).
-- **No repository layer, no separate DTO classes, no dependency injection container.** Response shaping is done by mapper functions in `server/src/utils/mappers.js`.
+- **Backend:** Express routers over Mongoose models. Business logic lives mostly in route handlers. The only dedicated service module is automatic daily charges (`server/services/autoCharges.js`).
+- **No repository layer, no separate DTO classes, no dependency injection container.** Response shaping is done by mapper functions in `server/utils/mappers.js`.
 
 Details: [ARCHITECTURE.md](./ARCHITECTURE.md)
 

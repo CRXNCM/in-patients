@@ -13,8 +13,9 @@ export default function ReceptionDashboard() {
   const { patients } = usePatients()
   const { getPatientBalance, getBalanceStatus, getPendingCount } = useServiceEntries()
 
+  const admittedPatients = patients.filter((p) => p.status === 'admitted')
   const lowBalanceCount = patients.filter((p) => getBalanceStatus(p) !== 'sufficient').length
-  const pendingDischarges = patients.filter((p) => p.pendingDischarge).length
+  const pendingDischarges = patients.filter((p) => p.status === 'pending-discharge').length
   const pendingApprovals = getPendingCount()
 
   const columns = [
@@ -67,11 +68,18 @@ export default function ReceptionDashboard() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-8">
-        <StatCard title="Total Admitted Patients" value={patients.length} subtitle="Currently in hospital" icon={Users} iconClassName="bg-blue-100 text-blue-600" />
+        <StatCard title="Total Admitted Patients" value={admittedPatients.length} subtitle="Currently in hospital" icon={Users} iconClassName="bg-blue-100 text-blue-600" />
         <StatCard title="Pending Approvals" value={pendingApprovals} subtitle="Records to review" icon={ClipboardCheck} iconClassName="bg-amber-100 text-amber-600" />
         <StatCard title="Today's Deposits" value={formatCurrency(todayDeposits)} subtitle="Collected today" icon={Wallet} iconClassName="bg-emerald-100 text-emerald-600" trend={{ positive: true, value: '12% vs yesterday' }} />
         <StatCard title="Patients with Low Balance" value={lowBalanceCount} subtitle="Below threshold" icon={AlertTriangle} iconClassName="bg-amber-100 text-amber-600" />
-        <StatCard title="Pending Discharges" value={pendingDischarges} subtitle="Awaiting clearance" icon={LogOut} iconClassName="bg-purple-100 text-purple-600" />
+        <StatCard
+          title="Pending Discharges"
+          value={pendingDischarges}
+          subtitle="Awaiting clearance"
+          icon={LogOut}
+          iconClassName="bg-purple-100 text-purple-600"
+          onClick={() => navigate('/reception/pending-discharges')}
+        />
       </div>
 
       <PendingApprovalsPanel limit={4} />

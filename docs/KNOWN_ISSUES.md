@@ -10,7 +10,7 @@ Items below are observed in the current code. There are **no `TODO` / `FIXME` co
 
 | Item | Evidence |
 |------|----------|
-| Discharge workflow | `status` includes `discharged` / `pending-discharge`; no route or button completes discharge or frees the bed |
+| Discharge balance policy | Discharge does not require a zero balance; outstanding/credit is snapshotted only (no refund document) |
 | User management API | Admin Users page reads `mockData.users` only |
 | Services / medicines CRUD persistence | Local React state; catalog used for billing is `ServiceCategory` and has no item-level API |
 | Departments / doctors / room-charge admin | Read-only mock arrays; room occupancy numbers (e.g. 45 GW beds) disagree with seed (20) |
@@ -44,7 +44,7 @@ Items below are observed in the current code. There are **no `TODO` / `FIXME` co
 
 1. **Dual mock/API implementations** in every context — behavior drifts (edit pending, auto charges, deposit objects after admit).
 2. **Fat route handlers** with duplicated `audit()` helpers in patients and records routers.
-3. **Duplicated validation** (`src/lib/validation.js` vs `server/src/utils/validation.js`) — already slightly different (phone, name length, MRN uniqueness on admit form vs API).
+3. **Duplicated validation** (`frontend/src/lib/validation.js` vs `server/utils/validation.js`) — already slightly different (phone, name length, MRN uniqueness on admit form vs API).
 4. **Patient mapper drops** mrn, nationalId, address, admissionReason — frontend duplicate-MRN check against API-loaded patients cannot see `p.mrn`.
 5. **`nextPatientId`** sorts `patientId` as a string (`PAT-100` vs `PAT-99` risk).
 6. **No Mongo transactions** on admit/transfer.

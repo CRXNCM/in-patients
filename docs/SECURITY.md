@@ -24,7 +24,7 @@ This is an analysis of **what the code does**, not a certification. Demo credent
 | Frontend route gates by role | Implemented |
 | Settings writes require Admin | Implemented |
 | Manager routes require Manager or Admin | Implemented |
-| Patient/record/bed writes require a specific role | **Not implemented** |
+| Patient/record/bed writes require a specific role | **Partial** — discharge request is Nurse-only; discharge approve/reject is Reception or Admin. Admit, deposit, transfer, and record writes still accept any JWT |
 | `source` must match caller role | **Not implemented** |
 | Object-level ownership (nurse can only edit own records) | **Not implemented** |
 

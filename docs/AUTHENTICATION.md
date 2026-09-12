@@ -60,7 +60,7 @@ No cookie session. CORS `credentials: true` is enabled but unused for cookies.
 
 ## Middleware
 
-`server/src/middleware/auth.js`:
+`server/middleware/auth.js`:
 
 | Function | Behavior |
 |----------|----------|

@@ -42,7 +42,12 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 
 24. Patient list endpoints exclude `status === 'discharged'`.
 25. There is **no implemented rule** that a person cannot have two active admissions except via optional MRN / National ID uniqueness. Two admissions with the same name and no MRN/National ID are allowed (client only warns).
-26. `pending-discharge` exists on the schema and in mock data. No API or UI sets it except seed/mock.
+26. Discharge workflow (canonical `status`):
+    - Nurse (`requireRole('Nurse')`) may request discharge only when `status === 'admitted'`. Result: `pending-discharge`. The bed stays occupied and the open assignment stays open. Recurring charges continue.
+    - Reception or Admin may reject (`reason` required) → `admitted`. Occupancy unchanged.
+    - Reception or Admin may approve → `discharged`. Open assignment `endDate` is set to the discharge date; bed becomes `available`; auto charges are generated through that date then skipped because status is `discharged`.
+    - Duplicate request / approve is rejected (`400` / `409`).
+    - `pendingDischarge` is kept in sync with `status === 'pending-discharge'` for older UI.
 
 ---
 
@@ -55,7 +60,7 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
     Pharmacy-return records contribute a **negative** total (credit).
 
 28. Pending and rejected records **do not** change `totalCharges` or remaining balance.
-29. Additional deposits must have amount **> 0**.
+29. Additional deposits must have amount **> 0**. Deposits are rejected when the patient is `discharged`. They remain allowed while `pending-discharge`. New daily/return records are rejected when `discharged`.
 30. Additional deposits require a payment method.
 31. Non-cash methods require a reference number.
 32. Deposit reference numbers must be unique (client checks loaded deposits; server checks existing `referenceNumber` values; Mongo also has a sparse unique index).
@@ -103,14 +108,14 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 51. Room display names are mapped in `BED_TYPES` (General Ward, Private Room, ICU, Operation).
 52. For each date, unless the date is in `disabledDoctorVisitDates`, an approved `autoType: 'doctor'` record is upserted using settings `dailyDoctorVisitFee` / `dailyDoctorVisitName` (defaults 2000 and “Daily Doctor Visit” in the service if settings missing).
 53. Disabling a doctor visit **deletes** that day’s doctor auto-record. Re-enabling regenerates charges through that date.
-54. Discharged patients are skipped by `ensureAutomaticDailyCharges` (status check). Discharge itself is not implemented.
+54. Discharged patients are skipped by `ensureAutomaticDailyCharges` (status check). Completing discharge generates charges through the discharge date first, then sets `discharged`.
 55. On the API, missing later-day auto charges are generated on **admit** and **room transfer**, not on `GET /api/patients/:id`. Opening the billing page in API mode only refetches existing records.
 
 ---
 
 ## Room transfer
 
-56. Patient must exist and must not be `discharged`.
+56. Patient must exist and must not be `discharged` or `pending-discharge`.
 57. Transfer date, new bed, and transfer reason are required.
 58. Transfer date cannot be before admission date or after today.
 59. Target bed must be `available`.
@@ -145,6 +150,6 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 - A room type cannot exceed a separate capacity field (capacity is just bed documents).
 - Payments cannot exceed outstanding balance.
 - VAT is added to the legal bill total used for balance.
-- Discharge requires zero balance.
+- Discharge requires zero balance (outstanding and overpayment are allowed; a snapshot is stored).
 - Nurse cannot approve via API.
 - One pending daily record per patient per day (API allows many).

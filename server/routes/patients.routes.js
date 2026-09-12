@@ -4,9 +4,17 @@ import { Patient } from '../models/Patient.js'
 import { Deposit } from '../models/Deposit.js'
 import { RoomAssignment } from '../models/RoomAssignment.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
-import { authRequired } from '../middleware/auth.js'
+import { authRequired, requireRole } from '../middleware/auth.js'
 import { ensureAutomaticDailyCharges, calcPatientBalance, setDoctorVisitDisabled } from '../services/autoCharges.js'
-import { validateAdmitBody, validateDepositBody, validateTransferBody, computeAgeFromDob, resolveAdmissionDate } from '../utils/validation.js'
+import { requestDischarge, approveDischarge, rejectDischarge } from '../services/discharge.js'
+import {
+  validateAdmitBody,
+  validateDepositBody,
+  validateTransferBody,
+  computeAgeFromDob,
+  resolveAdmissionDate,
+  inpatientActionError,
+} from '../utils/validation.js'
 import {
   toFrontendPatient,
   toFrontendAssignment,
@@ -75,6 +83,38 @@ router.get('/', authRequired, async (req, res) => {
   }
 })
 
+router.get('/pending-discharge', authRequired, async (_req, res) => {
+  try {
+    const patients = await Patient.find({ status: 'pending-discharge' }).sort({ dischargeRequestedAt: -1, admissionDate: -1 })
+    const list = await Promise.all(
+      patients.map(async (p) => {
+        const balance = await calcPatientBalance(p.patientId)
+        return toFrontendPatient(p, balance)
+      })
+    )
+    res.json(list)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to load pending discharges' })
+  }
+})
+
+router.get('/discharged', authRequired, async (_req, res) => {
+  try {
+    const patients = await Patient.find({ status: 'discharged' }).sort({ dischargeCompletedAt: -1, updatedAt: -1 })
+    const list = await Promise.all(
+      patients.map(async (p) => {
+        const balance = await calcPatientBalance(p.patientId)
+        return toFrontendPatient(p, balance)
+      })
+    )
+    res.json(list)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to load discharged patients' })
+  }
+})
+
 router.get('/:id/records', authRequired, async (req, res) => {
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
@@ -91,6 +131,8 @@ router.post('/:id/records', authRequired, async (req, res) => {
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const recordBlock = inpatientActionError(patient, 'records')
+    if (recordBlock) return res.status(400).json({ error: recordBlock })
 
     const { services, source = 'nurse', recordDate, recordName } = req.body
     if (!services?.length) return res.status(400).json({ error: 'Services required' })
@@ -137,6 +179,8 @@ router.post('/:id/returns', authRequired, async (req, res) => {
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const returnBlock = inpatientActionError(patient, 'returns')
+    if (returnBlock) return res.status(400).json({ error: returnBlock })
 
     const { returnItems, source = 'nurse', recordDate } = req.body
     if (!returnItems?.length) return res.status(400).json({ error: 'Return items required' })
@@ -252,6 +296,11 @@ router.post('/:id/transfer-room', authRequired, async (req, res) => {
 
 router.patch('/:id/doctor-visits/:date', authRequired, async (req, res) => {
   try {
+    const existing = await Patient.findOne({ patientId: req.params.id })
+    const visitBlock = inpatientActionError(existing, 'doctor-visit')
+    if (!existing) return res.status(404).json({ error: 'Patient not found' })
+    if (visitBlock) return res.status(400).json({ error: visitBlock })
+
     const { disabled } = req.body
     const patient = await setDoctorVisitDisabled(req.params.id, req.params.date, !!disabled)
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
@@ -391,6 +440,8 @@ router.post('/:id/deposits', authRequired, async (req, res) => {
     const { amount, method, date, referenceNumber } = req.body
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const depositBlock = inpatientActionError(patient, 'deposits')
+    if (depositBlock) return res.status(400).json({ error: depositBlock })
 
     const existingRefs = await Deposit.find({ referenceNumber: { $exists: true, $ne: '' } }).distinct('referenceNumber')
     const depositErrors = validateDepositBody({ amount, method, referenceNumber }, existingRefs)
@@ -413,6 +464,54 @@ router.post('/:id/deposits', authRequired, async (req, res) => {
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to add deposit' })
+  }
+})
+
+function sendDischargeError(res, err, fallback) {
+  if (err.status) return res.status(err.status).json({ error: err.message })
+  console.error(err)
+  return res.status(500).json({ error: fallback })
+}
+
+router.post('/:id/discharge-request', authRequired, requireRole('Nurse'), async (req, res) => {
+  try {
+    const patient = await requestDischarge(req.params.id, {
+      notes: req.body?.notes,
+      userName: req.user.name,
+    })
+    const balance = await calcPatientBalance(patient.patientId)
+    res.json(toFrontendPatient(patient, balance))
+  } catch (err) {
+    sendDischargeError(res, err, 'Failed to request discharge')
+  }
+})
+
+router.post('/:id/discharge/approve', authRequired, requireRole('Reception', 'Admin'), async (req, res) => {
+  try {
+    const { patient, balance } = await approveDischarge(req.params.id, { userName: req.user.name })
+    const assignments = await RoomAssignment.find({ patientId: patient.patientId }).sort({ startDate: 1 })
+    const beds = await Bed.find()
+    res.json({
+      patient: { ...toFrontendPatient(patient, balance), roomHistory: buildRoomHistory(assignments) },
+      assignments: assignments.map(toFrontendAssignment),
+      rooms: buildRoomsFromBeds(beds),
+      balance,
+    })
+  } catch (err) {
+    sendDischargeError(res, err, 'Failed to complete discharge')
+  }
+})
+
+router.post('/:id/discharge/reject', authRequired, requireRole('Reception', 'Admin'), async (req, res) => {
+  try {
+    const patient = await rejectDischarge(req.params.id, {
+      reason: req.body?.reason,
+      userName: req.user.name,
+    })
+    const balance = await calcPatientBalance(patient.patientId)
+    res.json(toFrontendPatient(patient, balance))
+  } catch (err) {
+    sendDischargeError(res, err, 'Failed to reject discharge')
   }
 })
 

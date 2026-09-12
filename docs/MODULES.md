@@ -47,7 +47,7 @@ Details: [AUTHENTICATION.md](./AUTHENTICATION.md).
 
 | | |
 |-|-|
-| **Routes** | `GET /api/patients`, `GET /api/patients?view=full`, `GET /api/patients/:id`, `POST /api/patients` |
+| **Routes** | `GET /api/patients`, `GET /api/patients?view=full`, `GET /api/patients/:id`, `POST /api/patients`, pending-discharge / discharged lists, discharge request / approve / reject |
 | **Entities** | `Patient`, `Deposit`, `Bed`, `RoomAssignment`, `ServiceRecord` |
 | **Validation** | `validateAdmitBody` (server), `validateAdmission` (client) |
 | **Mappers** | `toFrontendPatient`, `buildRoomHistory` |
@@ -129,6 +129,21 @@ Admin **Room Charges** page displays different occupancy numbers from `mockData.
 
 ---
 
+## 5a. Discharge
+
+**Purpose:** Nurse request → reception review → discharged or back to admitted.
+
+| | |
+|-|-|
+| **Routes** | `GET /api/patients/pending-discharge`, `GET /api/patients/discharged`, `POST /api/patients/:id/discharge-request`, `POST .../discharge/approve`, `POST .../discharge/reject` |
+| **Service** | `server/services/discharge.js` |
+| **Authz** | Request: Nurse. Approve/reject: Reception or Admin |
+| **Frontend** | `DischargeWorkflow.jsx`, `PendingDischarges.jsx`, `DischargedPatients.jsx`, nurse patient page, reception billing |
+
+Details: [discharge-workflow.md](./discharge-workflow.md).
+
+---
+
 ## 6. Service records
 
 **Purpose:** Group services (or pharmacy returns) into a dated record with status and audit trail.
@@ -163,7 +178,7 @@ Admin **Room Charges** page displays different occupancy numbers from `mockData.
 
 | | |
 |-|-|
-| **Service** | `server/src/services/autoCharges.js` |
+| **Service** | `server/services/autoCharges.js` |
 | **Triggered by API** | Patient admit, room transfer, re-enabling a doctor visit |
 | **Triggered by UI (API mode)** | Opening Patient Billing calls `ensureAutomaticDailyCharges`, which **only refreshes records** — it does not generate missing days |
 | **Triggered by UI (mock mode)** | Local generation from admission date through today |

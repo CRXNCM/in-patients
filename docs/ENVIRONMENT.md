@@ -19,13 +19,13 @@ Template: `server/.env.example`.
 
 Example values in `.env.example` are local-dev placeholders (`mongodb://127.0.0.1:27017/medbill`, `JWT_SECRET=change-this-in-production`). **Do not reuse that secret in production.**
 
-`dotenv` is loaded at the top of `server/src/index.js` and `server/src/scripts/seed.js`.
+`dotenv` is loaded at the top of `server/server.js` and `server/scripts/seed.js`.
 
 ---
 
 ## Frontend (Vite)
 
-There is **no** committed frontend `.env.example`. Vite exposes only variables prefixed with `VITE_`.
+Template: `frontend/.env.example`. Vite exposes only variables prefixed with `VITE_`. After the split, Vite reads `frontend/.env` (not a repo-root `.env`).
 
 | Variable | Required | Default in code | Purpose |
 |----------|----------|-----------------|---------|
@@ -68,9 +68,13 @@ npm run dev
 **SPA:**
 
 ```bash
+cd frontend
 npm install
+# optional: copy .env.example → .env
 npm run dev
 ```
+
+From the repo root you can also run `npm run dev:server` and `npm run dev:frontend`.
 
 MongoDB must be reachable when API mode is on. Production host, TLS, and replica-set settings are **Unknown from current implementation**.
 

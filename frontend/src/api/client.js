@@ -40,6 +40,14 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ disabled }),
     }),
+  getPendingDischarges: () => apiFetch('/api/patients/pending-discharge'),
+  getDischargedPatients: () => apiFetch('/api/patients/discharged'),
+  requestDischarge: (id, body = {}) =>
+    apiFetch(`/api/patients/${id}/discharge-request`, { method: 'POST', body: JSON.stringify(body) }),
+  approveDischarge: (id) =>
+    apiFetch(`/api/patients/${id}/discharge/approve`, { method: 'POST', body: JSON.stringify({}) }),
+  rejectDischarge: (id, reason) =>
+    apiFetch(`/api/patients/${id}/discharge/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
 
   getRooms: () => apiFetch('/api/beds/rooms'),
   getAvailableBeds: (roomType) =>

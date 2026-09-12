@@ -52,9 +52,9 @@ Related: [KNOWN_ISSUES.md](./KNOWN_ISSUES.md) · [SECURITY.md](./SECURITY.md) ·
 
 **Depends on:** 3, beds.
 
-- Explicit discharge endpoint: set `discharged`, free bed, close assignment, stop auto charges
-- Clearance rule (e.g. warn if remaining balance ≠ 0) — **not implemented today; define before coding**
-- `pending-discharge` transition if still required
+- Discharge request / approve / reject is implemented (see [discharge-workflow.md](./discharge-workflow.md))
+- Optional future clearance rule (block approve when remaining ≠ 0) — **not implemented**; outstanding/overpayment allowed
+- Refund document type for overpayment — **not implemented**
 
 ---
 

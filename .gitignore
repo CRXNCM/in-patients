@@ -1,5 +1,9 @@
 node_modules
-.env
+frontend/node_modules
 server/node_modules
+.env
+frontend/.env
 server/.env
+frontend/dist
+dist
 *.db

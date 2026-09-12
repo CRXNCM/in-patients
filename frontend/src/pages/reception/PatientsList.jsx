@@ -30,7 +30,8 @@ export default function PatientsList() {
         )
       },
     },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={getBalanceStatus(row)} /> },
+    { key: 'stay', header: 'Stay', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'status', header: 'Balance', render: (row) => <StatusBadge status={getBalanceStatus(row)} /> },
     {
       key: 'actions',
       header: 'Actions',

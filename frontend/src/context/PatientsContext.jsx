@@ -33,14 +33,19 @@ function withRoomHistory(patient) {
 export function PatientsProvider({ children }) {
   const { isAuthenticated, authReady } = useAuth()
   const [patients, setPatients] = React.useState(() => (USE_API ? [] : initialPatients.map(withRoomHistory)))
+  const [dischargedPatients, setDischargedPatients] = React.useState([])
   const [deposits, setDeposits] = React.useState(() => (USE_API ? {} : depositHistory))
   const [rooms, setRooms] = React.useState(() => (USE_API ? [] : initialHospitalRooms))
   const [roomAssignments, setRoomAssignments] = React.useState(() => (USE_API ? [] : initialRoomAssignments))
   const [loading, setLoading] = React.useState(USE_API)
 
   const refreshFromApi = React.useCallback(async () => {
-    const data = await api.getPatientsFull()
+    const [data, discharged] = await Promise.all([
+      api.getPatientsFull(),
+      api.getDischargedPatients().catch(() => []),
+    ])
     setPatients(data.patients.map(withRoomHistory))
+    setDischargedPatients((discharged || []).map(withRoomHistory))
     setDeposits(data.deposits)
     setRoomAssignments(data.assignments)
     setRooms(data.rooms)
@@ -51,6 +56,7 @@ export function PatientsProvider({ children }) {
     if (!USE_API || !authReady) return undefined
     if (!isAuthenticated) {
       setPatients([])
+      setDischargedPatients([])
       setDeposits({})
       setRoomAssignments([])
       setRooms([])
@@ -196,8 +202,8 @@ export function PatientsProvider({ children }) {
   )
 
   const getPatient = React.useCallback(
-    (id) => patients.find((p) => p.id === id),
-    [patients]
+    (id) => patients.find((p) => p.id === id) || dischargedPatients.find((p) => p.id === id),
+    [patients, dischargedPatients]
   )
 
   const getPatientDeposits = React.useCallback(
@@ -279,7 +285,7 @@ export function PatientsProvider({ children }) {
       }
 
       const patient = patients.find((p) => p.id === patientId)
-      if (!patient || patient.status === 'discharged') return null
+      if (!patient || patient.status === 'discharged' || patient.status === 'pending-discharge') return null
 
       const target = getBedById(rooms, bedId)
       if (!target || target.bed.status !== 'available' || target.room.id !== roomId) return null
@@ -431,6 +437,162 @@ export function PatientsProvider({ children }) {
     [roomAssignments, rooms]
   )
 
+  const applyPatientUpdate = React.useCallback((updated) => {
+    const mapped = withRoomHistory(updated)
+    setPatients((prev) => {
+      if (mapped.status === 'discharged') return prev.filter((p) => p.id !== mapped.id)
+      const exists = prev.some((p) => p.id === mapped.id)
+      return exists ? prev.map((p) => (p.id === mapped.id ? { ...p, ...mapped } : p)) : [mapped, ...prev]
+    })
+    setDischargedPatients((prev) => {
+      if (mapped.status !== 'discharged') return prev.filter((p) => p.id !== mapped.id)
+      const exists = prev.some((p) => p.id === mapped.id)
+      return exists ? prev.map((p) => (p.id === mapped.id ? { ...p, ...mapped } : p)) : [mapped, ...prev]
+    })
+    return mapped
+  }, [])
+
+  const requestDischarge = React.useCallback(
+    async (patientId, { notes = '' } = {}) => {
+      if (USE_API) {
+        const updated = await api.requestDischarge(patientId, { notes })
+        return applyPatientUpdate(updated)
+      }
+
+      const patient = patients.find((p) => p.id === patientId)
+      if (!patient || patient.status !== 'admitted') {
+        throw new Error(
+          patient?.status === 'pending-discharge'
+            ? 'A discharge request is already pending.'
+            : patient?.status === 'discharged'
+              ? 'Patient is already discharged.'
+              : 'Discharge can only be requested for admitted patients.'
+        )
+      }
+      const now = new Date().toISOString()
+      const updated = {
+        ...patient,
+        status: 'pending-discharge',
+        pendingDischarge: true,
+        discharge: {
+          ...(patient.discharge || {}),
+          requestedBy: 'Nurse Almaz Tsegaye',
+          requestedAt: now,
+          requestNotes: notes,
+          rejectedBy: null,
+          rejectedAt: null,
+          rejectionReason: '',
+          events: [
+            ...((patient.discharge?.events) || []),
+            { action: 'requested', by: 'Nurse Almaz Tsegaye', at: now, note: notes || 'Discharge requested' },
+          ],
+        },
+      }
+      return applyPatientUpdate(updated)
+    },
+    [applyPatientUpdate, patients]
+  )
+
+  const rejectDischarge = React.useCallback(
+    async (patientId, reason) => {
+      const trimmed = String(reason || '').trim()
+      if (!trimmed) throw new Error('Rejection reason is required.')
+
+      if (USE_API) {
+        const updated = await api.rejectDischarge(patientId, trimmed)
+        return applyPatientUpdate(updated)
+      }
+
+      const patient = patients.find((p) => p.id === patientId)
+      if (!patient || patient.status !== 'pending-discharge') {
+        throw new Error('Patient does not have a pending discharge request.')
+      }
+      const now = new Date().toISOString()
+      const updated = {
+        ...patient,
+        status: 'admitted',
+        pendingDischarge: false,
+        discharge: {
+          ...(patient.discharge || {}),
+          rejectedBy: 'Sara Bekele',
+          rejectedAt: now,
+          rejectionReason: trimmed,
+          events: [
+            ...((patient.discharge?.events) || []),
+            { action: 'rejected', by: 'Sara Bekele', at: now, note: trimmed },
+          ],
+        },
+      }
+      return applyPatientUpdate(updated)
+    },
+    [applyPatientUpdate, patients]
+  )
+
+  const approveDischarge = React.useCallback(
+    async (patientId) => {
+      if (USE_API) {
+        const res = await api.approveDischarge(patientId)
+        applyPatientUpdate(res.patient)
+        if (res.assignments) setRoomAssignments(res.assignments)
+        if (res.rooms) setRooms(res.rooms)
+        return res.patient
+      }
+
+      const patient = patients.find((p) => p.id === patientId)
+      if (!patient || patient.status !== 'pending-discharge') {
+        throw new Error(
+          patient?.status === 'discharged'
+            ? 'Patient is already discharged.'
+            : 'Patient does not have a pending discharge request.'
+        )
+      }
+
+      const currentAssignment = roomAssignments.find((a) => a.admission_id === patientId && a.end_date === null)
+      if (!currentAssignment) throw new Error('No active room assignment. Cannot complete discharge.')
+
+      const dischargeDate = new Date().toISOString().split('T')[0]
+      const now = new Date().toISOString()
+      const updated = {
+        ...patient,
+        status: 'discharged',
+        pendingDischarge: false,
+        roomHistory: (patient.roomHistory || []).map((h, i, arr) =>
+          i === arr.length - 1 && !h.toDate ? { ...h, toDate: dischargeDate } : h
+        ),
+        discharge: {
+          ...(patient.discharge || {}),
+          completedBy: 'Sara Bekele',
+          completedAt: now,
+          finalRoom: patient.room,
+          finalBed: patient.bed,
+          finalCharges: patient.totalCharges,
+          finalDeposits: patient.deposit,
+          finalBalance: (patient.deposit || 0) - (patient.totalCharges || 0),
+          events: [
+            ...((patient.discharge?.events) || []),
+            { action: 'approved', by: 'Sara Bekele', at: now, note: 'Discharge completed' },
+          ],
+        },
+      }
+
+      setRoomAssignments((prev) =>
+        prev.map((a) => (a.id === currentAssignment.id ? { ...a, end_date: dischargeDate } : a))
+      )
+      setRooms((prev) =>
+        prev.map((room) => ({
+          ...room,
+          beds: room.beds.map((bed) =>
+            bed.id === currentAssignment.bed_id || bed.label === patient.bed
+              ? { ...bed, status: 'available', patientId: null }
+              : bed
+          ),
+        }))
+      )
+      return applyPatientUpdate(updated)
+    },
+    [applyPatientUpdate, patients, roomAssignments]
+  )
+
   const getTotalDeposit = React.useCallback(
     (patientId) => {
       const p = patients.find((pt) => pt.id === patientId)
@@ -443,6 +605,7 @@ export function PatientsProvider({ children }) {
     <PatientsContext.Provider
       value={{
         patients,
+        dischargedPatients,
         rooms,
         roomAssignments,
         loading,
@@ -458,6 +621,9 @@ export function PatientsProvider({ children }) {
         getRoomAssignmentForDate,
         setDoctorVisitDisabled,
         getRoomForDate,
+        requestDischarge,
+        rejectDischarge,
+        approveDischarge,
       }}
     >
       {children}
