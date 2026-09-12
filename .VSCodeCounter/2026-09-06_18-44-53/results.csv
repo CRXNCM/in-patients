@@ -1,0 +1,96 @@
+"filename", "language", "JavaScript", "JavaScript JSX", "CSS", "JSON", "JSON with Comments", "Markdown", "HTML", "XML", "comment", "blank", "total"
+"c:\Users\hp\Documents\pro\in-patients\README.md", "Markdown", 0, 0, 0, 0, 0, 818, 0, 0, 0, 314, 1132
+"c:\Users\hp\Documents\pro\in-patients\dist\assets\index-Bgl6c5wL.js", "JavaScript", 177, 0, 0, 0, 0, 0, 0, 0, 307, 6, 490
+"c:\Users\hp\Documents\pro\in-patients\dist\assets\index-CJrrQkLi.css", "CSS", 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 2
+"c:\Users\hp\Documents\pro\in-patients\dist\hospital-icon.svg", "XML", 0, 0, 0, 0, 0, 0, 0, 4, 0, 1, 5
+"c:\Users\hp\Documents\pro\in-patients\dist\index.html", "HTML", 0, 0, 0, 0, 0, 0, 17, 0, 0, 2, 19
+"c:\Users\hp\Documents\pro\in-patients\index.html", "HTML", 0, 0, 0, 0, 0, 0, 16, 0, 0, 1, 17
+"c:\Users\hp\Documents\pro\in-patients\jsconfig.json", "JSON with Comments", 0, 0, 0, 0, 8, 0, 0, 0, 0, 1, 9
+"c:\Users\hp\Documents\pro\in-patients\package-lock.json", "JSON", 0, 0, 0, 4198, 0, 0, 0, 0, 0, 1, 4199
+"c:\Users\hp\Documents\pro\in-patients\package.json", "JSON", 0, 0, 0, 41, 0, 0, 0, 0, 0, 1, 42
+"c:\Users\hp\Documents\pro\in-patients\postcss.config.js", "JavaScript", 6, 0, 0, 0, 0, 0, 0, 0, 0, 1, 7
+"c:\Users\hp\Documents\pro\in-patients\public\hospital-icon.svg", "XML", 0, 0, 0, 0, 0, 0, 0, 4, 0, 1, 5
+"c:\Users\hp\Documents\pro\in-patients\server\package-lock.json", "JSON", 0, 0, 0, 1229, 0, 0, 0, 0, 0, 1, 1230
+"c:\Users\hp\Documents\pro\in-patients\server\package.json", "JSON", 0, 0, 0, 18, 0, 0, 0, 0, 0, 1, 19
+"c:\Users\hp\Documents\pro\in-patients\server\src\config\db.js", "JavaScript", 6, 0, 0, 0, 0, 0, 0, 0, 0, 2, 8
+"c:\Users\hp\Documents\pro\in-patients\server\src\index.js", "JavaScript", 36, 0, 0, 0, 0, 0, 0, 0, 0, 7, 43
+"c:\Users\hp\Documents\pro\in-patients\server\src\middleware\auth.js", "JavaScript", 27, 0, 0, 0, 0, 0, 0, 0, 0, 5, 32
+"c:\Users\hp\Documents\pro\in-patients\server\src\models\Bed.js", "JavaScript", 12, 0, 0, 0, 0, 0, 0, 0, 0, 3, 15
+"c:\Users\hp\Documents\pro\in-patients\server\src\models\Deposit.js", "JavaScript", 15, 0, 0, 0, 0, 0, 0, 0, 0, 4, 19
+"c:\Users\hp\Documents\pro\in-patients\server\src\models\HospitalSettings.js", "JavaScript", 17, 0, 0, 0, 0, 0, 0, 0, 0, 3, 20
+"c:\Users\hp\Documents\pro\in-patients\server\src\models\Patient.js", "JavaScript", 29, 0, 0, 0, 0, 0, 0, 0, 0, 3, 32
+"c:\Users\hp\Documents\pro\in-patients\server\src\models\RoomAssignment.js", "JavaScript", 16, 0, 0, 0, 0, 0, 0, 0, 0, 3, 19
+"c:\Users\hp\Documents\pro\in-patients\server\src\models\ServiceCategory.js", "JavaScript", 16, 0, 0, 0, 0, 0, 0, 0, 0, 4, 20
+"c:\Users\hp\Documents\pro\in-patients\server\src\models\ServiceRecord.js", "JavaScript", 51, 0, 0, 0, 0, 0, 0, 0, 0, 7, 58
+"c:\Users\hp\Documents\pro\in-patients\server\src\models\User.js", "JavaScript", 12, 0, 0, 0, 0, 0, 0, 0, 0, 3, 15
+"c:\Users\hp\Documents\pro\in-patients\server\src\routes\auth.routes.js", "JavaScript", 57, 0, 0, 0, 0, 0, 0, 0, 0, 10, 67
+"c:\Users\hp\Documents\pro\in-patients\server\src\routes\beds.routes.js", "JavaScript", 35, 0, 0, 0, 0, 0, 0, 0, 0, 6, 41
+"c:\Users\hp\Documents\pro\in-patients\server\src\routes\manager.routes.js", "JavaScript", 226, 0, 0, 0, 0, 0, 0, 0, 0, 24, 250
+"c:\Users\hp\Documents\pro\in-patients\server\src\routes\patients.routes.js", "JavaScript", 368, 0, 0, 0, 0, 0, 0, 0, 0, 52, 420
+"c:\Users\hp\Documents\pro\in-patients\server\src\routes\records.routes.js", "JavaScript", 74, 0, 0, 0, 0, 0, 0, 0, 0, 12, 86
+"c:\Users\hp\Documents\pro\in-patients\server\src\routes\settings.routes.js", "JavaScript", 53, 0, 0, 0, 0, 0, 0, 0, 0, 7, 60
+"c:\Users\hp\Documents\pro\in-patients\server\src\scripts\seed.js", "JavaScript", 306, 0, 0, 0, 0, 0, 0, 0, 0, 15, 321
+"c:\Users\hp\Documents\pro\in-patients\server\src\services\autoCharges.js", "JavaScript", 139, 0, 0, 0, 0, 0, 0, 0, 0, 16, 155
+"c:\Users\hp\Documents\pro\in-patients\server\src\utils\mappers.js", "JavaScript", 142, 0, 0, 0, 0, 0, 0, 0, 0, 9, 151
+"c:\Users\hp\Documents\pro\in-patients\server\src\utils\validation.js", "JavaScript", 73, 0, 0, 0, 0, 0, 0, 0, 0, 16, 89
+"c:\Users\hp\Documents\pro\in-patients\src\App.jsx", "JavaScript JSX", 0, 85, 0, 0, 0, 0, 0, 0, 0, 11, 96
+"c:\Users\hp\Documents\pro\in-patients\src\api\client.js", "JavaScript", 65, 0, 0, 0, 0, 0, 0, 0, 0, 12, 77
+"c:\Users\hp\Documents\pro\in-patients\src\components\auth\RequireAuth.jsx", "JavaScript JSX", 0, 19, 0, 0, 0, 0, 0, 0, 0, 6, 25
+"c:\Users\hp\Documents\pro\in-patients\src\components\layout\AppLayout.jsx", "JavaScript JSX", 0, 41, 0, 0, 0, 0, 0, 0, 0, 6, 47
+"c:\Users\hp\Documents\pro\in-patients\src\components\layout\Sidebar.jsx", "JavaScript JSX", 0, 113, 0, 0, 0, 0, 0, 0, 0, 6, 119
+"c:\Users\hp\Documents\pro\in-patients\src\components\layout\TopNav.jsx", "JavaScript JSX", 0, 140, 0, 0, 0, 0, 0, 0, 0, 12, 152
+"c:\Users\hp\Documents\pro\in-patients\src\components\shared\CommonComponents.jsx", "JavaScript JSX", 0, 136, 0, 0, 0, 0, 0, 0, 0, 8, 144
+"c:\Users\hp\Documents\pro\in-patients\src\components\shared\DepositReceipt.jsx", "JavaScript JSX", 0, 43, 0, 0, 0, 0, 0, 0, 0, 7, 50
+"c:\Users\hp\Documents\pro\in-patients\src\components\shared\HospitalLogo.jsx", "JavaScript JSX", 0, 20, 0, 0, 0, 0, 0, 0, 0, 4, 24
+"c:\Users\hp\Documents\pro\in-patients\src\components\shared\RecordTimeline.jsx", "JavaScript JSX", 0, 168, 0, 0, 0, 0, 0, 0, 0, 13, 181
+"c:\Users\hp\Documents\pro\in-patients\src\components\shared\RoomTransferPanel.jsx", "JavaScript JSX", 0, 299, 0, 0, 0, 0, 0, 0, 0, 19, 318
+"c:\Users\hp\Documents\pro\in-patients\src\components\shared\ServiceRecordBuilder.jsx", "JavaScript JSX", 0, 469, 0, 0, 0, 0, 0, 0, 0, 26, 495
+"c:\Users\hp\Documents\pro\in-patients\src\components\shared\ServiceTimeline.jsx", "JavaScript JSX", 0, 123, 0, 0, 0, 0, 0, 0, 0, 13, 136
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\alert-dialog.jsx", "JavaScript JSX", 0, 69, 0, 0, 0, 0, 0, 0, 0, 11, 80
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\avatar.jsx", "JavaScript JSX", 0, 16, 0, 0, 0, 0, 0, 0, 0, 5, 21
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\badge.jsx", "JavaScript JSX", 0, 23, 0, 0, 0, 0, 0, 0, 0, 3, 26
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\button.jsx", "JavaScript JSX", 0, 35, 0, 0, 0, 0, 0, 0, 0, 4, 39
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\card.jsx", "JavaScript JSX", 0, 27, 0, 0, 0, 0, 0, 0, 0, 8, 35
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\dialog.jsx", "JavaScript JSX", 0, 67, 0, 0, 0, 0, 0, 0, 0, 9, 76
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\input.jsx", "JavaScript JSX", 0, 15, 0, 0, 0, 0, 0, 0, 0, 3, 18
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\label.jsx", "JavaScript JSX", 0, 8, 0, 0, 0, 0, 0, 0, 0, 3, 11
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\select.jsx", "JavaScript JSX", 0, 94, 0, 0, 0, 0, 0, 0, 0, 10, 104
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\separator.jsx", "JavaScript JSX", 0, 14, 0, 0, 0, 0, 0, 0, 0, 3, 17
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\switch.jsx", "JavaScript JSX", 0, 21, 0, 0, 0, 0, 0, 0, 0, 3, 24
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\tabs.jsx", "JavaScript JSX", 0, 35, 0, 0, 0, 0, 0, 0, 0, 6, 41
+"c:\Users\hp\Documents\pro\in-patients\src\components\ui\toast.jsx", "JavaScript JSX", 0, 78, 0, 0, 0, 0, 0, 0, 0, 10, 88
+"c:\Users\hp\Documents\pro\in-patients\src\context\AuthContext.jsx", "JavaScript JSX", 0, 121, 0, 0, 0, 0, 0, 0, 0, 19, 140
+"c:\Users\hp\Documents\pro\in-patients\src\context\BillingConfigContext.jsx", "JavaScript JSX", 0, 103, 0, 0, 0, 0, 0, 0, 0, 13, 116
+"c:\Users\hp\Documents\pro\in-patients\src\context\PatientsContext.jsx", "JavaScript JSX", 0, 438, 0, 0, 0, 0, 0, 0, 0, 35, 473
+"c:\Users\hp\Documents\pro\in-patients\src\context\ServiceEntriesContext.jsx", "JavaScript JSX", 0, 627, 0, 0, 0, 0, 0, 0, 0, 63, 690
+"c:\Users\hp\Documents\pro\in-patients\src\context\ThemeContext.jsx", "JavaScript JSX", 0, 22, 0, 0, 0, 0, 0, 0, 0, 7, 29
+"c:\Users\hp\Documents\pro\in-patients\src\context\ToastContext.jsx", "JavaScript JSX", 0, 39, 0, 0, 0, 0, 0, 0, 0, 8, 47
+"c:\Users\hp\Documents\pro\in-patients\src\data\mockData.js", "JavaScript", 781, 0, 0, 0, 0, 0, 0, 0, 3, 37, 821
+"c:\Users\hp\Documents\pro\in-patients\src\hooks\useManagerDashboard.js", "JavaScript", 67, 0, 0, 0, 0, 0, 0, 0, 0, 7, 74
+"c:\Users\hp\Documents\pro\in-patients\src\index.css", "CSS", 0, 0, 100, 0, 0, 0, 0, 0, 0, 11, 111
+"c:\Users\hp\Documents\pro\in-patients\src\lib\printReport.js", "JavaScript", 98, 0, 0, 0, 0, 0, 0, 0, 0, 12, 110
+"c:\Users\hp\Documents\pro\in-patients\src\lib\utils.js", "JavaScript", 48, 0, 0, 0, 0, 0, 0, 0, 0, 7, 55
+"c:\Users\hp\Documents\pro\in-patients\src\lib\validation.js", "JavaScript", 239, 0, 0, 0, 0, 0, 0, 0, 0, 51, 290
+"c:\Users\hp\Documents\pro\in-patients\src\main.jsx", "JavaScript JSX", 0, 9, 0, 0, 0, 0, 0, 0, 0, 2, 11
+"c:\Users\hp\Documents\pro\in-patients\src\pages\LoginPage.jsx", "JavaScript JSX", 0, 122, 0, 0, 0, 0, 0, 0, 0, 10, 132
+"c:\Users\hp\Documents\pro\in-patients\src\pages\admin\AdminDashboard.jsx", "JavaScript JSX", 0, 73, 0, 0, 0, 0, 0, 0, 0, 5, 78
+"c:\Users\hp\Documents\pro\in-patients\src\pages\admin\DepartmentsPage.jsx", "JavaScript JSX", 0, 37, 0, 0, 0, 0, 0, 0, 0, 4, 41
+"c:\Users\hp\Documents\pro\in-patients\src\pages\admin\DoctorsPage.jsx", "JavaScript JSX", 0, 17, 0, 0, 0, 0, 0, 0, 0, 3, 20
+"c:\Users\hp\Documents\pro\in-patients\src\pages\admin\MedicinesPage.jsx", "JavaScript JSX", 0, 95, 0, 0, 0, 0, 0, 0, 0, 9, 104
+"c:\Users\hp\Documents\pro\in-patients\src\pages\admin\RoomChargesPage.jsx", "JavaScript JSX", 0, 49, 0, 0, 0, 0, 0, 0, 0, 3, 52
+"c:\Users\hp\Documents\pro\in-patients\src\pages\admin\ServicesPage.jsx", "JavaScript JSX", 0, 115, 0, 0, 0, 0, 0, 0, 0, 10, 125
+"c:\Users\hp\Documents\pro\in-patients\src\pages\admin\SettingsPage.jsx", "JavaScript JSX", 0, 127, 0, 0, 0, 0, 0, 0, 0, 8, 135
+"c:\Users\hp\Documents\pro\in-patients\src\pages\admin\UsersPage.jsx", "JavaScript JSX", 0, 18, 0, 0, 0, 0, 0, 0, 0, 3, 21
+"c:\Users\hp\Documents\pro\in-patients\src\pages\manager\ManagerDashboard.jsx", "JavaScript JSX", 0, 119, 0, 0, 0, 0, 0, 0, 0, 13, 132
+"c:\Users\hp\Documents\pro\in-patients\src\pages\manager\ReportsPage.jsx", "JavaScript JSX", 0, 191, 0, 0, 0, 0, 0, 0, 0, 12, 203
+"c:\Users\hp\Documents\pro\in-patients\src\pages\nurse\NurseDashboard.jsx", "JavaScript JSX", 0, 82, 0, 0, 0, 0, 0, 0, 0, 7, 89
+"c:\Users\hp\Documents\pro\in-patients\src\pages\nurse\NursePatientsList.jsx", "JavaScript JSX", 0, 34, 0, 0, 0, 0, 0, 0, 0, 4, 38
+"c:\Users\hp\Documents\pro\in-patients\src\pages\nurse\PatientServiceEntry.jsx", "JavaScript JSX", 0, 69, 0, 0, 0, 0, 0, 0, 0, 10, 79
+"c:\Users\hp\Documents\pro\in-patients\src\pages\reception\AddPatient.jsx", "JavaScript JSX", 0, 273, 0, 0, 0, 0, 0, 0, 0, 18, 291
+"c:\Users\hp\Documents\pro\in-patients\src\pages\reception\PatientBilling.jsx", "JavaScript JSX", 0, 595, 0, 0, 0, 0, 0, 0, 0, 42, 637
+"c:\Users\hp\Documents\pro\in-patients\src\pages\reception\PatientsList.jsx", "JavaScript JSX", 0, 59, 0, 0, 0, 0, 0, 0, 0, 4, 63
+"c:\Users\hp\Documents\pro\in-patients\src\pages\reception\PendingApprovals.jsx", "JavaScript JSX", 0, 198, 0, 0, 0, 0, 0, 0, 0, 13, 211
+"c:\Users\hp\Documents\pro\in-patients\src\pages\reception\ReceptionDashboard.jsx", "JavaScript JSX", 0, 84, 0, 0, 0, 0, 0, 0, 0, 8, 92
+"c:\Users\hp\Documents\pro\in-patients\tailwind.config.js", "JavaScript", 61, 0, 0, 0, 0, 0, 0, 0, 1, 2, 64
+"c:\Users\hp\Documents\pro\in-patients\vite.config.js", "JavaScript", 11, 0, 0, 0, 0, 0, 0, 0, 0, 2, 13
+"Total", "-", 3263, 5874, 101, 5486, 8, 818, 33, 8, 311, 1226, 17128

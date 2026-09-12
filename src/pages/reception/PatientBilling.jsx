@@ -15,18 +15,19 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { StatCard, DataTable, StatusBadge } from '@/components/shared/CommonComponents'
+import { StatCard, DataTable, StatusBadge, Pagination, usePagedItems } from '@/components/shared/CommonComponents'
 import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
 import { RecordTimeline } from '@/components/shared/RecordTimeline'
 import { RecordDetailView } from '@/components/shared/RecordTimeline'
 import { DepositReceipt } from '@/components/shared/DepositReceipt'
-import { HospitalLogo } from '@/components/shared/HospitalLogo'
+import { InvoicePreview } from '@/components/shared/InvoicePreview'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RoomHistoryTable, RoomTransferPanel } from '@/components/shared/RoomTransferPanel'
 import { hospitalSettings, depositTypes } from '@/data/mockData'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { computeRecordTotal } from '@/context/ServiceEntriesContext'
-import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 import { useToast } from '@/context/ToastContext'
 import { cn } from '@/lib/utils'
 import { validateDeposit, firstError, trimText, NON_CASH_PAYMENT_METHODS } from '@/lib/validation'
@@ -34,6 +35,42 @@ import { validateDeposit, firstError, trimText, NON_CASH_PAYMENT_METHODS } from 
 function FieldError({ message }) {
   if (!message) return null
   return <p className="text-xs text-destructive mt-1">{message}</p>
+}
+
+function PagedDoctorVisitGrid({ dates, disabledMap, onToggle }) {
+  const { page, setPage, pageCount, slice, total, pageSize } = usePagedItems(dates)
+  return (
+    <div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {slice.map((date) => {
+          const disabled = disabledMap?.[date]
+          return (
+            <label
+              key={date}
+              className={cn(
+                'flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
+                disabled ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20' : 'hover:bg-muted/50'
+              )}
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-input"
+                checked={!!disabled}
+                onChange={(e) => onToggle(date, e.target.checked)}
+              />
+              <span className="text-sm">
+                <span className="font-medium">{formatDate(date)}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {disabled ? 'No visit — charge disabled' : 'Doctor visit billed'}
+                </span>
+              </span>
+            </label>
+          )
+        })}
+      </div>
+      <Pagination page={page} pageCount={pageCount} onPageChange={setPage} total={total} pageSize={pageSize} />
+    </div>
+  )
 }
 
 export default function PatientBilling() {
@@ -61,6 +98,7 @@ export default function PatientBilling() {
   const [detailRecord, setDetailRecord] = useState(null)
   const [printDeposit, setPrintDeposit] = useState(null)
   const [pendingPrint, setPendingPrint] = useState(null)
+  const [invoiceVariant, setInvoiceVariant] = useState('summary')
 
   useEffect(() => {
     if (patientId) ensureAutomaticDailyCharges(patientId)
@@ -88,9 +126,20 @@ export default function PatientBilling() {
   }, [pendingPrint, printDeposit])
 
   const queuePrint = (mode) => {
-    if (mode === 'invoice') setPrintDeposit(null)
+    if (mode !== 'deposit') setPrintDeposit(null)
     setPendingPrint(mode)
   }
+
+  const printInvoice = (variant) => {
+    setInvoiceVariant(variant)
+    queuePrint(variant === 'summary' ? 'invoice-summary' : 'invoice-detailed')
+  }
+
+  const allRecords = getPatientRecords(patientId)
+  const pendingRecords = allRecords.filter((r) => r.status === 'pending')
+  const deposits = getPatientDeposits(patientId)
+  const pendingPaged = usePagedItems(pendingRecords)
+  const depositPaged = usePagedItems(deposits)
 
   if (loading) {
     return <div className="text-center py-20 text-muted-foreground">Loading patient...</div>
@@ -105,9 +154,6 @@ export default function PatientBilling() {
     )
   }
 
-  const allRecords = getPatientRecords(patientId)
-  const pendingRecords = allRecords.filter((r) => r.status === 'pending')
-  const deposits = getPatientDeposits(patientId)
   const balance = getPatientBalance(patient)
   const { totalCharges, remainingBalance, pendingCharges } = balance
   const isLowBalance = remainingBalance < hospitalSettings.lowBalanceThreshold
@@ -254,7 +300,7 @@ export default function PatientBilling() {
               <h3 className="font-semibold text-amber-800 dark:text-amber-300">Pending Records ({pendingRecords.length})</h3>
             </div>
             <div className="space-y-2">
-              {pendingRecords.map((record) => {
+              {pendingPaged.slice.map((record) => {
                 const total = computeRecordTotal(record)
                 const count = record.type === 'pharmacy_return' ? record.returnItems?.length : record.services?.length
                 return (
@@ -279,6 +325,13 @@ export default function PatientBilling() {
                 )
               })}
             </div>
+            <Pagination
+              page={pendingPaged.page}
+              pageCount={pendingPaged.pageCount}
+              onPageChange={pendingPaged.setPage}
+              total={pendingPaged.total}
+              pageSize={pendingPaged.pageSize}
+            />
           </div>
         )}
 
@@ -356,33 +409,11 @@ export default function PatientBilling() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {doctorVisitDates.map((date) => {
-                const disabled = patient.disabledDoctorVisits?.[date]
-                return (
-                  <label
-                    key={date}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
-                      disabled ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20' : 'hover:bg-muted/50'
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-input"
-                      checked={!!disabled}
-                      onChange={(e) => handleDoctorVisitToggle(date, e.target.checked)}
-                    />
-                    <span className="text-sm">
-                      <span className="font-medium">{formatDate(date)}</span>
-                      <span className="block text-xs text-muted-foreground">
-                        {disabled ? 'No visit — charge disabled' : 'Doctor visit billed'}
-                      </span>
-                    </span>
-                  </label>
-                )
-              })}
-            </div>
+            <PagedDoctorVisitGrid
+              dates={doctorVisitDates}
+              disabledMap={patient.disabledDoctorVisits}
+              onToggle={handleDoctorVisitToggle}
+            />
           </CardContent>
         </Card>
 
@@ -429,7 +460,7 @@ export default function PatientBilling() {
                     </tr>
                   </thead>
                   <tbody>
-                    {deposits.map((d) => (
+                    {depositPaged.slice.map((d) => (
                       <tr key={d.id} className="border-b">
                         <td className="px-4 py-3">{formatDate(d.date)}</td>
                         <td className="px-4 py-3 font-semibold text-emerald-600">{formatCurrency(d.amount)}</td>
@@ -444,21 +475,59 @@ export default function PatientBilling() {
                     ))}
                   </tbody>
                 </table>
+                <Pagination
+                  page={depositPaged.page}
+                  pageCount={depositPaged.pageCount}
+                  onPageChange={depositPaged.setPage}
+                  total={depositPaged.total}
+                  pageSize={depositPaged.pageSize}
+                />
               </div>
             )}
           </CardContent>
         </Card>
 
-        <div className="flex justify-end mb-8">
-          <Button size="lg" onClick={() => queuePrint('invoice')}>
-            <Printer className="h-4 w-4 mr-2" /> Print Invoice
+        <div className="flex flex-wrap justify-end gap-3 mb-8">
+          <Button size="lg" variant="outline" onClick={() => printInvoice('summary')}>
+            <Printer className="h-4 w-4 mr-2" /> Print Summary Invoice
+          </Button>
+          <Button size="lg" onClick={() => printInvoice('detailed')}>
+            <Printer className="h-4 w-4 mr-2" /> Print Detailed Invoice
           </Button>
         </div>
 
       <Card>
-        <CardHeader><CardTitle>Invoice Preview — {patient.name}</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Invoice Preview — {patient.name}</CardTitle>
+          <CardDescription>Summary shows one total per category. Detailed lists every approved service under its category.</CardDescription>
+        </CardHeader>
         <CardContent>
-          <InvoicePreview patient={patient} items={approvedBillItems} deposit={patient.deposit} totalCharges={totalCharges} remainingBalance={remainingBalance} />
+          <Tabs value={invoiceVariant} onValueChange={setInvoiceVariant}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="summary">Summary</TabsTrigger>
+              <TabsTrigger value="detailed">Detailed</TabsTrigger>
+            </TabsList>
+            <TabsContent value="summary">
+              <InvoicePreview
+                variant="summary"
+                patient={patient}
+                items={approvedBillItems}
+                deposit={patient.deposit}
+                totalCharges={totalCharges}
+                remainingBalance={remainingBalance}
+              />
+            </TabsContent>
+            <TabsContent value="detailed">
+              <InvoicePreview
+                variant="detailed"
+                patient={patient}
+                items={approvedBillItems}
+                deposit={patient.deposit}
+                totalCharges={totalCharges}
+                remainingBalance={remainingBalance}
+              />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
@@ -556,7 +625,14 @@ export default function PatientBilling() {
       </div>
 
       <div className="print-only print-invoice">
-        <InvoicePreview patient={patient} items={approvedBillItems} deposit={patient.deposit} totalCharges={totalCharges} remainingBalance={remainingBalance} />
+        <InvoicePreview
+          variant={pendingPrint === 'invoice-summary' ? 'summary' : 'detailed'}
+          patient={patient}
+          items={approvedBillItems}
+          deposit={patient.deposit}
+          totalCharges={totalCharges}
+          remainingBalance={remainingBalance}
+        />
       </div>
 
       {printDeposit && (
@@ -565,72 +641,5 @@ export default function PatientBilling() {
         </div>
       )}
     </>
-  )
-}
-
-function InvoicePreview({ patient, items, deposit, totalCharges, remainingBalance }) {
-  const vatAmount = hospitalSettings.vatPercent > 0 ? totalCharges * (hospitalSettings.vatPercent / 100) : 0
-  const grandTotal = totalCharges + vatAmount
-  const balancePositive = remainingBalance >= 0
-
-  return (
-    <div className="max-w-3xl mx-auto bg-white text-gray-900 p-8 print:p-0 print:max-w-none rounded-xl border print:border-0 print:shadow-none">
-      <div className="flex items-start justify-between border-b pb-6 mb-6">
-        <div className="flex items-center gap-4">
-          <div className="h-16 w-16 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-xl">CC</div>
-          <div>
-            <h2 className="text-xl font-bold text-blue-700">{hospitalSettings.name}</h2>
-            <p className="text-sm text-gray-600">{hospitalSettings.address}</p>
-            <p className="text-sm text-gray-600">TIN: {hospitalSettings.tin}</p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-lg font-bold text-blue-700">INVOICE</p>
-          <p className="text-sm text-gray-600">Date: {formatDateTime(new Date().toISOString())}</p>
-          <p className="text-sm text-gray-600">Patient: {patient.name}</p>
-        </div>
-      </div>
-      <table className="w-full text-sm mb-6">
-        <thead>
-          <tr className="border-b-2 border-blue-200">
-            <th className="py-2 text-left">#</th>
-            <th className="py-2 text-left">Category</th>
-            <th className="py-2 text-left">Service</th>
-            <th className="py-2 text-right">Qty</th>
-            <th className="py-2 text-right">Price</th>
-            <th className="py-2 text-right">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item, idx) => (
-            <tr key={item.id} className="border-b border-gray-100">
-              <td className="py-2">{idx + 1}</td>
-              <td className="py-2">{item.department}</td>
-              <td className="py-2">{item.item}</td>
-              <td className="py-2 text-right">{item.quantity}</td>
-              <td className="py-2 text-right">{formatCurrency(item.price)}</td>
-              <td className={cn('py-2 text-right', item.total < 0 && 'text-emerald-700')}>
-                {item.total < 0 ? '-' : ''}{formatCurrency(Math.abs(item.total))}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="flex justify-end mb-6">
-        <div className="w-64 space-y-2 text-sm">
-          <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(totalCharges)}</span></div>
-          {hospitalSettings.vatPercent > 0 && (
-            <div className="flex justify-between"><span>VAT ({hospitalSettings.vatPercent}%):</span><span>{formatCurrency(vatAmount)}</span></div>
-          )}
-          <div className="flex justify-between font-bold text-base border-t pt-2"><span>Grand Total:</span><span>{formatCurrency(grandTotal)}</span></div>
-          <div className="flex justify-between text-emerald-700"><span>Total Deposits:</span><span>{formatCurrency(deposit)}</span></div>
-          <div className={cn('flex justify-between font-bold text-base border-t pt-2', balancePositive ? 'text-emerald-600' : 'text-red-600')}>
-            <span>Remaining Balance:</span>
-            <span>{formatCurrency(remainingBalance)}</span>
-          </div>
-        </div>
-      </div>
-      <div className="border-t pt-4 text-center text-xs text-gray-500"><p>{hospitalSettings.receiptFooter}</p></div>
-    </div>
   )
 }

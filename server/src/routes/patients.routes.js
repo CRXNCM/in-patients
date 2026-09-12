@@ -6,7 +6,7 @@ import { RoomAssignment } from '../models/RoomAssignment.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { authRequired } from '../middleware/auth.js'
 import { ensureAutomaticDailyCharges, calcPatientBalance, setDoctorVisitDisabled } from '../services/autoCharges.js'
-import { validateAdmitBody, validateDepositBody, validateTransferBody, computeAgeFromDob } from '../utils/validation.js'
+import { validateAdmitBody, validateDepositBody, validateTransferBody, computeAgeFromDob, resolveAdmissionDate } from '../utils/validation.js'
 import {
   toFrontendPatient,
   toFrontendAssignment,
@@ -315,7 +315,7 @@ router.post('/', authRequired, async (req, res) => {
 
     const patientId = await nextPatientId()
     const deposit = Number(body.depositAmount)
-    const admissionDate = body.admissionDate
+    const admissionDate = resolveAdmissionDate(body.admissionDate)
     const ageValue =
       body.age !== undefined && body.age !== null && body.age !== ''
         ? Number(body.age)
@@ -329,12 +329,12 @@ router.post('/', authRequired, async (req, res) => {
       gender: body.gender,
       phone: body.phone?.trim() || '',
       address: String(body.address).trim(),
-      emergencyContact: String(body.emergencyContact).trim(),
+      emergencyContact: body.emergencyContact?.trim() || '',
       emergencyPhone: body.emergencyPhone?.trim() || '',
       mrn: mrn || undefined,
       nationalId: nationalId || undefined,
-      admissionReason: String(body.admissionReason).trim(),
-      admissionDate: body.admissionDate,
+      admissionReason: body.admissionReason?.trim() || '',
+      admissionDate,
       room: bedDoc.roomType,
       bed: bedDoc.label,
       bedId: bedDoc._id.toString(),
@@ -365,7 +365,7 @@ router.post('/', authRequired, async (req, res) => {
         amount: deposit,
         method: body.depositMethod || 'Cash',
         referenceNumber: body.referenceNumber?.trim() || undefined,
-        date: body.admissionDate,
+        date: admissionDate,
         receivedBy: req.user.name,
         isInitial: true,
       })

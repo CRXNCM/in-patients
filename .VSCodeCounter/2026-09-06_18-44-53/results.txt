@@ -1,0 +1,159 @@
+Date : 2026-09-06 18:44:53
+Directory : c:\Users\hp\Documents\pro\in-patients
+Total : 94 files,  15591 codes, 311 comments, 1226 blanks, all 17128 lines
+
+Languages
++--------------------+------------+------------+------------+------------+------------+
+| language           | files      | code       | comment    | blank      | total      |
++--------------------+------------+------------+------------+------------+------------+
+| JavaScript JSX     |         51 |      5,874 |          0 |        542 |      6,416 |
+| JSON               |          4 |      5,486 |          0 |          4 |      5,490 |
+| JavaScript         |         31 |      3,263 |        311 |        348 |      3,922 |
+| Markdown           |          1 |        818 |          0 |        314 |      1,132 |
+| CSS                |          2 |        101 |          0 |         12 |        113 |
+| HTML               |          2 |         33 |          0 |          3 |         36 |
+| JSON with Comments |          1 |          8 |          0 |          1 |          9 |
+| XML                |          2 |          8 |          0 |          2 |         10 |
++--------------------+------------+------------+------------+------------+------------+
+
+Directories
++--------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                 | files      | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                    |         94 |     15,591 |        311 |      1,226 |     17,128 |
+| . (Files)                                                                            |          8 |      5,159 |          1 |        323 |      5,483 |
+| dist                                                                                 |          4 |        199 |        307 |         10 |        516 |
+| dist (Files)                                                                         |          2 |         21 |          0 |          3 |         24 |
+| dist\assets                                                                          |          2 |        178 |        307 |          7 |        492 |
+| public                                                                               |          1 |          4 |          0 |          1 |          5 |
+| server                                                                               |         23 |      2,957 |          0 |        213 |      3,170 |
+| server (Files)                                                                       |          2 |      1,247 |          0 |          2 |      1,249 |
+| server\src                                                                           |         21 |      1,710 |          0 |        211 |      1,921 |
+| server\src (Files)                                                                   |          1 |         36 |          0 |          7 |         43 |
+| server\src\config                                                                    |          1 |          6 |          0 |          2 |          8 |
+| server\src\middleware                                                                |          1 |         27 |          0 |          5 |         32 |
+| server\src\models                                                                    |          8 |        168 |          0 |         30 |        198 |
+| server\src\routes                                                                    |          6 |        813 |          0 |        111 |        924 |
+| server\src\scripts                                                                   |          1 |        306 |          0 |         15 |        321 |
+| server\src\services                                                                  |          1 |        139 |          0 |         16 |        155 |
+| server\src\utils                                                                     |          2 |        215 |          0 |         25 |        240 |
+| src                                                                                  |         58 |      7,272 |          3 |        679 |      7,954 |
+| src (Files)                                                                          |          3 |        194 |          0 |         24 |        218 |
+| src\api                                                                              |          1 |         65 |          0 |         12 |         77 |
+| src\components                                                                       |         24 |      2,073 |          0 |        198 |      2,271 |
+| src\components\auth                                                                  |          1 |         19 |          0 |          6 |         25 |
+| src\components\layout                                                                |          3 |        294 |          0 |         24 |        318 |
+| src\components\shared                                                                |          7 |      1,258 |          0 |         90 |      1,348 |
+| src\components\ui                                                                    |         13 |        502 |          0 |         78 |        580 |
+| src\context                                                                          |          6 |      1,350 |          0 |        145 |      1,495 |
+| src\data                                                                             |          1 |        781 |          3 |         37 |        821 |
+| src\hooks                                                                            |          1 |         67 |          0 |          7 |         74 |
+| src\lib                                                                              |          3 |        385 |          0 |         70 |        455 |
+| src\pages                                                                            |         19 |      2,357 |          0 |        186 |      2,543 |
+| src\pages (Files)                                                                    |          1 |        122 |          0 |         10 |        132 |
+| src\pages\admin                                                                      |          8 |        531 |          0 |         45 |        576 |
+| src\pages\manager                                                                    |          2 |        310 |          0 |         25 |        335 |
+| src\pages\nurse                                                                      |          3 |        185 |          0 |         21 |        206 |
+| src\pages\reception                                                                  |          5 |      1,209 |          0 |         85 |      1,294 |
++--------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++--------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| filename                                                                             | language           | code       | comment    | blank      | total      |
++--------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| c:\Users\hp\Documents\pro\in-patients\README.md                                      | Markdown           |        818 |          0 |        314 |      1,132 |
+| c:\Users\hp\Documents\pro\in-patients\dist\assets\index-Bgl6c5wL.js                  | JavaScript         |        177 |        307 |          6 |        490 |
+| c:\Users\hp\Documents\pro\in-patients\dist\assets\index-CJrrQkLi.css                 | CSS                |          1 |          0 |          1 |          2 |
+| c:\Users\hp\Documents\pro\in-patients\dist\hospital-icon.svg                         | XML                |          4 |          0 |          1 |          5 |
+| c:\Users\hp\Documents\pro\in-patients\dist\index.html                                | HTML               |         17 |          0 |          2 |         19 |
+| c:\Users\hp\Documents\pro\in-patients\index.html                                     | HTML               |         16 |          0 |          1 |         17 |
+| c:\Users\hp\Documents\pro\in-patients\jsconfig.json                                  | JSON with Comments |          8 |          0 |          1 |          9 |
+| c:\Users\hp\Documents\pro\in-patients\package-lock.json                              | JSON               |      4,198 |          0 |          1 |      4,199 |
+| c:\Users\hp\Documents\pro\in-patients\package.json                                   | JSON               |         41 |          0 |          1 |         42 |
+| c:\Users\hp\Documents\pro\in-patients\postcss.config.js                              | JavaScript         |          6 |          0 |          1 |          7 |
+| c:\Users\hp\Documents\pro\in-patients\public\hospital-icon.svg                       | XML                |          4 |          0 |          1 |          5 |
+| c:\Users\hp\Documents\pro\in-patients\server\package-lock.json                       | JSON               |      1,229 |          0 |          1 |      1,230 |
+| c:\Users\hp\Documents\pro\in-patients\server\package.json                            | JSON               |         18 |          0 |          1 |         19 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\config\db.js                        | JavaScript         |          6 |          0 |          2 |          8 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\index.js                            | JavaScript         |         36 |          0 |          7 |         43 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\middleware\auth.js                  | JavaScript         |         27 |          0 |          5 |         32 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\models\Bed.js                       | JavaScript         |         12 |          0 |          3 |         15 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\models\Deposit.js                   | JavaScript         |         15 |          0 |          4 |         19 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\models\HospitalSettings.js          | JavaScript         |         17 |          0 |          3 |         20 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\models\Patient.js                   | JavaScript         |         29 |          0 |          3 |         32 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\models\RoomAssignment.js            | JavaScript         |         16 |          0 |          3 |         19 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\models\ServiceCategory.js           | JavaScript         |         16 |          0 |          4 |         20 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\models\ServiceRecord.js             | JavaScript         |         51 |          0 |          7 |         58 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\models\User.js                      | JavaScript         |         12 |          0 |          3 |         15 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\routes\auth.routes.js               | JavaScript         |         57 |          0 |         10 |         67 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\routes\beds.routes.js               | JavaScript         |         35 |          0 |          6 |         41 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\routes\manager.routes.js            | JavaScript         |        226 |          0 |         24 |        250 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\routes\patients.routes.js           | JavaScript         |        368 |          0 |         52 |        420 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\routes\records.routes.js            | JavaScript         |         74 |          0 |         12 |         86 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\routes\settings.routes.js           | JavaScript         |         53 |          0 |          7 |         60 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\scripts\seed.js                     | JavaScript         |        306 |          0 |         15 |        321 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\services\autoCharges.js             | JavaScript         |        139 |          0 |         16 |        155 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\utils\mappers.js                    | JavaScript         |        142 |          0 |          9 |        151 |
+| c:\Users\hp\Documents\pro\in-patients\server\src\utils\validation.js                 | JavaScript         |         73 |          0 |         16 |         89 |
+| c:\Users\hp\Documents\pro\in-patients\src\App.jsx                                    | JavaScript JSX     |         85 |          0 |         11 |         96 |
+| c:\Users\hp\Documents\pro\in-patients\src\api\client.js                              | JavaScript         |         65 |          0 |         12 |         77 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\auth\RequireAuth.jsx            | JavaScript JSX     |         19 |          0 |          6 |         25 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\layout\AppLayout.jsx            | JavaScript JSX     |         41 |          0 |          6 |         47 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\layout\Sidebar.jsx              | JavaScript JSX     |        113 |          0 |          6 |        119 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\layout\TopNav.jsx               | JavaScript JSX     |        140 |          0 |         12 |        152 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\shared\CommonComponents.jsx     | JavaScript JSX     |        136 |          0 |          8 |        144 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\shared\DepositReceipt.jsx       | JavaScript JSX     |         43 |          0 |          7 |         50 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\shared\HospitalLogo.jsx         | JavaScript JSX     |         20 |          0 |          4 |         24 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\shared\RecordTimeline.jsx       | JavaScript JSX     |        168 |          0 |         13 |        181 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\shared\RoomTransferPanel.jsx    | JavaScript JSX     |        299 |          0 |         19 |        318 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\shared\ServiceRecordBuilder.jsx | JavaScript JSX     |        469 |          0 |         26 |        495 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\shared\ServiceTimeline.jsx      | JavaScript JSX     |        123 |          0 |         13 |        136 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\alert-dialog.jsx             | JavaScript JSX     |         69 |          0 |         11 |         80 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\avatar.jsx                   | JavaScript JSX     |         16 |          0 |          5 |         21 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\badge.jsx                    | JavaScript JSX     |         23 |          0 |          3 |         26 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\button.jsx                   | JavaScript JSX     |         35 |          0 |          4 |         39 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\card.jsx                     | JavaScript JSX     |         27 |          0 |          8 |         35 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\dialog.jsx                   | JavaScript JSX     |         67 |          0 |          9 |         76 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\input.jsx                    | JavaScript JSX     |         15 |          0 |          3 |         18 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\label.jsx                    | JavaScript JSX     |          8 |          0 |          3 |         11 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\select.jsx                   | JavaScript JSX     |         94 |          0 |         10 |        104 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\separator.jsx                | JavaScript JSX     |         14 |          0 |          3 |         17 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\switch.jsx                   | JavaScript JSX     |         21 |          0 |          3 |         24 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\tabs.jsx                     | JavaScript JSX     |         35 |          0 |          6 |         41 |
+| c:\Users\hp\Documents\pro\in-patients\src\components\ui\toast.jsx                    | JavaScript JSX     |         78 |          0 |         10 |         88 |
+| c:\Users\hp\Documents\pro\in-patients\src\context\AuthContext.jsx                    | JavaScript JSX     |        121 |          0 |         19 |        140 |
+| c:\Users\hp\Documents\pro\in-patients\src\context\BillingConfigContext.jsx           | JavaScript JSX     |        103 |          0 |         13 |        116 |
+| c:\Users\hp\Documents\pro\in-patients\src\context\PatientsContext.jsx                | JavaScript JSX     |        438 |          0 |         35 |        473 |
+| c:\Users\hp\Documents\pro\in-patients\src\context\ServiceEntriesContext.jsx          | JavaScript JSX     |        627 |          0 |         63 |        690 |
+| c:\Users\hp\Documents\pro\in-patients\src\context\ThemeContext.jsx                   | JavaScript JSX     |         22 |          0 |          7 |         29 |
+| c:\Users\hp\Documents\pro\in-patients\src\context\ToastContext.jsx                   | JavaScript JSX     |         39 |          0 |          8 |         47 |
+| c:\Users\hp\Documents\pro\in-patients\src\data\mockData.js                           | JavaScript         |        781 |          3 |         37 |        821 |
+| c:\Users\hp\Documents\pro\in-patients\src\hooks\useManagerDashboard.js               | JavaScript         |         67 |          0 |          7 |         74 |
+| c:\Users\hp\Documents\pro\in-patients\src\index.css                                  | CSS                |        100 |          0 |         11 |        111 |
+| c:\Users\hp\Documents\pro\in-patients\src\lib\printReport.js                         | JavaScript         |         98 |          0 |         12 |        110 |
+| c:\Users\hp\Documents\pro\in-patients\src\lib\utils.js                               | JavaScript         |         48 |          0 |          7 |         55 |
+| c:\Users\hp\Documents\pro\in-patients\src\lib\validation.js                          | JavaScript         |        239 |          0 |         51 |        290 |
+| c:\Users\hp\Documents\pro\in-patients\src\main.jsx                                   | JavaScript JSX     |          9 |          0 |          2 |         11 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\LoginPage.jsx                        | JavaScript JSX     |        122 |          0 |         10 |        132 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\admin\AdminDashboard.jsx             | JavaScript JSX     |         73 |          0 |          5 |         78 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\admin\DepartmentsPage.jsx            | JavaScript JSX     |         37 |          0 |          4 |         41 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\admin\DoctorsPage.jsx                | JavaScript JSX     |         17 |          0 |          3 |         20 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\admin\MedicinesPage.jsx              | JavaScript JSX     |         95 |          0 |          9 |        104 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\admin\RoomChargesPage.jsx            | JavaScript JSX     |         49 |          0 |          3 |         52 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\admin\ServicesPage.jsx               | JavaScript JSX     |        115 |          0 |         10 |        125 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\admin\SettingsPage.jsx               | JavaScript JSX     |        127 |          0 |          8 |        135 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\admin\UsersPage.jsx                  | JavaScript JSX     |         18 |          0 |          3 |         21 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\manager\ManagerDashboard.jsx         | JavaScript JSX     |        119 |          0 |         13 |        132 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\manager\ReportsPage.jsx              | JavaScript JSX     |        191 |          0 |         12 |        203 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\nurse\NurseDashboard.jsx             | JavaScript JSX     |         82 |          0 |          7 |         89 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\nurse\NursePatientsList.jsx          | JavaScript JSX     |         34 |          0 |          4 |         38 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\nurse\PatientServiceEntry.jsx        | JavaScript JSX     |         69 |          0 |         10 |         79 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\reception\AddPatient.jsx             | JavaScript JSX     |        273 |          0 |         18 |        291 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\reception\PatientBilling.jsx         | JavaScript JSX     |        595 |          0 |         42 |        637 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\reception\PatientsList.jsx           | JavaScript JSX     |         59 |          0 |          4 |         63 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\reception\PendingApprovals.jsx       | JavaScript JSX     |        198 |          0 |         13 |        211 |
+| c:\Users\hp\Documents\pro\in-patients\src\pages\reception\ReceptionDashboard.jsx     | JavaScript JSX     |         84 |          0 |          8 |         92 |
+| c:\Users\hp\Documents\pro\in-patients\tailwind.config.js                             | JavaScript         |         61 |          1 |          2 |         64 |
+| c:\Users\hp\Documents\pro\in-patients\vite.config.js                                 | JavaScript         |         11 |          0 |          2 |         13 |
+| Total                                                                                |                    |     15,591 |        311 |      1,226 |     17,128 |
++--------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+

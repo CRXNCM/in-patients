@@ -17,6 +17,7 @@ import {
   firstError,
   trimText,
   computeAgeFromDob,
+  todayStr,
   MIN_INITIAL_DEPOSIT,
   NON_CASH_PAYMENT_METHODS,
 } from '@/lib/validation'
@@ -39,14 +40,11 @@ export default function AddPatient() {
     gender: 'Male',
     phone: '',
     address: '',
-    emergencyContact: '',
-    emergencyPhone: '',
     mrn: '',
     nationalId: '',
     bedType: bedTypes[0].name,
     bedNumber: '',
-    admissionDate: new Date().toISOString().split('T')[0],
-    admissionReason: '',
+    admissionDate: '',
     initialDeposit: '',
     depositType: 'Cash',
     referenceNumber: '',
@@ -67,15 +65,15 @@ export default function AddPatient() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const admissionDate = trimText(form.admissionDate) || todayStr()
     const trimmed = {
       ...form,
       name: trimText(form.name),
       address: trimText(form.address),
-      emergencyContact: trimText(form.emergencyContact),
-      admissionReason: trimText(form.admissionReason),
       mrn: trimText(form.mrn),
       nationalId: trimText(form.nationalId),
       referenceNumber: trimText(form.referenceNumber),
+      admissionDate,
     }
 
     const validationErrors = validateAdmission(trimmed, { rooms, existingPatients: patients })
@@ -104,14 +102,11 @@ export default function AddPatient() {
         gender: trimmed.gender,
         phone: trimText(trimmed.phone),
         address: trimmed.address,
-        emergencyContact: trimmed.emergencyContact,
-        emergencyPhone: trimText(trimmed.emergencyPhone),
         mrn: trimmed.mrn || undefined,
         nationalId: trimmed.nationalId || undefined,
         room: trimmed.bedType,
         bed: trimmed.bedNumber || undefined,
-        admissionDate: trimmed.admissionDate,
-        admissionReason: trimmed.admissionReason,
+        admissionDate,
         deposit: Number(trimmed.initialDeposit),
         depositType: trimmed.depositType,
         referenceNumber: trimmed.referenceNumber || undefined,
@@ -119,7 +114,7 @@ export default function AddPatient() {
         initialDeposit: Number(trimmed.initialDeposit),
       })
 
-      await ensureAutomaticDailyCharges(patient.id, trimmed.admissionDate, patient)
+      await ensureAutomaticDailyCharges(patient.id, admissionDate, patient)
 
       toast({
         title: 'Patient Admitted',
@@ -182,17 +177,6 @@ export default function AddPatient() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Emergency Contact *</Label>
-                  <Input value={form.emergencyContact} onChange={(e) => set('emergencyContact', e.target.value)} />
-                  <FieldError message={errors.emergencyContact} />
-                </div>
-                <div>
-                  <Label>Emergency Phone</Label>
-                  <Input value={form.emergencyPhone} onChange={(e) => set('emergencyPhone', e.target.value)} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
                   <Label>MRN</Label>
                   <Input value={form.mrn} onChange={(e) => set('mrn', e.target.value)} placeholder="Medical record number" />
                   <FieldError message={errors.mrn} />
@@ -204,14 +188,10 @@ export default function AddPatient() {
                 </div>
               </div>
               <div>
-                <Label>Admission Date *</Label>
-                <Input type="date" max={new Date().toISOString().split('T')[0]} value={form.admissionDate} onChange={(e) => set('admissionDate', e.target.value)} />
+                <Label>Admission Date</Label>
+                <Input type="date" max={todayStr()} value={form.admissionDate} onChange={(e) => set('admissionDate', e.target.value)} />
                 <FieldError message={errors.admissionDate} />
-              </div>
-              <div>
-                <Label>Admission Reason *</Label>
-                <Input value={form.admissionReason} onChange={(e) => set('admissionReason', e.target.value)} placeholder="Reason for admission..." />
-                <FieldError message={errors.admissionReason} />
+                <p className="text-xs text-muted-foreground mt-1">Optional. Defaults to today if left blank.</p>
               </div>
               <div>
                 <Label>Notes</Label>

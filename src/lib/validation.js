@@ -119,7 +119,6 @@ export function validatePatientRegistration(form) {
   const phoneErr = validatePhone(form.phone, { optional: true })
   if (phoneErr) errors.phone = phoneErr
 
-  if (!trimText(form.emergencyContact)) errors.emergencyContact = 'Emergency contact is required.'
   if (!trimText(form.address)) errors.address = 'Address is required.'
 
   return errors
@@ -128,10 +127,11 @@ export function validatePatientRegistration(form) {
 export function validateAdmission(form, { rooms = [], existingPatients = [] } = {}) {
   const errors = { ...validatePatientRegistration(form) }
 
-  const admissionErr = validateAdmissionDate(form.admissionDate)
-  if (admissionErr) errors.admissionDate = admissionErr
+  if (trimText(form.admissionDate)) {
+    const admissionErr = validateAdmissionDate(form.admissionDate)
+    if (admissionErr) errors.admissionDate = admissionErr
+  }
 
-  if (!trimText(form.admissionReason)) errors.admissionReason = 'Admission reason is required.'
   if (!trimText(form.bedType)) errors.bedType = 'Room type is required.'
 
   const depositErr = validatePositiveNumber(form.initialDeposit, 'Initial deposit', { min: MIN_INITIAL_DEPOSIT })

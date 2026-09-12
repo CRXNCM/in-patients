@@ -15,15 +15,21 @@ function isValidDateString(value) {
   return !Number.isNaN(d.getTime()) && value === d.toISOString().slice(0, 10)
 }
 
+export function resolveAdmissionDate(value) {
+  const trimmed = trimText(value)
+  return trimmed || todayStr()
+}
+
 export function validateAdmitBody(body) {
   const errors = []
-  const { name, age, dateOfBirth, gender, admissionDate, bedId, depositAmount, admissionReason, address, emergencyContact } = body
+  const { name, age, dateOfBirth, gender, admissionDate, bedId, depositAmount, address } = body
 
   if (!trimText(name)) errors.push('Full name is required.')
   if (!trimText(gender)) errors.push('Gender is required.')
-  if (!trimText(admissionDate)) errors.push('Admission date is required.')
-  else if (!isValidDateString(admissionDate)) errors.push('Admission date is not valid.')
-  else if (admissionDate > todayStr()) errors.push('Admission date cannot be after today.')
+  if (trimText(admissionDate)) {
+    if (!isValidDateString(admissionDate)) errors.push('Admission date is not valid.')
+    else if (admissionDate > todayStr()) errors.push('Admission date cannot be after today.')
+  }
 
   const ageNum = age !== undefined && age !== null && age !== '' ? Number(age) : null
   const computedAge = dateOfBirth ? computeAgeFromDob(dateOfBirth) : null
@@ -32,8 +38,6 @@ export function validateAdmitBody(body) {
   else if (finalAge < 0 || finalAge > 120) errors.push('Age must be between 0 and 120.')
 
   if (!trimText(address)) errors.push('Address is required.')
-  if (!trimText(emergencyContact)) errors.push('Emergency contact is required.')
-  if (!trimText(admissionReason)) errors.push('Admission reason is required.')
   if (!bedId) errors.push('Bed is required.')
 
   const deposit = Number(depositAmount)

@@ -79,6 +79,7 @@ export function PatientsProvider({ children }) {
           if (!avail) throw new Error('No available bed for selected room type')
           bedLabel = avail.label
         }
+        const admissionDate = patientData.admissionDate || new Date().toISOString().split('T')[0]
         const res = await api.createPatient({
           name: patientData.name,
           age: patientData.age,
@@ -86,12 +87,9 @@ export function PatientsProvider({ children }) {
           gender: patientData.gender,
           phone: patientData.phone,
           address: patientData.address,
-          emergencyContact: patientData.emergencyContact,
-          emergencyPhone: patientData.emergencyPhone,
           mrn: patientData.mrn,
           nationalId: patientData.nationalId,
-          admissionReason: patientData.admissionReason,
-          admissionDate: patientData.admissionDate,
+          admissionDate,
           bedId: bedLabel,
           depositAmount: patientData.initialDeposit ?? patientData.deposit ?? 0,
           depositMethod: patientData.depositType || 'Cash',
@@ -106,7 +104,7 @@ export function PatientsProvider({ children }) {
             [patient.id]: [
               {
                 id: Date.now(),
-                date: patientData.admissionDate,
+                date: admissionDate,
                 amount: patientData.initialDeposit,
                 method: patientData.depositType,
                 receivedBy: 'Reception',
@@ -119,6 +117,7 @@ export function PatientsProvider({ children }) {
       }
 
       const id = `PAT-${String(Date.now()).slice(-6)}`
+      const admissionDate = patientData.admissionDate || new Date().toISOString().split('T')[0]
       const roomConfig = initialHospitalRooms.find((r) => r.roomType === patientData.room)
       let bedLabel = patientData.bed
       if (!bedLabel && roomConfig) {
@@ -133,13 +132,14 @@ export function PatientsProvider({ children }) {
         pendingDischarge: false,
         disabledDoctorVisits: {},
         ...patientData,
+        admissionDate,
         bed: bedLabel,
         deposit: patientData.deposit ?? patientData.initialDeposit ?? 0,
         roomHistory: [
           {
             room: patientData.room,
             bed: bedLabel,
-            fromDate: patientData.admissionDate,
+            fromDate: admissionDate,
             toDate: null,
           },
         ],
@@ -155,7 +155,7 @@ export function PatientsProvider({ children }) {
             admission_id: id,
             room_id: roomConfig.id,
             bed_id: bedId,
-            start_date: patientData.admissionDate,
+            start_date: admissionDate,
             end_date: null,
             daily_rate: roomConfig.dailyRate,
             transfer_reason: 'Initial admission',
@@ -181,7 +181,7 @@ export function PatientsProvider({ children }) {
           ...prev,
           [id]: [{
             id: Date.now(),
-            date: patientData.admissionDate || new Date().toISOString().split('T')[0],
+            date: admissionDate,
             amount: patientData.initialDeposit,
             method: patientData.depositType,
             receivedBy: 'Sara Bekele',

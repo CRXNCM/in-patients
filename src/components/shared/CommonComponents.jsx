@@ -1,4 +1,65 @@
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
+
+export const LIST_PAGE_SIZE = 10
+
+export function usePagedItems(items = [], pageSize = LIST_PAGE_SIZE) {
+  const [page, setPage] = useState(1)
+  const total = items?.length || 0
+  const pageCount = Math.max(1, Math.ceil(total / pageSize) || 1)
+  const current = Math.min(page, pageCount)
+  const slice = (items || []).slice((current - 1) * pageSize, current * pageSize)
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount)
+  }, [page, pageCount])
+
+  return { page: current, setPage, pageCount, slice, total, pageSize }
+}
+
+function pageNumbers(page, pageCount) {
+  if (pageCount <= 12) return Array.from({ length: pageCount }, (_, i) => i + 1)
+  const pages = new Set([1, pageCount, page, page - 1, page + 1, page - 2, page + 2])
+  return [...pages].filter((n) => n >= 1 && n <= pageCount).sort((a, b) => a - b)
+}
+
+export function Pagination({ page, pageCount, onPageChange, total, pageSize }) {
+  if (!total || pageCount <= 1) return null
+
+  const numbers = pageNumbers(page, pageCount)
+  const start = (page - 1) * pageSize + 1
+  const end = Math.min(page * pageSize, total)
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t bg-card">
+      <p className="text-xs text-muted-foreground">
+        {start}–{end} of {total}
+      </p>
+      <div className="flex flex-wrap items-center gap-1">
+        {numbers.map((n, i) => {
+          const prev = numbers[i - 1]
+          return (
+            <span key={n} className="flex items-center gap-1">
+              {prev && n - prev > 1 && <span className="px-1 text-muted-foreground">…</span>}
+              <button
+                type="button"
+                onClick={() => onPageChange(n)}
+                className={cn(
+                  'min-w-8 h-8 rounded-md px-2 text-sm font-medium transition-colors',
+                  n === page
+                    ? 'bg-primary text-primary-foreground'
+                    : 'border bg-background hover:bg-muted text-foreground'
+                )}
+              >
+                {n}
+              </button>
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 export function StatCard({ title, value, subtitle, icon: Icon, trend, className, iconClassName }) {
   return (
@@ -101,7 +162,9 @@ export function PageHeader({ title, description, action }) {
   )
 }
 
-export function DataTable({ columns, data, onRowClick, emptyState }) {
+export function DataTable({ columns, data, onRowClick, emptyState, pageSize = LIST_PAGE_SIZE }) {
+  const { page, setPage, pageCount, slice, total, pageSize: size } = usePagedItems(data, pageSize)
+
   if (!data || data.length === 0) {
     return emptyState || (
       <div className="text-center py-12 text-muted-foreground">No data available</div>
@@ -122,7 +185,7 @@ export function DataTable({ columns, data, onRowClick, emptyState }) {
             </tr>
           </thead>
           <tbody>
-            {data.map((row, idx) => (
+            {slice.map((row, idx) => (
               <tr
                 key={row.id || idx}
                 className={cn('border-b transition-colors hover:bg-muted/30', onRowClick && 'cursor-pointer')}
@@ -138,6 +201,7 @@ export function DataTable({ columns, data, onRowClick, emptyState }) {
           </tbody>
         </table>
       </div>
+      <Pagination page={page} pageCount={pageCount} onPageChange={setPage} total={total} pageSize={size} />
     </div>
   )
 }

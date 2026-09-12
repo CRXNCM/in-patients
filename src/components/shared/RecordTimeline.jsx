@@ -1,4 +1,4 @@
-import { StatusBadge } from '@/components/shared/CommonComponents'
+import { StatusBadge, Pagination, usePagedItems, LIST_PAGE_SIZE } from '@/components/shared/CommonComponents'
 import { AuditTrail } from '@/components/shared/ServiceTimeline'
 import { computeRecordTotal } from '@/context/ServiceEntriesContext'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
@@ -12,16 +12,19 @@ const statusBorder = {
   rejected: 'border-red-200 dark:border-red-800',
 }
 
-export function RecordTimeline({ records, showAudit = true, hideMoney = false }) {
+export function RecordTimeline({ records, showAudit = true, hideMoney = false, pageSize = LIST_PAGE_SIZE }) {
+  const { page, setPage, pageCount, slice, total, pageSize: size } = usePagedItems(records, pageSize)
+
   if (!records?.length) {
     return <div className="text-center py-8 text-muted-foreground text-sm">No records yet</div>
   }
 
   return (
+    <div>
     <div className="relative space-y-0">
-      {records.map((record, index) => {
+      {slice.map((record, index) => {
         const Icon = record.type === 'pharmacy_return' ? RotateCcw : (statusIcons[record.status] || FileText)
-        const isLast = index === records.length - 1
+        const isLast = index === slice.length - 1
         const total = computeRecordTotal(record)
 
         return (
@@ -90,6 +93,8 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false })
           </div>
         )
       })}
+    </div>
+    <Pagination page={page} pageCount={pageCount} onPageChange={setPage} total={total} pageSize={size} />
     </div>
   )
 }

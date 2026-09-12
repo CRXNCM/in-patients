@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Pagination, usePagedItems, LIST_PAGE_SIZE } from '@/components/shared/CommonComponents'
 import { ArrowRightLeft, Bed, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,11 +20,12 @@ function FieldError({ message }) {
 }
 
 export function RoomHistoryTable({ assignments, rooms = hospitalRooms }) {
+  const sorted = [...(assignments || [])].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
+  const { page, setPage, pageCount, slice, total, pageSize } = usePagedItems(sorted, LIST_PAGE_SIZE)
+
   if (!assignments?.length) {
     return <p className="text-sm text-muted-foreground text-center py-6">No room assignments recorded</p>
   }
-
-  const sorted = [...assignments].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
 
   return (
     <div className="rounded-xl border overflow-hidden">
@@ -39,7 +41,7 @@ export function RoomHistoryTable({ assignments, rooms = hospitalRooms }) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((a) => {
+          {slice.map((a) => {
             const room = rooms.find((r) => r.id === a.room_id)
             const bed = room?.beds.find((b) => b.id === a.bed_id)
             const isCurrent = a.end_date === null
@@ -64,6 +66,7 @@ export function RoomHistoryTable({ assignments, rooms = hospitalRooms }) {
           })}
         </tbody>
       </table>
+      <Pagination page={page} pageCount={pageCount} onPageChange={setPage} total={total} pageSize={pageSize} />
     </div>
   )
 }
