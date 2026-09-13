@@ -52,7 +52,8 @@ flowchart TB
 | `api/client.js` | Base URL, token header, JSON errors | Retry, refresh, request cancellation |
 | Auth middleware | Verify JWT; optional role gate | Load full user on every request (`attachUser` exists but is unused) |
 | Routes | Validate, mutate, respond | Transactions / locking |
-| `autoCharges.js` | Upsert daily room/doctor records; compute balance | HTTP |
+| `autoCharges.js` | Upsert daily room/doctor records from assignments; compute balance | HTTP |
+| `doctorAssignments.js` | Assign/end visiting doctors with price snapshots | HTTP |
 | Mappers | Shape Mongo documents for the SPA | Enforce business rules |
 | Validation utils | Admit / deposit / transfer checks | Schema-level Mongoose validators beyond required/enum |
 
@@ -102,7 +103,7 @@ server/server.js
   ├── middleware/auth.js
   ├── routes/*.routes.js
   ├── models/*.js
-  ├── services/{autoCharges,discharge}.js
+  ├── services/{autoCharges,doctorAssignments,discharge}.js
   └── utils/{validation,mappers}.js
 ```
 
@@ -117,6 +118,7 @@ server/server.js
 | `/api/settings` | `settings.routes.js` |
 | `/api/records` | `records.routes.js` |
 | `/api/manager` | `manager.routes.js` |
+| `/api/admin` | `admin.routes.js` |
 
 There is **no global error-handling middleware**. Each handler uses `try/catch` and returns `{ error: string }`.
 
@@ -173,7 +175,7 @@ Cross-package: the SPA depends on the API contract documented in [API_REFERENCE.
 | PatientsContext | `/api/patients?view=full` | Patients, deposits, assignments, rooms |
 | BillingConfigContext | `/api/settings`, `/api/settings/categories` | Hospital config |
 | ServiceEntriesContext | `/api/records`, patient record posts | Charges and approvals |
-| useManagerDashboard | `/api/manager/dashboard` | KPIs |
+| useManagerDashboard | `/api/manager/dashboard` | deposits, approved charges, census, occupancy |
 | Patient admit | Patient + Bed + RoomAssignment + Deposit + autoCharges | Single route, sequential writes (no transaction) |
 | Room transfer | Close assignment, swap beds, new assignment, recalc charges | Single route, sequential writes |
 | Record approve | ServiceRecord status + audit trail | Balance changes on next read |

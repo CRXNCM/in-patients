@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { Forbidden } from './Forbidden'
 
 export function RequireAuth({ role }) {
   const { isAuthenticated, user, authReady } = useAuth()
@@ -17,7 +18,7 @@ export function RequireAuth({ role }) {
   }
 
   if (role && user.roleKey !== role) {
-    return <Navigate to={user.dashboardPath} replace />
+    return <Forbidden />
   }
 
   return <Outlet />

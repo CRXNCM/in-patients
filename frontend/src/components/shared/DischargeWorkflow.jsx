@@ -12,11 +12,13 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { StatusBadge } from '@/components/shared/CommonComponents'
+import { CreditBadge, CreditSummary } from '@/components/shared/CreditBadge'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
 import { formatCurrency, formatDate, formatDateTime, stayDurationDays } from '@/lib/utils'
 import { validateDischargeRejectReason, validateDischargeRequest } from '@/lib/validation'
+import { useAuth } from '@/context/AuthContext'
 
 export function RequestDischargeButton({ patient }) {
   const { toast } = useToast()
@@ -117,6 +119,8 @@ export function DischargeReviewPanel({ patient }) {
   const stayDays = stayDurationDays(patient.admissionDate, discharge.completedAt?.slice?.(0, 10))
   const assignments = getRoomAssignments(patient.id)
   const openAssignment = assignments.find((a) => !a.end_date)
+  const { hasPermission } = useAuth()
+  const canDischarge = hasPermission('admissions.discharge')
   const isPending = patient.status === 'pending-discharge'
   const remaining = balance.remainingBalance
   const outstanding = remaining < 0 ? Math.abs(remaining) : 0
@@ -181,7 +185,7 @@ export function DischargeReviewPanel({ patient }) {
             <div><p className="text-xs text-muted-foreground">Room / Bed</p><p className="font-medium">{patient.room} · {patient.bed}</p></div>
             <div><p className="text-xs text-muted-foreground">Admission date</p><p className="font-medium">{formatDate(patient.admissionDate)}</p></div>
             <div><p className="text-xs text-muted-foreground">Stay duration</p><p className="font-medium">{stayDays} day{stayDays === 1 ? '' : 's'}</p></div>
-            <div className="flex items-center gap-2"><StatusBadge status={patient.status} /></div>
+            <div className="flex items-center gap-2"><StatusBadge status={patient.status} /> <CreditBadge patient={patient} /></div>
           </div>
         </div>
 
@@ -220,6 +224,9 @@ export function DischargeReviewPanel({ patient }) {
               <p className="font-medium text-emerald-600">{formatCurrency(credit)}</p>
             </div>
           </div>
+          <div className="mt-3">
+            <CreditSummary patient={patient} />
+          </div>
           {balance.pendingCharges > 0 && (
             <p className="text-xs text-amber-600 mt-2">
               {formatCurrency(balance.pendingCharges)} in pending records (not on the bill).
@@ -238,7 +245,7 @@ export function DischargeReviewPanel({ patient }) {
           </div>
         </div>
 
-        {isPending && (
+        {isPending && canDischarge && (
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" className="text-red-600" onClick={() => setRejectOpen(true)}>
               <XCircle className="h-4 w-4 mr-2" /> Reject Discharge

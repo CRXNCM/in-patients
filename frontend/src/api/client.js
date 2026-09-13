@@ -31,6 +31,8 @@ export const api = {
   getPatients: () => apiFetch('/api/patients'),
   getPatient: (id) => apiFetch(`/api/patients/${id}`),
   createPatient: (body) => apiFetch('/api/patients', { method: 'POST', body: JSON.stringify(body) }),
+  upsertMaternityBaby: (id, body) =>
+    apiFetch(`/api/patients/${id}/baby`, { method: 'PUT', body: JSON.stringify(body) }),
   addDeposit: (id, body) =>
     apiFetch(`/api/patients/${id}/deposits`, { method: 'POST', body: JSON.stringify(body) }),
   transferRoom: (id, body) =>
@@ -40,6 +42,20 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ disabled }),
     }),
+  getDoctors: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return apiFetch(`/api/doctors${qs ? `?${qs}` : ''}`)
+  },
+  getDoctor: (id) => apiFetch(`/api/doctors/${id}`),
+  createDoctor: (body) => apiFetch('/api/doctors', { method: 'POST', body: JSON.stringify(body) }),
+  updateDoctor: (id, body) => apiFetch(`/api/doctors/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getPatientDoctors: (id) => apiFetch(`/api/patients/${id}/doctors`),
+  assignDoctor: (id, body) =>
+    apiFetch(`/api/patients/${id}/doctors`, { method: 'POST', body: JSON.stringify(body) }),
+  endDoctorAssignment: (id, assignmentId) =>
+    apiFetch(`/api/patients/${id}/doctors/${assignmentId}/end`, { method: 'PATCH', body: JSON.stringify({}) }),
+  runDailyCharges: (throughDate) =>
+    apiFetch('/api/charges/daily', { method: 'POST', body: JSON.stringify({ throughDate }) }),
   getPendingDischarges: () => apiFetch('/api/patients/pending-discharge'),
   getDischargedPatients: () => apiFetch('/api/patients/discharged'),
   requestDischarge: (id, body = {}) =>
@@ -79,6 +95,40 @@ export const api = {
 
   getManagerDashboard: () => apiFetch('/api/manager/dashboard'),
   getManagerReport: (type) => apiFetch(`/api/manager/reports/${type}`),
+  getAdminDashboard: () => apiFetch('/api/admin/dashboard'),
+  getNurseDashboard: () => apiFetch('/api/nurse/dashboard'),
+  getReceptionDashboard: () => apiFetch('/api/reception/dashboard'),
+  search: (q) => apiFetch(`/api/search?q=${encodeURIComponent(q)}`),
+
+  getUsers: () => apiFetch('/api/users'),
+  getUser: (id) => apiFetch(`/api/users/${id}`),
+  createUser: (body) => apiFetch('/api/users', { method: 'POST', body: JSON.stringify(body) }),
+  updateUser: (id, body) => apiFetch(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getRoles: () => apiFetch('/api/roles'),
+  getRole: (id) => apiFetch(`/api/roles/${id}`),
+  getPermissionCatalog: () => apiFetch('/api/roles/catalog'),
+  createRole: (body) => apiFetch('/api/roles', { method: 'POST', body: JSON.stringify(body) }),
+  updateRole: (id, body) => apiFetch(`/api/roles/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getAuditLog: () => apiFetch('/api/audit'),
+
+  getDepartments: () => apiFetch('/api/departments'),
+  getDepartment: (id) => apiFetch(`/api/departments/${id}`),
+  createDepartment: (body) => apiFetch('/api/departments', { method: 'POST', body: JSON.stringify(body) }),
+  updateDepartment: (id, body) => apiFetch(`/api/departments/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getWards: () => apiFetch('/api/wards'),
+  getWard: (id) => apiFetch(`/api/wards/${id}`),
+  createWard: (body) => apiFetch('/api/wards', { method: 'POST', body: JSON.stringify(body) }),
+  updateWard: (id, body) => apiFetch(`/api/wards/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getSetupRooms: () => apiFetch('/api/rooms'),
+  createRoom: (body) => apiFetch('/api/rooms', { method: 'POST', body: JSON.stringify(body) }),
+  updateRoom: (id, body) => apiFetch(`/api/rooms/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getSetupBeds: () => apiFetch('/api/beds'),
+  createBed: (body) => apiFetch('/api/beds', { method: 'POST', body: JSON.stringify(body) }),
+  updateBed: (id, body) => apiFetch(`/api/beds/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  previewBulkRooms: (body) => apiFetch('/api/rooms/bulk-preview', { method: 'POST', body: JSON.stringify(body) }),
+  bulkCreateRooms: (body) => apiFetch('/api/rooms/bulk', { method: 'POST', body: JSON.stringify(body) }),
+  previewBulkBeds: (body) => apiFetch('/api/beds/bulk-preview', { method: 'POST', body: JSON.stringify(body) }),
+  bulkCreateBeds: (body) => apiFetch('/api/beds/bulk', { method: 'POST', body: JSON.stringify(body) }),
 }
 
 export { API_URL, USE_API }

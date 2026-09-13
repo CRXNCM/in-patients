@@ -56,6 +56,7 @@ describe('inpatient write guards', () => {
     assert.match(inpatientActionError(p, 'deposits'), /deposit/)
     assert.match(inpatientActionError(p, 'transfer'), /transfer/)
     assert.match(inpatientActionError(p, 'doctor-visit'), /doctor/)
+    assert.match(inpatientActionError(p, 'assign-doctor'), /doctor/)
   })
 
   it('blocks transfer while pending discharge but allows services and deposits', () => {

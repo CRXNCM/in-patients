@@ -12,7 +12,7 @@ Related documents: [DATABASE.md](./DATABASE.md) · [ARCHITECTURE.md](./ARCHITECT
 |----------|----------------|
 | `GET /api/patients` | For **each** patient, `calcPatientBalance` runs `ServiceRecord.find` + `Patient.findOne` |
 | `GET /api/patients?view=full` | Same per-patient balance, plus in-memory filter of all assignments |
-| `GET /api/manager/dashboard` | `calcPatientBalance` again per inpatient; then JS aggregation over **all** deposits and **all** approved records |
+| `GET /api/manager/dashboard` | Counts, `$group` sums, and one charges-by-`patientId` aggregate for current inpatients (no `calcPatientBalance` loop) |
 | `ensureAutomaticDailyCharges` | For every date in stay: `RoomAssignment.findOne` + upsert room + upsert/delete doctor |
 
 `calcPatientBalance` re-loads the Patient even when the caller already has it.

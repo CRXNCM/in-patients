@@ -1,8 +1,12 @@
+import { computeCreditState } from './credit.js'
+import { resolveSettings, SETTINGS_KEYS } from './settings.js'
+
 const ROOM_IDS = {
   'General Ward': 'ROOM-GW',
   'Private Room': 'ROOM-PR',
   ICU: 'ROOM-ICU',
   Operation: 'ROOM-OP',
+  'Delivery Room': 'ROOM-DR',
 }
 
 export function toFrontendDischarge(doc) {
@@ -31,6 +35,11 @@ export function toFrontendPatient(doc, balance) {
     return m
   }, {})
   const status = doc.status
+  const credit = computeCreditState({
+    admissionPaymentMode: doc.admissionPaymentMode,
+    requiredInitialDeposit: doc.requiredInitialDeposit,
+    depositTotal: doc.depositTotal,
+  })
   return {
     id: doc.patientId,
     name: doc.name,
@@ -40,7 +49,17 @@ export function toFrontendPatient(doc, balance) {
     room: doc.room,
     bed: doc.bed,
     admissionDate: doc.admissionDate,
+    admissionType: doc.admissionType === 'maternity' ? 'maternity' : 'normal',
+    baby: doc.baby || null,
     deposit: doc.depositTotal,
+    requiredInitialDeposit: credit.requiredInitialDeposit,
+    admissionPaymentMode: doc.admissionPaymentMode || 'paid',
+    isCreditPatient: credit.isCreditPatient,
+    depositStatus: credit.depositStatus,
+    outstandingDeposit: credit.outstandingDeposit,
+    creditMarkedBy: doc.creditMarkedBy || null,
+    creditMarkedAt: doc.creditMarkedAt?.toISOString?.() || doc.creditMarkedAt || null,
+    assignedDoctors: doc.assignedDoctors || [],
     totalCharges: balance?.totalCharges ?? doc.dischargeFinalCharges ?? 0,
     status,
     pendingDischarge: status === 'pending-discharge',
@@ -114,6 +133,8 @@ export function toFrontendRecord(doc, patientName) {
     id: doc._id.toString(),
     recordName: doc.recordName || patientName || '',
     patientId: doc.patientId,
+    subjectType: doc.subjectType === 'baby' ? 'baby' : 'mother',
+    babyId: doc.babyId || null,
     recordDate: doc.date,
     type,
     status: doc.status,
@@ -126,6 +147,8 @@ export function toFrontendRecord(doc, patientName) {
       unitPrice: s.unitPrice,
       total: s.total,
       notes: s.notes || '',
+      doctorId: s.doctorId || null,
+      specialty: s.specialty || null,
     })),
     returnItems: (doc.returnItems || []).map((r, i) => ({
       id: r.id || `ret-${doc._id}-${i}`,
@@ -158,15 +181,8 @@ export function toFrontendCategory(doc) {
 
 export function toFrontendSettings(doc) {
   if (!doc) return {}
-  return {
-    name: doc.name,
-    address: doc.address,
-    tin: doc.tin,
-    currency: doc.currency,
-    lowBalanceThreshold: doc.lowBalanceThreshold,
-    receiptFooter: doc.receiptFooter,
-    vatPercent: doc.vatPercent,
-    dailyDoctorVisitFee: doc.dailyDoctorVisitFee,
-    dailyDoctorVisitName: doc.dailyDoctorVisitName,
-  }
+  const resolved = resolveSettings(doc)
+  const settings = {}
+  for (const key of SETTINGS_KEYS) settings[key] = resolved[key] ?? null
+  return settings
 }

@@ -5,6 +5,7 @@ import { PageHeader, DataTable, StatusBadge } from '@/components/shared/CommonCo
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { formatDate } from '@/lib/utils'
+import { CreditBadge } from '@/components/shared/CreditBadge'
 
 export default function NursePatientsList() {
   const navigate = useNavigate()
@@ -13,7 +14,17 @@ export default function NursePatientsList() {
 
   const columns = [
     { key: 'id', header: 'Patient ID', render: (row) => <span className="font-mono text-xs font-medium text-primary">{row.id}</span> },
-    { key: 'name', header: 'Patient Name', render: (row) => <span className="font-medium">{row.name}</span> },
+    { key: 'name', header: 'Patient Name', render: (row) => (
+      <div className="flex flex-col gap-1">
+        <span className="font-medium">{row.name}</span>
+        <div className="flex flex-wrap gap-1">
+          {row.admissionType === 'maternity' && (
+            <span className="text-[10px] uppercase tracking-wide rounded bg-rose-100 text-rose-700 px-1.5 py-0.5">Maternity</span>
+          )}
+          <CreditBadge patient={row} />
+        </div>
+      </div>
+    ) },
     { key: 'room', header: 'Room/Bed', render: (row) => `${row.room} / ${row.bed}` },
     { key: 'admissionDate', header: 'Admission Date', render: (row) => formatDate(row.admissionDate) },
     { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },

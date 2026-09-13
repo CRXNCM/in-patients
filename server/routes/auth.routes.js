@@ -2,9 +2,25 @@ import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { User } from '../models/User.js'
+import { Role } from '../models/Role.js'
 import { authRequired } from '../middleware/auth.js'
+import { toAuthSession } from '../utils/roles.js'
 
 const router = Router()
+
+async function loadRole(user) {
+  if (!user?.roleId) return null
+  return Role.findById(user.roleId)
+}
+
+function signToken(user) {
+  const roleKey = user.role.toLowerCase()
+  return jwt.sign(
+    { id: user._id.toString(), email: user.email, role: user.role, roleKey, name: user.name },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  )
+}
 
 router.post('/login', async (req, res) => {
   try {
@@ -13,7 +29,8 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password required' })
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() })
+    const login = String(email).toLowerCase().trim()
+    const user = await User.findOne({ $or: [{ email: login }, { username: login }] })
     if (!user || user.status !== 'active') {
       return res.status(401).json({ error: 'Invalid email or password' })
     }
@@ -21,26 +38,13 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' })
 
-    const roleKey = user.role.toLowerCase()
-    const dashboardPath = `/${roleKey === 'admin' ? 'admin' : roleKey}`
+    user.lastLoginAt = new Date()
+    await user.save()
 
-    const token = jwt.sign(
-      { id: user._id.toString(), email: user.email, role: user.role, roleKey, name: user.name },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    )
-
+    const role = await loadRole(user)
     res.json({
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        roleKey,
-        dashboardPath,
-        initials: user.name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(),
-      },
+      token: signToken(user),
+      user: toAuthSession(user, role),
     })
   } catch (err) {
     console.error(err)
@@ -49,18 +53,8 @@ router.post('/login', async (req, res) => {
 })
 
 router.get('/me', authRequired, async (req, res) => {
-  const user = await User.findById(req.user.id).select('-password')
-  if (!user) return res.status(404).json({ error: 'User not found' })
-  const roleKey = user.role.toLowerCase()
-  res.json({
-    id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    roleKey,
-    dashboardPath: `/${roleKey === 'admin' ? 'admin' : roleKey}`,
-    initials: user.name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(),
-  })
+  const user = req.auth.user
+  res.json(toAuthSession(user, req.auth.role))
 })
 
 export default router

@@ -10,8 +10,8 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 
 1. Only users with `status === 'active'` may log in.
 2. Failed login always returns the same message: `Invalid email or password`.
-3. Frontend routes are restricted by `roleKey`. Backend write APIs for patients and records are **not** restricted by role (only JWT required), except settings (Admin) and manager reports (Manager or Admin).
-4. Nurse service-entry UI hides prices (`hideMoney`). This is a UI rule only.
+3. Frontend routes are restricted by `roleKey`. Backend write APIs now enforce roles for admit, deposits, doctor catalog, doctor assignment, settings, and manager reports. Service-record submit/approve still only require a valid JWT except where a route already calls `requireRole`.
+4. Nurse service-entry UI hides prices (`hideMoney`). Nurses cannot change a doctor’s catalog visit price (Admin-only API).
 
 ---
 
@@ -23,8 +23,11 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 8. Admission date is optional on the admit form. If left blank, the client and API assign **today**. If provided, it must be a valid calendar date and **cannot be after today**.
 9. Age or date of birth is required. Age must be between **0 and 120**.
 10. A bed must be selected. The bed must exist and have `status === 'available'`.
-11. **Initial deposit must be at least 15,000 ETB** (`MIN_INITIAL_DEPOSIT` on both client and server). Zero is not allowed on admit.
-12. Payment method is required on the admit form. For `Bank Transfer`, `Ebirr`, or `Other`, a reference number is required (client). Server admit does not re-validate reference uniqueness for the initial deposit.
+11. **Paid** admissions still require an initial deposit of at least 15,000 ETB (`MIN_INITIAL_DEPOSIT`). **Credit** admissions may pay 0 or any partial amount; the required deposit remains 15,000 ETB and is stored on the patient as `requiredInitialDeposit`.
+12. Payment method is required on a paid admit, and on a credit admit only when an amount &gt; 0 is collected. For `Bank Transfer`, `Ebirr`, or `Other`, a reference number is required (client). Server admit does not re-validate reference uniqueness for the initial deposit.
+12a. `admissionPaymentMode` is `paid` or `credit`. `isCreditPatient` is true while the admission was credit **and** `depositTotal &lt; requiredInitialDeposit`. Later deposits are additional `Deposit` rows; they never overwrite the original transaction.
+12b. Visiting doctors may be selected on admit (`doctorIds`). Assignments store name, specialty, and visit-price snapshots. Nurses, Reception, and Admin may add another doctor later. Charges start on `effectiveFrom` (default today; cannot be before admission or after today) and are not back-filled before that date.
+12c. Deactivating a doctor blocks **new** assignments. Existing assignments and billed visit lines keep their snapshots.
 14. If MRN is provided, no other **non-discharged** patient may have that MRN.
 15. If National ID is provided, no other **non-discharged** patient may have that National ID.
 16. Client warns (confirm dialog) if another admitted patient has the same name + age. This is a warning only; it does not block if the user confirms.
@@ -106,10 +109,11 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 49. For each date from `admissionDate` through the generation end date, if a room assignment covers that date, an approved `autoType: 'room'` record is upserted with that assignment’s `dailyRate`.
 50. Assignment coverage: `startDate <= date` and (`endDate` is null or `endDate > date`).
 51. Room display names are mapped in `BED_TYPES` (General Ward, Private Room, ICU, Operation).
-52. For each date, unless the date is in `disabledDoctorVisitDates`, an approved `autoType: 'doctor'` record is upserted using settings `dailyDoctorVisitFee` / `dailyDoctorVisitName` (defaults 2000 and “Daily Doctor Visit” in the service if settings missing).
-53. Disabling a doctor visit **deletes** that day’s doctor auto-record. Re-enabling regenerates charges through that date.
-54. Discharged patients are skipped by `ensureAutomaticDailyCharges` (status check). Completing discharge generates charges through the discharge date first, then sets `discharged`.
-55. On the API, missing later-day auto charges are generated on **admit** and **room transfer**, not on `GET /api/patients/:id`. Opening the billing page in API mode only refetches existing records.
+52. For each date, unless the date is in `disabledDoctorVisitDates`, an approved `autoType: 'doctor'` record is upserted **only if** at least one doctor assignment covers that date (`effectiveFrom &lt;= date` and `effectiveTo` is null or `&gt; date`). Each assigned doctor becomes a service line with the **assignment** price snapshot. Existing lines for a doctor/date are never repriced. Hospital settings `dailyDoctorVisitFee` is no longer the source of truth for new visits.
+53. Disabling a doctor visit **deletes** that day’s doctor auto-record. Re-enabling regenerates from current assignments (new lines use assignment snapshots; prior deleted lines are gone).
+54. Discharged patients are skipped by `ensureAutomaticDailyCharges` (status check). Completing discharge generates charges through the discharge date first, ends active doctor assignments, then sets `discharged`. Outstanding deposit/credit is **not** auto-cleared.
+55. Room and doctor auto charges never start before `admissionDate` and never after today (local calendar date). Admit may create the stay range once (`admissionDate` through today). Opening a patient, adding a doctor, transferring, or `POST /api/charges/daily` creates **today only** — it does not backfill older demo or historical days. Upsert + unique `(patientId, date, autoType)` prevent duplicates. Seed no longer inserts sample patients, doctors, or charges.
+55a. A patient admitted with no doctors receives room charges only. Adding a doctor later charges from the effective date forward.
 
 ---
 

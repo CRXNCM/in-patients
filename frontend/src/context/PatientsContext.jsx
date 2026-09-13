@@ -100,6 +100,9 @@ export function PatientsProvider({ children }) {
           depositAmount: patientData.initialDeposit ?? patientData.deposit ?? 0,
           depositMethod: patientData.depositType || 'Cash',
           referenceNumber: patientData.referenceNumber,
+          admissionPaymentMode: patientData.admissionPaymentMode || 'paid',
+          doctorIds: patientData.doctorIds || [],
+          admissionType: patientData.admissionType || 'normal',
         })
         const patient = withRoomHistory(res.patient)
         setPatients((prev) => [patient, ...prev])
@@ -141,6 +144,10 @@ export function PatientsProvider({ children }) {
         admissionDate,
         bed: bedLabel,
         deposit: patientData.deposit ?? patientData.initialDeposit ?? 0,
+        admissionPaymentMode: patientData.admissionPaymentMode || 'paid',
+        requiredInitialDeposit: patientData.requiredInitialDeposit ?? 15000,
+        isCreditPatient: (patientData.admissionPaymentMode === 'credit') && Number(patientData.initialDeposit || 0) < 15000,
+        assignedDoctors: patientData.assignedDoctors || [],
         roomHistory: [
           {
             room: patientData.room,
@@ -214,18 +221,23 @@ export function PatientsProvider({ children }) {
   const addDeposit = React.useCallback(
     async (patientId, { amount, method, referenceNumber, receivedBy = 'Sara Bekele', isInitial = false }) => {
       if (USE_API) {
-        const entry = await api.addDeposit(patientId, {
+        const res = await api.addDeposit(patientId, {
           amount,
           method,
           referenceNumber,
         })
+        const entry = res.deposit || res
         setDeposits((prev) => ({
           ...prev,
           [patientId]: [...(prev[patientId] || []), { ...entry, receivedBy: entry.receivedBy || receivedBy }],
         }))
-        setPatients((prev) =>
-          prev.map((p) => (p.id === patientId ? { ...p, deposit: p.deposit + Number(amount) } : p))
-        )
+        if (res.patient) {
+          setPatients((prev) => prev.map((p) => (p.id === patientId ? { ...p, ...res.patient } : p)))
+        } else {
+          setPatients((prev) =>
+            prev.map((p) => (p.id === patientId ? { ...p, deposit: p.deposit + Number(amount) } : p))
+          )
+        }
         return entry
       }
 
@@ -452,6 +464,18 @@ export function PatientsProvider({ children }) {
     return mapped
   }, [])
 
+  const saveMaternityBaby = React.useCallback(
+    async (patientId, body) => {
+      const res = await api.upsertMaternityBaby(patientId, body)
+      if (res?.patient) applyPatientUpdate(res.patient)
+      else if (res?.baby) {
+        setPatients((prev) => prev.map((p) => (p.id === patientId ? { ...p, baby: res.baby } : p)))
+      }
+      return res
+    },
+    [applyPatientUpdate]
+  )
+
   const requestDischarge = React.useCallback(
     async (patientId, { notes = '' } = {}) => {
       if (USE_API) {
@@ -624,6 +648,8 @@ export function PatientsProvider({ children }) {
         requestDischarge,
         rejectDischarge,
         approveDischarge,
+        applyPatientUpdate,
+        saveMaternityBaby,
       }}
     >
       {children}

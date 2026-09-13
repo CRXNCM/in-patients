@@ -6,7 +6,9 @@
     "dev": "node --watch server.js",
     "start": "node server.js",
     "seed": "node scripts/seed.js",
-    "test": "node --test utils/dischargeRules.test.js"
+    "seed:departments": "node scripts/seedDepartmentsWards.js",
+    "purge-demo": "node scripts/purgeDemoData.js",
+    "test": "node --test --test-concurrency=1 utils/businessDay.test.js utils/settings.test.js utils/dischargeRules.test.js utils/credit.test.js utils/roles.test.js utils/permissions.test.js utils/hospitalSetup.test.js utils/maternity.test.js utils/bulkLayout.test.js services/autoCharges.test.js services/bulkRooms.test.js services/adminDashboard.test.js services/adminDashboard.http.test.js services/nurseDashboard.test.js services/nurseDashboard.http.test.js services/globalSearch.test.js services/globalSearch.http.test.js services/managerDashboard.test.js services/managerDashboard.http.test.js services/receptionDashboard.test.js services/receptionDashboard.http.test.js routes/deposits.http.test.js routes/settings.http.test.js services/dischargeSettings.http.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -76,30 +76,37 @@
     display: none !important;
   }
 
+  /* Print sheets are portalled to <body> and flow in normal document order so
+     multi-page documents paginate. A fixed/absolute sheet only renders page 1. */
   .print-only {
-    display: block !important;
-    position: fixed;
-    inset: 0;
+    display: none;
     width: 100%;
-    min-height: 100%;
     margin: 0;
-    padding: 12mm;
     background: white !important;
-    z-index: 99999;
-    overflow: visible;
-    box-sizing: border-box;
   }
 
-  body.print-invoice-mode .print-deposit {
+  body.print-invoice-mode > *:not(.print-only),
+  body.print-deposit-mode > *:not(.print-only) {
     display: none !important;
   }
 
-  body.print-deposit-mode .print-invoice {
-    display: none !important;
+  body.print-invoice-mode .print-invoice,
+  body.print-deposit-mode .print-deposit {
+    display: block !important;
   }
 
   body {
     background: white !important;
+  }
+
+  /* Repeat table headers and keep rows intact across page breaks. */
+  thead {
+    display: table-header-group;
+  }
+
+  tr,
+  img {
+    break-inside: avoid;
   }
 }
 

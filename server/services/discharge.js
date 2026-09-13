@@ -3,16 +3,16 @@ import { Patient } from '../models/Patient.js'
 import { Bed } from '../models/Bed.js'
 import { RoomAssignment } from '../models/RoomAssignment.js'
 import { ensureAutomaticDailyCharges, calcPatientBalance } from './autoCharges.js'
+import { endActiveAssignments } from './doctorAssignments.js'
 import {
   dischargeRequestStatusError,
   dischargeApproveStatusError,
   dischargeRejectStatusError,
   validateDischargeRejectBody,
 } from '../utils/validation.js'
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10)
-}
+import { todayStr } from '../utils/dates.js'
+import { HospitalSettings } from '../models/HospitalSettings.js'
+import { loadResolvedSettings } from '../utils/settings.js'
 
 function event(action, by, note = '') {
   return { action, by, at: new Date().toISOString(), note }
@@ -180,6 +180,7 @@ async function completeDischargeWork(patientId, userName, session) {
 
   const dischargeDate = todayStr()
   await ensureAutomaticDailyCharges(patient, dischargeDate)
+  await endActiveAssignments(patientId, dischargeDate, userName)
 
   const closed = await RoomAssignment.findOneAndUpdate(
     { _id: assignment._id, endDate: null },
@@ -246,5 +247,21 @@ async function completeDischargeWork(patientId, userName, session) {
 }
 
 export async function approveDischarge(patientId, { userName }) {
+  const rules = await loadResolvedSettings(HospitalSettings)
+  if (rules.allowDischargeWithOutstandingBalance === false) {
+    const patient = await Patient.findOne({ patientId })
+    if (patient?.status === 'pending-discharge') {
+      // Final day charges first, so the gate reads the same total the discharge will record.
+      await ensureAutomaticDailyCharges(patient, todayStr())
+      const { balance } = await calcPatientBalance(patientId)
+      if (balance < 0) {
+        const error = new Error(
+          `Outstanding balance of ${Math.abs(balance)} ETB must be settled before discharge. Hospital settings do not allow discharge with an outstanding balance.`
+        )
+        error.status = 400
+        throw error
+      }
+    }
+  }
   return runOptionallyInTransaction((session) => completeDischargeWork(patientId, userName, session))
 }

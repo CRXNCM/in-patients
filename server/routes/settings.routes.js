@@ -1,12 +1,13 @@
 import { Router } from 'express'
 import { HospitalSettings } from '../models/HospitalSettings.js'
 import { ServiceCategory } from '../models/ServiceCategory.js'
-import { authRequired, requireRole } from '../middleware/auth.js'
+import { authRequired, requirePermission, requireAnyPermission } from '../middleware/auth.js'
 import { toFrontendCategory, toFrontendSettings } from '../utils/mappers.js'
+import { sanitizeSettingsPatch, validateSettingsPatch } from '../utils/settings.js'
 
 const router = Router()
 
-router.get('/', authRequired, async (_req, res) => {
+router.get('/', authRequired, requireAnyPermission('system.view_settings', 'patients.view', 'admissions.view'), async (_req, res) => {
   try {
     const settings = await HospitalSettings.findOne({ key: 'default' })
     res.json(toFrontendSettings(settings))
@@ -16,11 +17,20 @@ router.get('/', authRequired, async (_req, res) => {
   }
 })
 
-router.put('/', authRequired, requireRole('Admin'), async (req, res) => {
+router.put('/', authRequired, requirePermission('system.modify_settings'), async (req, res) => {
   try {
+    const patch = sanitizeSettingsPatch(req.body)
+    if (!Object.keys(patch).length) {
+      return res.status(400).json({ error: 'No known settings were provided.' })
+    }
+
+    const current = await HospitalSettings.findOne({ key: 'default' }).lean()
+    const errors = validateSettingsPatch(patch, current || {})
+    if (errors.length) return res.status(400).json({ error: errors[0], errors })
+
     const settings = await HospitalSettings.findOneAndUpdate(
       { key: 'default' },
-      { $set: req.body },
+      { $set: patch },
       { new: true, upsert: true }
     )
     res.json(toFrontendSettings(settings))
@@ -30,7 +40,7 @@ router.put('/', authRequired, requireRole('Admin'), async (req, res) => {
   }
 })
 
-router.get('/categories', authRequired, async (_req, res) => {
+router.get('/categories', authRequired, requireAnyPermission('system.view_settings', 'patients.view', 'admissions.view'), async (_req, res) => {
   try {
     const categories = await ServiceCategory.find().sort({ name: 1 })
     res.json(categories.map(toFrontendCategory))
@@ -40,7 +50,7 @@ router.get('/categories', authRequired, async (_req, res) => {
   }
 })
 
-router.patch('/categories/:slug/billing-type', authRequired, requireRole('Admin'), async (req, res) => {
+router.patch('/categories/:slug/billing-type', authRequired, requirePermission('system.modify_settings'), async (req, res) => {
   try {
     const { billingType } = req.body
     const category = await ServiceCategory.findOneAndUpdate(

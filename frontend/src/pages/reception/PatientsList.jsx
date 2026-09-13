@@ -5,15 +5,28 @@ import { StatusBadge, PageHeader, DataTable } from '@/components/shared/CommonCo
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { CreditBadge } from '@/components/shared/CreditBadge'
+import { useAuth } from '@/context/AuthContext'
 
 export default function PatientsList() {
   const navigate = useNavigate()
+  const { hasPermission } = useAuth()
   const { patients } = usePatients()
   const { getPatientBalance, getBalanceStatus } = useServiceEntries()
 
   const columns = [
     { key: 'id', header: 'Patient ID', render: (row) => <span className="font-mono text-xs font-medium text-primary">{row.id}</span> },
-    { key: 'name', header: 'Patient Name', render: (row) => <span className="font-medium">{row.name}</span> },
+    { key: 'name', header: 'Patient Name', render: (row) => (
+      <div className="flex flex-col gap-1">
+        <span className="font-medium">{row.name}</span>
+        <div className="flex flex-wrap gap-1">
+          {row.admissionType === 'maternity' && (
+            <span className="text-[10px] uppercase tracking-wide rounded bg-rose-100 text-rose-700 px-1.5 py-0.5">Maternity</span>
+          )}
+          <CreditBadge patient={row} />
+        </div>
+      </div>
+    ) },
     { key: 'room', header: 'Room/Bed', render: (row) => `${row.room} / ${row.bed}` },
     { key: 'admissionDate', header: 'Admission Date', render: (row) => formatDate(row.admissionDate) },
     { key: 'deposit', header: 'Deposit', render: (row) => formatCurrency(row.deposit) },
@@ -52,9 +65,11 @@ export default function PatientsList() {
         title="All Patients"
         description="Approved charges only — pending nurse records excluded from balance"
         action={
-          <Button onClick={() => navigate('/reception/add-patient')}>
-            <UserPlus className="h-4 w-4 mr-2" /> Add Patient
-          </Button>
+          hasPermission('admissions.create') ? (
+            <Button onClick={() => navigate('/reception/add-patient')}>
+              <UserPlus className="h-4 w-4 mr-2" /> Add Patient
+            </Button>
+          ) : null
         }
       />
       <DataTable columns={columns} data={patients} onRowClick={(row) => navigate(`/reception/patient/${row.id}`)} />

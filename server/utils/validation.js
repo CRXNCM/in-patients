@@ -1,3 +1,5 @@
+import { todayStr } from './dates.js'
+
 export const MIN_INITIAL_DEPOSIT = 15000
 export const NON_CASH_PAYMENT_METHODS = ['Bank Transfer', 'Ebirr', 'Other']
 
@@ -5,14 +7,16 @@ function trimText(value) {
   return String(value ?? '').trim()
 }
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function isValidDateString(value) {
+export function isValidDateString(value) {
   if (!value) return false
   const d = new Date(`${value}T12:00:00`)
-  return !Number.isNaN(d.getTime()) && value === d.toISOString().slice(0, 10)
+  if (Number.isNaN(d.getTime())) return false
+  const local = [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-')
+  return value === local
 }
 
 export function resolveAdmissionDate(value) {
@@ -20,9 +24,21 @@ export function resolveAdmissionDate(value) {
   return trimmed || todayStr()
 }
 
-export function validateAdmitBody(body) {
+/**
+ * `rules` comes from resolved hospital settings. The defaults reproduce the behaviour that
+ * was hard-coded before Admin Settings could configure it.
+ */
+export function validateAdmitBody(body, rules = {}) {
   const errors = []
   const { name, age, dateOfBirth, gender, admissionDate, bedId, depositAmount, address } = body
+  const paymentMode = String(body.admissionPaymentMode || 'paid').trim().toLowerCase()
+  const minimumDeposit = Number.isFinite(Number(rules.minimumInitialDeposit))
+    ? Number(rules.minimumInitialDeposit)
+    : MIN_INITIAL_DEPOSIT
+  const creditAllowed = rules.creditAdmissionsEnabled !== false
+  const enabledMethods = Array.isArray(rules.paymentMethods) && rules.paymentMethods.length
+    ? rules.paymentMethods
+    : null
 
   if (!trimText(name)) errors.push('Full name is required.')
   if (!trimText(gender)) errors.push('Gender is required.')
@@ -41,8 +57,37 @@ export function validateAdmitBody(body) {
   if (!bedId) errors.push('Bed is required.')
 
   const deposit = Number(depositAmount)
-  if (Number.isNaN(deposit) || deposit < MIN_INITIAL_DEPOSIT) {
-    errors.push(`Initial deposit must be at least ${MIN_INITIAL_DEPOSIT} ETB.`)
+  if (paymentMode === 'credit') {
+    if (!creditAllowed) {
+      errors.push('Credit admissions are disabled in hospital settings.')
+    }
+    if (Number.isNaN(deposit) || deposit < 0) {
+      errors.push('Credit admission amount must be zero or greater.')
+    }
+    if (deposit > 0 && !trimText(body.depositMethod)) {
+      errors.push('Payment method is required when a credit patient pays a partial deposit.')
+    }
+  } else if (paymentMode && paymentMode !== 'paid') {
+    errors.push('Admission payment mode must be paid or credit.')
+  } else if (Number.isNaN(deposit) || deposit < minimumDeposit) {
+    errors.push(`Initial deposit must be at least ${minimumDeposit} ETB.`)
+  }
+
+  const admitMethod = trimText(body.depositMethod)
+  if (admitMethod && enabledMethods && !enabledMethods.includes(admitMethod)) {
+    errors.push(`${admitMethod} is not an enabled payment method.`)
+  }
+
+  const admissionType = String(body.admissionType || 'normal').trim().toLowerCase()
+  if (admissionType && admissionType !== 'normal' && admissionType !== 'maternity') {
+    errors.push('Admission type must be normal or maternity.')
+  }
+
+  if (Array.isArray(body.doctorIds)) {
+    const invalid = body.doctorIds.some((id) => !trimText(id))
+    if (invalid) errors.push('Assigned doctor ids are not valid.')
+    const unique = new Set(body.doctorIds.map((id) => String(id)))
+    if (unique.size !== body.doctorIds.length) errors.push('The same doctor cannot be assigned twice.')
   }
 
   return errors
@@ -60,15 +105,26 @@ function computeAgeFromDob(dob) {
 
 export { computeAgeFromDob }
 
-export function validateDepositBody(body, existingRefs = []) {
+export function validateDepositBody(body, existingRefs = [], rules = {}) {
   const errors = []
+  const enabledMethods = Array.isArray(rules.paymentMethods) && rules.paymentMethods.length
+    ? rules.paymentMethods
+    : null
+  const referenceRequired = Array.isArray(rules.referenceRequiredMethods)
+    ? rules.referenceRequiredMethods
+    : NON_CASH_PAYMENT_METHODS
+
   const amount = Number(body.amount)
   if (Number.isNaN(amount) || amount <= 0) errors.push('Deposit amount must be greater than 0.')
-  if (!trimText(body.method)) errors.push('Payment method is required.')
+  const method = trimText(body.method)
+  if (!method) errors.push('Payment method is required.')
+  else if (enabledMethods && !enabledMethods.includes(method)) {
+    errors.push(`${method} is not an enabled payment method.`)
+  }
 
   const ref = trimText(body.referenceNumber)
-  if (NON_CASH_PAYMENT_METHODS.includes(body.method) && !ref) {
-    errors.push('Reference number is required for non-cash payments.')
+  if (referenceRequired.includes(method) && !ref) {
+    errors.push(`Reference number is required for ${method} payments.`)
   }
   if (ref && existingRefs.includes(ref)) {
     errors.push('Duplicate payment reference is not allowed.')
@@ -110,6 +166,7 @@ export function inpatientActionError(patient, action) {
       deposits: 'Cannot add a deposit for a discharged patient.',
       transfer: 'Cannot transfer a discharged patient.',
       'doctor-visit': 'Cannot change doctor visits for a discharged patient.',
+      'assign-doctor': 'Cannot assign a doctor to a discharged patient.',
     }
     return messages[action] || 'This action is not allowed for a discharged patient.'
   }
@@ -117,6 +174,22 @@ export function inpatientActionError(patient, action) {
     return 'Cannot transfer a patient with a pending discharge request.'
   }
   return null
+}
+
+export function validateAssignDoctorBody(body, patient) {
+  const errors = []
+  const stayError = inpatientActionError(patient, 'assign-doctor')
+  if (stayError) errors.push(stayError)
+  if (!trimText(body?.doctorId)) errors.push('Doctor is required.')
+  if (trimText(body?.effectiveFrom)) {
+    if (!isValidDateString(body.effectiveFrom)) errors.push('Effective date is not valid.')
+    else if (patient?.admissionDate && body.effectiveFrom < patient.admissionDate) {
+      errors.push('Effective date cannot be before admission date.')
+    } else if (body.effectiveFrom > todayStr()) {
+      errors.push('Effective date cannot be after today.')
+    }
+  }
+  return errors
 }
 
 export function validateTransferBody(body, patient) {

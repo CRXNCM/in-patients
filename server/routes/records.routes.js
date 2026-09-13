@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { Patient } from '../models/Patient.js'
-import { authRequired } from '../middleware/auth.js'
+import { authRequired, requirePermission, requireAnyPermission } from '../middleware/auth.js'
 import { toFrontendRecord } from '../utils/mappers.js'
 
 const router = Router()
@@ -10,7 +10,7 @@ function audit(action, by, note = '') {
   return { action, by, at: new Date().toISOString(), note }
 }
 
-router.get('/pending', authRequired, async (_req, res) => {
+router.get('/pending', authRequired, requireAnyPermission('admissions.edit', 'patients.edit', 'patients.view'), async (_req, res) => {
   try {
     const records = await ServiceRecord.find({ status: 'pending' }).sort({ recordedAt: -1, createdAt: -1 })
     const patients = await Patient.find({ patientId: { $in: records.map((r) => r.patientId) } })
@@ -22,7 +22,7 @@ router.get('/pending', authRequired, async (_req, res) => {
   }
 })
 
-router.get('/', authRequired, async (req, res) => {
+router.get('/', authRequired, requirePermission('patients.view'), async (req, res) => {
   try {
     const filter = {}
     if (req.query.patientId) filter.patientId = req.query.patientId
@@ -37,7 +37,7 @@ router.get('/', authRequired, async (req, res) => {
   }
 })
 
-router.post('/:id/approve', authRequired, async (req, res) => {
+router.post('/:id/approve', authRequired, requireAnyPermission('admissions.edit', 'patients.edit'), async (req, res) => {
   try {
     const note = req.body.note || 'Approved by reception'
     const record = await ServiceRecord.findById(req.params.id)
@@ -59,7 +59,7 @@ router.post('/:id/approve', authRequired, async (req, res) => {
   }
 })
 
-router.post('/:id/reject', authRequired, async (req, res) => {
+router.post('/:id/reject', authRequired, requireAnyPermission('admissions.edit', 'patients.edit'), async (req, res) => {
   try {
     const reason = req.body.reason || 'Rejected by reception'
     const record = await ServiceRecord.findById(req.params.id)

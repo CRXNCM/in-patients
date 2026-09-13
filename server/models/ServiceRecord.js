@@ -9,6 +9,8 @@ const serviceLineSchema = new mongoose.Schema(
     unitPrice: Number,
     total: Number,
     notes: String,
+    doctorId: String,
+    specialty: String,
   },
   { _id: false }
 )
@@ -33,6 +35,8 @@ const auditEntrySchema = new mongoose.Schema(
 const serviceRecordSchema = new mongoose.Schema(
   {
     patientId: { type: String, required: true, index: true },
+    subjectType: { type: String, enum: ['mother', 'baby'], default: 'mother' },
+    babyId: { type: String, default: null },
     recordName: String,
     date: { type: String, required: true },
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
@@ -52,6 +56,9 @@ const serviceRecordSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-serviceRecordSchema.index({ patientId: 1, date: 1, autoType: 1 })
+serviceRecordSchema.index(
+  { patientId: 1, date: 1, autoType: 1 },
+  { unique: true, partialFilterExpression: { autoType: { $in: ['room', 'doctor'] } } }
+)
 
 export const ServiceRecord = mongoose.model('ServiceRecord', serviceRecordSchema)

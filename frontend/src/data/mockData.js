@@ -1,13 +1,43 @@
+export const PAYMENT_METHOD_OPTIONS = ['Cash', 'Bank Transfer', 'Ebirr', 'Other']
+
 export const hospitalSettings = {
   name: 'Central City Hospital',
   address: 'Bole Road, Addis Ababa, Ethiopia',
   tin: '0001234567',
+  phone: '',
+  email: '',
   currency: 'ETB',
   lowBalanceThreshold: 3000,
   receiptFooter: 'Thank you for choosing Central City Hospital. Get well soon!',
   vatPercent: 0,
   dailyDoctorVisitFee: 2000,
   dailyDoctorVisitName: 'Daily Doctor Visit',
+
+  paymentMethods: PAYMENT_METHOD_OPTIONS,
+  defaultPaymentMethod: 'Cash',
+  referenceRequiredMethods: ['Bank Transfer', 'Ebirr', 'Other'],
+
+  receiptHeader: '',
+  receiptPrefix: 'DEP-',
+  receiptShowLogo: true,
+  receiptShowAddress: true,
+  receiptShowPhone: false,
+  receiptShowTin: true,
+  invoiceHeader: '',
+  invoiceFooter: '',
+  invoiceShowLogo: true,
+  invoiceShowAddress: true,
+  invoiceShowPhone: false,
+  invoiceShowTin: true,
+
+  minimumInitialDeposit: 15000,
+  creditAdmissionsEnabled: true,
+  allowDischargeWithOutstandingBalance: true,
+
+  timezone: null,
+  dateFormat: 'locale',
+  timeFormat: 'locale',
+  listPageSize: 10,
 }
 
 export const BILLING_TYPES = {
@@ -27,6 +57,7 @@ export const bedTypes = [
   { name: 'Private Room', prefix: 'PR', serviceName: 'Private Room - Daily Rate', dailyRate: 5000 },
   { name: 'ICU', prefix: 'ICU', serviceName: 'ICU - Daily Rate', dailyRate: 8000 },
   { name: 'Operation', prefix: 'OP', serviceName: 'Operation Room - Daily Rate', dailyRate: 10000 },
+  { name: 'Delivery Room', prefix: 'DR', serviceName: 'Delivery Room - Daily Rate', dailyRate: 1500 },
 ]
 
 export const depositTypes = ['Cash', 'Bank Transfer', 'Ebirr', 'Other']
@@ -293,11 +324,11 @@ export const departments = [
 ]
 
 export const doctors = [
-  { id: 1, name: 'Dr. Solomon Tadesse', specialty: 'Internal Medicine', department: 'Doctors', phone: '+251 911 111 111', status: 'active' },
-  { id: 2, name: 'Dr. Eden Worku', specialty: 'Obstetrics & Gynecology', department: 'Doctors', phone: '+251 922 222 222', status: 'active' },
-  { id: 3, name: 'Dr. Getachew Haile', specialty: 'General Surgery', department: 'Operation', phone: '+251 933 333 333', status: 'active' },
-  { id: 4, name: 'Dr. Rahel Desta', specialty: 'Pediatrics', department: 'Doctors', phone: '+251 944 444 444', status: 'active' },
-  { id: 5, name: 'Dr. Michael Assefa', specialty: 'Critical Care', department: 'ICU', phone: '+251 955 555 555', status: 'active' },
+  { id: 1, name: 'Dr. Solomon Tadesse', specialty: 'Internal Medicine', department: 'Doctors', phone: '+251 911 111 111', status: 'active', active: true, visitPrice: 500 },
+  { id: 2, name: 'Dr. Eden Worku', specialty: 'Gynecologist', department: 'Doctors', phone: '+251 922 222 222', status: 'active', active: true, visitPrice: 700 },
+  { id: 3, name: 'Dr. Getachew Haile', specialty: 'Surgeon', department: 'Operation', phone: '+251 933 333 333', status: 'active', active: true, visitPrice: 1000 },
+  { id: 4, name: 'Dr. Rahel Desta', specialty: 'Pediatrician', department: 'Doctors', phone: '+251 944 444 444', status: 'active', active: true, visitPrice: 700 },
+  { id: 5, name: 'Dr. Michael Assefa', specialty: 'Cardiologist', department: 'ICU', phone: '+251 955 555 555', status: 'active', active: true, visitPrice: 800 },
 ]
 
 export const roomCharges = [

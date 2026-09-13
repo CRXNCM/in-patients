@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -7,10 +7,13 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { PageHeader } from '@/components/shared/CommonComponents'
 import { bedTypes, depositTypes } from '@/data/mockData'
+import { useBillingConfig } from '@/context/BillingConfigContext'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
 import { formatCurrency } from '@/lib/utils'
+import { DoctorPicker } from '@/components/shared/DoctorPicker'
+import { api, USE_API } from '@/api/client'
 import {
   validateAdmission,
   findDuplicateNameAgeWarning,
@@ -32,6 +35,20 @@ export default function AddPatient() {
   const { toast } = useToast()
   const { addPatient, patients, rooms } = usePatients()
   const { ensureAutomaticDailyCharges } = useServiceEntries()
+  const { settings: hospitalConfig } = useBillingConfig()
+
+  const paymentMethods = hospitalConfig.paymentMethods?.length ? hospitalConfig.paymentMethods : depositTypes
+  const referenceRequiredMethods = Array.isArray(hospitalConfig.referenceRequiredMethods)
+    ? hospitalConfig.referenceRequiredMethods
+    : NON_CASH_PAYMENT_METHODS
+  const minimumInitialDeposit = Number.isFinite(Number(hospitalConfig.minimumInitialDeposit))
+    ? Number(hospitalConfig.minimumInitialDeposit)
+    : MIN_INITIAL_DEPOSIT
+  const creditAdmissionsEnabled = hospitalConfig.creditAdmissionsEnabled !== false
+  const defaultPaymentMethod = paymentMethods.includes(hospitalConfig.defaultPaymentMethod)
+    ? hospitalConfig.defaultPaymentMethod
+    : paymentMethods[0]
+  const currencyCode = hospitalConfig.currency || 'ETB'
 
   const [form, setForm] = useState({
     name: '',
@@ -46,12 +63,44 @@ export default function AddPatient() {
     bedNumber: '',
     admissionDate: '',
     initialDeposit: '',
-    depositType: 'Cash',
+    depositType: defaultPaymentMethod,
     referenceNumber: '',
     notes: '',
+    admissionPaymentMode: 'paid',
+    doctorIds: [],
+    admissionType: 'normal',
   })
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
+  const [doctors, setDoctors] = useState([])
+
+  const methodKey = paymentMethods.join('|')
+  const [methodTouched, setMethodTouched] = useState(false)
+  useEffect(() => {
+    setForm((prev) => {
+      const next = { ...prev }
+      if (!methodTouched || !paymentMethods.includes(prev.depositType)) next.depositType = defaultPaymentMethod
+      if (!creditAdmissionsEnabled && prev.admissionPaymentMode === 'credit') next.admissionPaymentMode = 'paid'
+      return next.depositType === prev.depositType && next.admissionPaymentMode === prev.admissionPaymentMode
+        ? prev
+        : next
+    })
+  }, [methodKey, defaultPaymentMethod, creditAdmissionsEnabled, methodTouched, paymentMethods])
+
+  useEffect(() => {
+    if (!USE_API) return undefined
+    let cancelled = false
+    api.getDoctors({ active: true })
+      .then((rows) => {
+        if (!cancelled) setDoctors(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setDoctors([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const availableBeds = useMemo(() => {
     const room = rooms.find((r) => r.roomType === form.bedType)
@@ -74,9 +123,15 @@ export default function AddPatient() {
       nationalId: trimText(form.nationalId),
       referenceNumber: trimText(form.referenceNumber),
       admissionDate,
+      admissionPaymentMode: form.admissionPaymentMode,
+      doctorIds: form.doctorIds,
     }
 
-    const validationErrors = validateAdmission(trimmed, { rooms, existingPatients: patients })
+    const validationErrors = validateAdmission(trimmed, {
+      rooms,
+      existingPatients: patients,
+      rules: { minimumInitialDeposit, referenceRequiredMethods, paymentMethods },
+    })
     if (Object.keys(validationErrors).length) {
       setErrors(validationErrors)
       toast({ title: 'Please fix the errors', description: firstError(validationErrors), variant: 'destructive' })
@@ -107,11 +162,14 @@ export default function AddPatient() {
         room: trimmed.bedType,
         bed: trimmed.bedNumber || undefined,
         admissionDate,
-        deposit: Number(trimmed.initialDeposit),
+        deposit: Number(trimmed.initialDeposit || 0),
         depositType: trimmed.depositType,
         referenceNumber: trimmed.referenceNumber || undefined,
         notes: trimmed.notes,
-        initialDeposit: Number(trimmed.initialDeposit),
+        initialDeposit: Number(trimmed.initialDeposit || 0),
+        admissionPaymentMode: trimmed.admissionPaymentMode,
+        doctorIds: trimmed.doctorIds,
+        admissionType: trimmed.admissionType || 'normal',
       })
 
       await ensureAutomaticDailyCharges(patient.id, admissionDate, patient)
@@ -188,6 +246,22 @@ export default function AddPatient() {
                 </div>
               </div>
               <div>
+                <Label>Admission Type *</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={form.admissionType}
+                  onChange={(e) => set('admissionType', e.target.value)}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="maternity">Maternity (mother & baby)</option>
+                </select>
+                {form.admissionType === 'maternity' && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The mother is the primary patient. Newborn details can be added after delivery on the same admission.
+                  </p>
+                )}
+              </div>
+              <div>
                 <Label>Admission Date</Label>
                 <Input type="date" max={todayStr()} value={form.admissionDate} onChange={(e) => set('admissionDate', e.target.value)} />
                 <FieldError message={errors.admissionDate} />
@@ -234,21 +308,63 @@ export default function AddPatient() {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle>Initial Deposit</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Visiting Doctors</CardTitle>
+                <CardDescription>Optional. Selected doctors generate a daily visit charge from the admission date.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DoctorPicker
+                  doctors={doctors}
+                  selectedIds={form.doctorIds}
+                  onChange={(ids) => set('doctorIds', ids)}
+                  disabled={submitting}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle>Admission Deposit</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label>Deposit Amount (ETB) *</Label>
-                  <Input type="number" min={MIN_INITIAL_DEPOSIT} step="0.01" value={form.initialDeposit} onChange={(e) => set('initialDeposit', e.target.value)} placeholder={`Minimum ${formatCurrency(MIN_INITIAL_DEPOSIT)}`} />
+                  <Label>Payment status *</Label>
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.admissionPaymentMode} onChange={(e) => set('admissionPaymentMode', e.target.value)}>
+                    <option value="paid">Paid</option>
+                    {creditAdmissionsEnabled && <option value="credit">Credit</option>}
+                  </select>
+                  {!creditAdmissionsEnabled && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Credit admissions are disabled in hospital settings.
+                    </p>
+                  )}
+                </div>
+                {form.admissionPaymentMode === 'credit' && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50/70 dark:bg-amber-950/20 p-3 text-sm">
+                    <p className="font-semibold">CREDIT PATIENT</p>
+                    <p className="text-muted-foreground">
+                      Required deposit remains {formatCurrency(minimumInitialDeposit)}. Amount paid now can be 0. Outstanding deposit stays visible until later payments cover it.
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <Label>{form.admissionPaymentMode === 'credit' ? `Amount paid now (${currencyCode})` : `Deposit Amount (${currencyCode}) *`}</Label>
+                  <Input
+                    type="number"
+                    min={form.admissionPaymentMode === 'credit' ? 0 : minimumInitialDeposit}
+                    step="0.01"
+                    value={form.initialDeposit}
+                    onChange={(e) => set('initialDeposit', e.target.value)}
+                    placeholder={form.admissionPaymentMode === 'credit' ? '0 if nothing is paid today' : `Minimum ${formatCurrency(minimumInitialDeposit)}`}
+                  />
                   <FieldError message={errors.initialDeposit} />
                 </div>
                 <div>
                   <Label>Payment Method *</Label>
-                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.depositType} onChange={(e) => set('depositType', e.target.value)}>
-                    {depositTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.depositType} onChange={(e) => { setMethodTouched(true); set('depositType', e.target.value) }}>
+                    {paymentMethods.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                   <FieldError message={errors.depositType} />
                 </div>
-                {NON_CASH_PAYMENT_METHODS.includes(form.depositType) && (
+                {referenceRequiredMethods.includes(form.depositType) && (
                   <div>
                     <Label>Payment Reference *</Label>
                     <Input value={form.referenceNumber} onChange={(e) => set('referenceNumber', e.target.value)} placeholder="Transaction / reference number" />

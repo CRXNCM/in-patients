@@ -21,11 +21,17 @@ import { RecordTimeline } from '@/components/shared/RecordTimeline'
 import { RecordDetailView } from '@/components/shared/RecordTimeline'
 import { DepositReceipt } from '@/components/shared/DepositReceipt'
 import { InvoicePreview } from '@/components/shared/InvoicePreview'
+import { PrintPortal } from '@/components/shared/PrintPortal'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RoomHistoryTable, RoomTransferPanel } from '@/components/shared/RoomTransferPanel'
 import { DischargeReviewPanel } from '@/components/shared/DischargeWorkflow'
+import { AssignedDoctorsPanel } from '@/components/shared/AssignedDoctorsPanel'
+import { CreditBadge, CreditSummary } from '@/components/shared/CreditBadge'
+import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
+import { isMaternityAdmission, subjectLabel } from '@/lib/maternity'
 import { api, USE_API } from '@/api/client'
 import { hospitalSettings, depositTypes } from '@/data/mockData'
+import { useBillingConfig } from '@/context/BillingConfigContext'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { computeRecordTotal } from '@/context/ServiceEntriesContext'
@@ -79,7 +85,7 @@ export default function PatientBilling() {
   const { patientId } = useParams()
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { getPatient, getPatientDeposits, addDeposit, setDoctorVisitDisabled, getRoomAssignments, rooms, loading } = usePatients()
+  const { getPatient, getPatientDeposits, addDeposit, setDoctorVisitDisabled, getRoomAssignments, rooms, loading, applyPatientUpdate } = usePatients()
   const {
     getPatientRecords,
     getPatientBalance,
@@ -89,6 +95,16 @@ export default function PatientBilling() {
     ensureAutomaticDailyCharges,
     CURRENT_RECEPTIONIST,
   } = useServiceEntries()
+
+  const { settings: hospitalConfig } = useBillingConfig()
+  const paymentMethods = hospitalConfig.paymentMethods?.length ? hospitalConfig.paymentMethods : depositTypes
+  const referenceRequiredMethods = Array.isArray(hospitalConfig.referenceRequiredMethods)
+    ? hospitalConfig.referenceRequiredMethods
+    : NON_CASH_PAYMENT_METHODS
+  const lowBalanceThreshold = Number(hospitalConfig.lowBalanceThreshold ?? hospitalSettings.lowBalanceThreshold)
+  const defaultPaymentMethod = paymentMethods.includes(hospitalConfig.defaultPaymentMethod)
+    ? hospitalConfig.defaultPaymentMethod
+    : paymentMethods[0]
 
   const listedPatient = getPatient(patientId)
   const [remotePatient, setRemotePatient] = useState(null)
@@ -158,7 +174,10 @@ export default function PatientBilling() {
     queuePrint(variant === 'summary' ? 'invoice-summary' : 'invoice-detailed')
   }
 
+  const maternity = isMaternityAdmission(patient)
   const allRecords = getPatientRecords(patientId)
+  const motherRecords = allRecords.filter((r) => (r.subjectType || 'mother') !== 'baby')
+  const babyRecords = allRecords.filter((r) => r.subjectType === 'baby')
   const pendingRecords = allRecords.filter((r) => r.status === 'pending')
   const deposits = getPatientDeposits(patientId)
   const pendingPaged = usePagedItems(pendingRecords)
@@ -179,7 +198,9 @@ export default function PatientBilling() {
 
   const balance = getPatientBalance(patient)
   const { totalCharges, remainingBalance, pendingCharges } = balance
-  const isLowBalance = remainingBalance < hospitalSettings.lowBalanceThreshold
+  const vatPercent = Number(hospitalConfig.vatPercent) || 0
+  const vatAmount = vatPercent > 0 ? totalCharges * (vatPercent / 100) : 0
+  const isLowBalance = remainingBalance < lowBalanceThreshold
   const approvedBillItems = getApprovedLineItems(patientId)
   const roomAssignments = getRoomAssignments(patientId)
   const isDischarged = patient.status === 'discharged'
@@ -204,7 +225,7 @@ export default function PatientBilling() {
       method: newDeposit.method,
       referenceNumber: trimText(newDeposit.referenceNumber),
     }
-    const errors = validateDeposit(form, deposits)
+    const errors = validateDeposit(form, deposits, { referenceRequiredMethods, paymentMethods })
     if (Object.keys(errors).length) {
       setDepositErrors(errors)
       toast({ title: 'Please fix the errors', description: firstError(errors), variant: 'destructive' })
@@ -219,7 +240,7 @@ export default function PatientBilling() {
         referenceNumber: form.referenceNumber || undefined,
         receivedBy: CURRENT_RECEPTIONIST,
       })
-      setNewDeposit({ amount: '', method: 'Cash', referenceNumber: '' })
+      setNewDeposit({ amount: '', method: defaultPaymentMethod, referenceNumber: '' })
       setDepositErrors({})
       setShowDepositDialog(false)
       toast({ title: 'Deposit Recorded', description: `${formatCurrency(Number(form.amount))} added`, variant: 'success' })
@@ -291,6 +312,9 @@ export default function PatientBilling() {
       ),
     },
     { key: 'recordName', header: 'Record', render: (row) => <span className="text-xs">{row.recordName}</span> },
+    ...(isMaternityAdmission(patient)
+      ? [{ key: 'subjectType', header: 'Subject', render: (row) => subjectLabel(row.subjectType) }]
+      : []),
   ]
 
   let running = 0
@@ -314,7 +338,7 @@ export default function PatientBilling() {
             <div>
               <p className="font-semibold text-red-700 dark:text-red-400">Critical Balance Warning</p>
               <p className="text-sm text-red-600 dark:text-red-300">
-                Remaining balance is {formatCurrency(remainingBalance)} — below {formatCurrency(hospitalSettings.lowBalanceThreshold)} threshold.
+                Remaining balance is {formatCurrency(remainingBalance)} — below {formatCurrency(lowBalanceThreshold)} threshold.
                 {pendingCharges > 0 && ` (${formatCurrency(pendingCharges)} pending not yet applied.)`}
               </p>
             </div>
@@ -336,6 +360,7 @@ export default function PatientBilling() {
                     <div>
                       <p className="font-semibold text-sm">{record.recordName}</p>
                       <p className="text-xs text-muted-foreground">
+                        {isMaternityAdmission(patient) ? `${subjectLabel(record.subjectType)} · ` : ''}
                         {record.type === 'pharmacy_return' ? 'Pharmacy Return' : 'Daily Services'} · {count} item(s) · {formatCurrency(Math.abs(total))}
                       </p>
                     </div>
@@ -366,7 +391,7 @@ export default function PatientBilling() {
         <Card className="mb-6">
           <CardHeader className="flex flex-row items-start justify-between gap-4">
             <div>
-              <CardTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" />{patient.name}</CardTitle>
+              <CardTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" />{patient.name} <CreditBadge patient={patient} /></CardTitle>
               <CardDescription>Patient ID: {patient.id}</CardDescription>
             </div>
             {canTransfer && (
@@ -385,12 +410,31 @@ export default function PatientBilling() {
               <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> Admission</p><p className="font-medium">{formatDate(patient.admissionDate)}</p></div>
               <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Bed className="h-3 w-3" /> Room / Bed</p><p className="font-medium">{patient.room} · {patient.bed}</p></div>
             </div>
+            <div className="mt-4">
+              <CreditSummary patient={patient} />
+            </div>
           </CardContent>
         </Card>
 
+        <MaternityAdmissionPanel patient={patient} canEdit={canAddCharges} />
+
+        <AssignedDoctorsPanel
+          patient={patient}
+          canAdd
+          onChanged={(res) => {
+            if (res?.patient) applyPatientUpdate(res.patient)
+          }}
+        />
+
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
           <StatCard title="Total Deposit" value={formatCurrency(patient.deposit)} icon={Wallet} iconClassName="bg-emerald-100 text-emerald-600" />
-          <StatCard title="Approved Charges" value={formatCurrency(totalCharges)} icon={Receipt} iconClassName="bg-blue-100 text-blue-600" />
+          <StatCard
+            title="Approved Charges"
+            value={formatCurrency(totalCharges)}
+            subtitle={vatPercent > 0 ? `VAT ${vatPercent}% · ${formatCurrency(vatAmount)}` : undefined}
+            icon={Receipt}
+            iconClassName="bg-blue-100 text-blue-600"
+          />
           <StatCard
             title="Remaining Balance"
             value={formatCurrency(remainingBalance)}
@@ -420,6 +464,7 @@ export default function PatientBilling() {
           <ServiceRecordBuilder
             patientId={patientId}
             patientName={patient.name}
+            patient={patient}
             source="reception"
             recordedBy={CURRENT_RECEPTIONIST}
             hideMoney={false}
@@ -464,10 +509,27 @@ export default function PatientBilling() {
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Record History — {patient.name}</CardTitle>
-            <CardDescription>All daily records, pharmacy returns, and audit trail</CardDescription>
+            <CardDescription>
+              {maternity
+                ? 'Mother and baby records stay on this same maternity admission.'
+                : 'All daily records, pharmacy returns, and audit trail'}
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <RecordTimeline records={allRecords} />
+          <CardContent className="space-y-6">
+            {maternity ? (
+              <>
+                <div>
+                  <h4 className="text-sm font-semibold mb-3">Mother records</h4>
+                  <RecordTimeline records={motherRecords} showSubject />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold mb-3">Baby records</h4>
+                  <RecordTimeline records={babyRecords} showSubject />
+                </div>
+              </>
+            ) : (
+              <RecordTimeline records={allRecords} />
+            )}
           </CardContent>
         </Card>
 
@@ -475,7 +537,15 @@ export default function PatientBilling() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" /> Deposit History</CardTitle>
             {!isDischarged && (
-              <Button onClick={() => setShowDepositDialog(true)}><Plus className="h-4 w-4 mr-2" /> Add Deposit</Button>
+              <Button
+                onClick={() => {
+                  setNewDeposit({ amount: '', method: defaultPaymentMethod, referenceNumber: '' })
+                  setDepositErrors({})
+                  setShowDepositDialog(true)
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" /> Add Deposit
+              </Button>
             )}
           </CardHeader>
           <CardContent>
@@ -530,18 +600,27 @@ export default function PatientBilling() {
           </Button>
         </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Invoice Preview — {patient.name}</CardTitle>
-          <CardDescription>Summary shows one total per category. Detailed lists every approved service under its category.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={invoiceVariant} onValueChange={setInvoiceVariant}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="summary">Summary</TabsTrigger>
-              <TabsTrigger value="detailed">Detailed</TabsTrigger>
-            </TabsList>
-            <TabsContent value="summary">
+      <Tabs value={invoiceVariant} onValueChange={setInvoiceVariant}>
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b bg-muted/30">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Invoice Preview
+                </p>
+                <CardTitle className="mt-1.5">{patient.name}</CardTitle>
+                <CardDescription className="mt-1">
+                  Summary shows one total per category. Detailed lists every approved service under its category.
+                </CardDescription>
+              </div>
+              <TabsList className="self-start">
+                <TabsTrigger value="summary">Summary</TabsTrigger>
+                <TabsTrigger value="detailed">Detailed</TabsTrigger>
+              </TabsList>
+            </div>
+          </CardHeader>
+          <CardContent className="bg-muted/20 p-5 sm:p-8">
+            <TabsContent value="summary" className="mt-0">
               <InvoicePreview
                 variant="summary"
                 patient={patient}
@@ -551,7 +630,7 @@ export default function PatientBilling() {
                 remainingBalance={remainingBalance}
               />
             </TabsContent>
-            <TabsContent value="detailed">
+            <TabsContent value="detailed" className="mt-0">
               <InvoicePreview
                 variant="detailed"
                 patient={patient}
@@ -561,9 +640,9 @@ export default function PatientBilling() {
                 remainingBalance={remainingBalance}
               />
             </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </Tabs>
 
       <Dialog open={showDepositDialog} onOpenChange={setShowDepositDialog}>
         <DialogContent>
@@ -573,7 +652,7 @@ export default function PatientBilling() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label>Amount (ETB) *</Label>
+              <Label>Amount ({hospitalConfig.currency || 'ETB'}) *</Label>
               <Input
                 type="number"
                 min="0.01"
@@ -596,11 +675,11 @@ export default function PatientBilling() {
                   setDepositErrors((er) => ({ ...er, method: undefined }))
                 }}
               >
-                {depositTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                {paymentMethods.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
               <FieldError message={depositErrors.method} />
             </div>
-            {NON_CASH_PAYMENT_METHODS.includes(newDeposit.method) && (
+            {referenceRequiredMethods.includes(newDeposit.method) && (
               <div>
                 <Label>Payment Reference *</Label>
                 <Input
@@ -658,7 +737,7 @@ export default function PatientBilling() {
       </AlertDialog>
       </div>
 
-      <div className="print-only print-invoice">
+      <PrintPortal className="print-invoice">
         <InvoicePreview
           variant={pendingPrint === 'invoice-summary' ? 'summary' : 'detailed'}
           patient={patient}
@@ -667,12 +746,12 @@ export default function PatientBilling() {
           totalCharges={totalCharges}
           remainingBalance={remainingBalance}
         />
-      </div>
+      </PrintPortal>
 
       {printDeposit && (
-        <div className="print-only print-deposit">
+        <PrintPortal className="print-deposit">
           <DepositReceipt patient={patient} deposit={printDeposit} />
-        </div>
+        </PrintPortal>
       )}
     </>
   )

@@ -139,12 +139,16 @@ Foreign keys are **application-level strings** (`patientId`, `bedLabel`), not Mo
 | bed | String | denormalized current bed label |
 | bedId | String | Bed `_id` string at admit/transfer |
 | depositTotal | Number | default 0; incremented on deposits |
+| requiredInitialDeposit | Number | required admit deposit (currently 15,000) |
+| admissionPaymentMode | String | `paid` or `credit` |
+| isCreditPatient | Boolean | true while credit admit still has unpaid required deposit |
+| creditMarkedBy / creditMarkedAt | String / Date | who marked the admit as credit |
 | disabledDoctorVisitDates | [String] | dates with no doctor charge |
 | createdBy / updatedBy | String | staff display names |
 | createdAt / updatedAt | Date | timestamps |
 
 **Indexes:** unique `patientId`; sparse unique `mrn`, `nationalId`.  
-**Relationships:** 1:N Deposit, RoomAssignment, ServiceRecord.  
+**Relationships:** 1:N Deposit, RoomAssignment, ServiceRecord, DoctorAssignment.  
 **Lifecycle:** Created on admit with `status: 'admitted'`. Nurse request → `pending-discharge`. Reception reject → `admitted`. Reception approve → `discharged`. Default lists exclude `discharged`; `GET /api/patients/discharged` returns history.
 
 **Admit uniqueness (application):** active (non-discharged) patients cannot share the same `mrn` or `nationalId` if those fields are provided.
@@ -233,17 +237,56 @@ Foreign keys are **application-level strings** (`patientId`, `bedLabel`), not Mo
 | auditTrail | [AuditEntry] | embedded |
 | createdAt / updatedAt | Date | timestamps |
 
-**ServiceLine:** `id`, `category`, `serviceName`, `quantity` (default 1), `unitPrice`, `total`, `notes` — no `_id`.  
+**ServiceLine:** `id`, `category`, `serviceName`, `quantity` (default 1), `unitPrice`, `total`, `notes`, optional `doctorId`, optional `specialty` — no `_id`.  
 **ReturnLine:** `id`, `serviceName`, `quantity`, `unitPrice`, `total`, `reason`.  
 **AuditEntry:** `action`, `by`, `at`, `note`.
 
-**Indexes:** `{ patientId: 1 }`; compound `{ patientId: 1, date: 1, autoType: 1 }` for auto-charge upsert.
+**Indexes:** `{ patientId: 1 }`; unique partial `{ patientId, date, autoType }` where `autoType` is `room` or `doctor`.
 
 **Lifecycle:**
 
 - Nurse daily/return → `pending` → reception approve/reject
 - Reception daily/return → created `approved`
 - System auto → created/updated `approved`; doctor line deleted if visit disabled
+
+---
+
+## Doctor
+
+**Purpose:** Hospital visiting-doctor catalog. Prices here are for **new** assignments only.
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| name | String | required |
+| specialty | String | required (controlled list) |
+| visitPrice | Number | required, ≥ 0 |
+| active | Boolean | default true |
+| phone / department | String | optional |
+| createdBy / updatedBy | String | |
+| auditTrail | [AuditEntry] | created/updated notes |
+| createdAt / updatedAt | Date | timestamps |
+
+**Indexes:** `{ name, specialty }`, `{ active }`.
+
+---
+
+## DoctorAssignment
+
+**Purpose:** Links a stay (`patientId`) to a doctor for a date range, with locked name/specialty/price.
+
+| Field | Type | Constraints |
+|-------|------|-------------|
+| patientId | String | required |
+| doctorId | String | Doctor `_id` string |
+| doctorNameSnapshot / specialtySnapshot | String | required |
+| visitPriceSnapshot | Number | required, ≥ 0 |
+| effectiveFrom | String | `YYYY-MM-DD` |
+| effectiveTo | String | null while active; exclusive end |
+| assignedBy / assignedAt | String / Date | |
+| status | String | `active` or `ended` |
+| endedBy / endedAt | String / Date | |
+
+**Indexes:** unique partial `{ patientId, doctorId }` where `status === 'active'` (one active assignment per doctor per stay).
 
 ---
 
@@ -314,7 +357,6 @@ Despite names in older README examples, there are no tables/collections for:
 - Role
 - AuditLog
 - Department
-- Doctor
 - Medicine (pharmacy items live under ServiceCategory `pharmacy`)
 - Notification
 
@@ -322,10 +364,10 @@ Despite names in older README examples, there are no tables/collections for:
 
 ## Seed data
 
-`npm run seed` (from `/server`) **deletes** Users, Beds, Patients, Deposits, RoomAssignments, ServiceCategories, ServiceRecords, HospitalSettings, then inserts:
+`npm run seed` (from `/server`) **deletes** Users, Beds, Patients, Deposits, RoomAssignments, ServiceCategories, ServiceRecords, HospitalSettings, Doctors, DoctorAssignments, then inserts:
 
 - 4 users (password hash of `password`, cost 10)
 - 44 beds
 - 8 categories with catalog items
 - 1 settings document
-- 2 patients (`PAT-001` Abebe Kebede, `PAT-002` Tigist Haile) with deposits, assignments, and auto charges through `2026-07-19`
+- No sample patients, doctors, deposits, or auto charges. Clinical data is created only by real admissions.

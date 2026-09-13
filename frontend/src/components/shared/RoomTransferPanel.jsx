@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pagination, usePagedItems, LIST_PAGE_SIZE } from '@/components/shared/CommonComponents'
+import { Pagination, usePagedItems } from '@/components/shared/CommonComponents'
 import { ArrowRightLeft, Bed, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,7 +21,7 @@ function FieldError({ message }) {
 
 export function RoomHistoryTable({ assignments, rooms = hospitalRooms }) {
   const sorted = [...(assignments || [])].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
-  const { page, setPage, pageCount, slice, total, pageSize } = usePagedItems(sorted, LIST_PAGE_SIZE)
+  const { page, setPage, pageCount, slice, total, pageSize } = usePagedItems(sorted)
 
   if (!assignments?.length) {
     return <p className="text-sm text-muted-foreground text-center py-6">No room assignments recorded</p>

@@ -47,7 +47,7 @@ Details: [AUTHENTICATION.md](./AUTHENTICATION.md).
 
 | | |
 |-|-|
-| **Routes** | `GET /api/patients`, `GET /api/patients?view=full`, `GET /api/patients/:id`, `POST /api/patients`, pending-discharge / discharged lists, discharge request / approve / reject |
+| **Routes** | `GET /api/patients`, `GET /api/patients?view=full`, `GET /api/patients/:id`, `POST /api/patients`, doctor assign/end, pending-discharge / discharged lists, discharge request / approve / reject |
 | **Entities** | `Patient`, `Deposit`, `Bed`, `RoomAssignment`, `ServiceRecord` |
 | **Validation** | `validateAdmitBody` (server), `validateAdmission` (client) |
 | **Mappers** | `toFrontendPatient`, `buildRoomHistory` |
@@ -215,11 +215,11 @@ There is **no API** to add/edit/delete individual service items or categories. C
 | | |
 |-|-|
 | **Routes** | `GET /api/manager/dashboard`, `GET /api/manager/reports/:type` |
-| **Authz** | `Manager` or `Admin` |
+| **Authz** | `reports.view` (Super Admin bypass). Dashboard finance sections also use `payments.view` / `credit.view`. |
 | **Frontend** | `useManagerDashboard`, `ManagerDashboard`, `ReportsPage` |
-| **Reusable** | `buildDashboardData()` shared by both routes; `printReport`, `exportReportCsv` |
+| **Reusable** | `buildManagerDashboard` + `buildManagerReportSnapshot` in `services/managerDashboard.js`; `printReport`, `exportReportCsv` |
 
-**Revenue definition in API:** `deposits + approved charge totals` for the period (returns reduce charge totals). This is a reporting definition, not a cash-basis ledger.
+**Dashboard finance:** deposits and approved charges are separate. Reports still summarize a blended `revenue` value for export compatibility. Neither is a formal accounting “revenue” definition.
 
 Report types: `daily`, `weekly`, `monthly`, `annual`, `department`, `deposit`, `outstanding`, `billing`, `occupancy`.
 
@@ -239,7 +239,7 @@ Annual report currently reuses **monthly** revenue — see [KNOWN_ISSUES.md](./K
 | Room Charges | `mockData.roomCharges` | Read-only; counts differ from seeded beds |
 | Doctors | `mockData.doctors` | Read-only |
 | Users | `mockData.users` | Read-only; not loaded from `/api` |
-| Admin Dashboard | same mock arrays | Read-only |
+| Admin Dashboard | `GET /api/admin/dashboard` via `useAdminDashboard` | Read-only |
 
 **Does not communicate** with MongoDB.
 

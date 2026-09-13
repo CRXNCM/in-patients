@@ -47,7 +47,8 @@ The repository is a **MERN-style application** with a React SPA and an Express +
 | Automatic room and doctor charges | Implemented on admit and room transfer (API); also generated locally in mock mode |
 | Hospital settings and category billing types | Implemented (Admin) |
 | Manager dashboard and report export | Implemented (API for Manager/Admin; mock fallback) |
-| Admin catalog pages (services, medicines, departments, doctors, users, room charges) | UI only — local/mock state, no persistence API |
+| Admin catalog pages (services, medicines, departments, users, room charges) | UI only — local/mock state, no persistence API |
+| Doctor catalog, assignment, and credit admissions | Implemented (API + UI). Doctors persist in MongoDB. |
 | Discharge / invoice persistence / user management API | Not implemented |
 
 ---
@@ -73,9 +74,9 @@ The following are **not implemented**. Do not treat them as product capabilities
 
 | Role (API enum) | Frontend `roleKey` | Intended work |
 |-----------------|--------------------|---------------|
-| Reception | `reception` | Admit patients, collect deposits, approve nurse records, transfer rooms, print invoices |
-| Nurse | `nurse` | Record daily services and pharmacy returns; no prices in the service-entry UI |
-| Admin | `admin` | Hospital settings and category billing types; catalog screens are mostly demo UI |
+| Reception | `reception` | Admit patients (including credit), collect deposits, select visiting doctors, approve nurse records, transfer rooms, print invoices |
+| Nurse | `nurse` | Record daily services and pharmacy returns; add visiting doctors to an admitted patient; no catalog price edits |
+| Admin | `admin` | Hospital settings, doctor catalog (create/edit/activate, visit prices), category billing types |
 | Manager | `manager` | KPIs, charts, and report print/CSV export |
 
 Demo accounts created by `server/scripts/seed.js`:

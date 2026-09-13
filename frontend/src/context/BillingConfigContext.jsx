@@ -6,8 +6,22 @@ import {
 } from '@/data/mockData'
 import { api, USE_API } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
+import { setDisplayPrefs } from '@/lib/displayPrefs'
 
 const BillingConfigContext = React.createContext(null)
+
+/** Server settings win, but a null (never configured) value must not erase a known default. */
+function mergeSettings(base, incoming = {}) {
+  const merged = { ...base }
+  for (const [key, value] of Object.entries(incoming)) {
+    if (value === null || value === undefined) {
+      if (!(key in merged)) merged[key] = value
+      continue
+    }
+    merged[key] = value
+  }
+  return merged
+}
 
 export function BillingConfigProvider({ children }) {
   const { isAuthenticated, authReady } = useAuth()
@@ -28,7 +42,9 @@ export function BillingConfigProvider({ children }) {
     Promise.all([api.getSettings(), api.getCategories()])
       .then(([s, c]) => {
         if (cancelled) return
-        setSettings({ ...initialSettings, ...s })
+        const merged = mergeSettings(initialSettings, s)
+        setDisplayPrefs(merged)
+        setSettings(merged)
         setCategories(c)
       })
       .catch(console.error)
@@ -56,10 +72,18 @@ export function BillingConfigProvider({ children }) {
   const updateSettings = React.useCallback(async (partial) => {
     if (USE_API) {
       const updated = await api.updateSettings(partial)
-      setSettings((prev) => ({ ...prev, ...updated }))
+      setSettings((prev) => {
+        const merged = mergeSettings(prev, updated)
+        setDisplayPrefs(merged)
+        return merged
+      })
       return
     }
-    setSettings((prev) => ({ ...prev, ...partial }))
+    setSettings((prev) => {
+      const merged = mergeSettings(prev, partial)
+      setDisplayPrefs(merged)
+      return merged
+    })
   }, [])
 
   const getCategory = React.useCallback(

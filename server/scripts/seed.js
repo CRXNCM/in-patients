@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
 import { connectDB } from '../config/db.js'
 import { User } from '../models/User.js'
+import { Role } from '../models/Role.js'
+import { ensureDefaultRoles } from '../services/roles.js'
 import { Bed } from '../models/Bed.js'
 import { Patient } from '../models/Patient.js'
 import { Deposit } from '../models/Deposit.js'
@@ -10,7 +12,9 @@ import { RoomAssignment } from '../models/RoomAssignment.js'
 import { ServiceCategory } from '../models/ServiceCategory.js'
 import { HospitalSettings } from '../models/HospitalSettings.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
-import { ensureAutomaticDailyCharges } from '../services/autoCharges.js'
+import { Doctor } from '../models/Doctor.js'
+import { DoctorAssignment } from '../models/DoctorAssignment.js'
+import { seedBaselineDepartmentsAndWards, printSeedSummary } from './seedDepartmentsWards.js'
 
 const DEMO_USERS = [
   { email: 'reception@cc', name: 'Sara Bekele', role: 'Reception' },
@@ -24,43 +28,6 @@ const ROOM_CONFIG = [
   { roomType: 'Private Room', prefix: 'PR', dailyRate: 5000, bedCount: 12 },
   { roomType: 'ICU', prefix: 'ICU', dailyRate: 8000, bedCount: 8 },
   { roomType: 'Operation', prefix: 'OP', dailyRate: 10000, bedCount: 4 },
-]
-
-const SAMPLE_PATIENTS = [
-  {
-    patientId: 'PAT-001',
-    name: 'Abebe Kebede',
-    age: 45,
-    gender: 'Male',
-    phone: '+251 911 234 567',
-    address: 'Bole, Addis Ababa',
-    emergencyContact: 'Tigist Kebede',
-    emergencyPhone: '+251 911 111 111',
-    admissionReason: 'Pneumonia treatment',
-    room: 'General Ward',
-    bed: 'GW-12',
-    admissionDate: '2026-07-10',
-    depositTotal: 85000,
-    status: 'admitted',
-    createdBy: 'Sara Bekele',
-  },
-  {
-    patientId: 'PAT-002',
-    name: 'Tigist Haile',
-    age: 32,
-    gender: 'Female',
-    phone: '+251 922 345 678',
-    address: 'Kazanchis, Addis Ababa',
-    emergencyContact: 'Haile Desta',
-    emergencyPhone: '+251 922 222 222',
-    admissionReason: 'Maternity care',
-    room: 'Private Room',
-    bed: 'PR-05',
-    admissionDate: '2026-07-12',
-    depositTotal: 120000,
-    status: 'admitted',
-    createdBy: 'Sara Bekele',
-  },
 ]
 
 const CATEGORIES = [
@@ -229,18 +196,17 @@ const CATEGORIES = [
   },
 ]
 
-function buildBeds(occupiedLabels = []) {
+function buildBeds() {
   const beds = []
   for (const room of ROOM_CONFIG) {
     for (let i = 1; i <= room.bedCount; i++) {
       const label = `${room.prefix}-${String(i).padStart(2, '0')}`
-      const occupied = occupiedLabels.includes(label)
       beds.push({
         label,
         roomType: room.roomType,
         dailyRate: room.dailyRate,
-        status: occupied ? 'occupied' : 'available',
-        patientId: occupied ? SAMPLE_PATIENTS.find((p) => p.bed === label)?.patientId : null,
+        status: 'available',
+        patientId: null,
       })
     }
   }
@@ -260,9 +226,23 @@ async function seed() {
     ServiceCategory.deleteMany({}),
     ServiceRecord.deleteMany({}),
     HospitalSettings.deleteMany({}),
+    Doctor.deleteMany({}),
+    DoctorAssignment.deleteMany({}),
+    Role.deleteMany({}),
   ])
 
-  await User.insertMany(DEMO_USERS.map((u) => ({ ...u, password: hash, status: 'active' })))
+  await ensureDefaultRoles()
+  const roles = await Role.find()
+  const roleByAccess = Object.fromEntries(roles.filter((r) => r.system).map((r) => [r.accessRole, r]))
+  await User.insertMany(
+    DEMO_USERS.map((u) => ({
+      ...u,
+      username: u.email,
+      password: hash,
+      status: 'active',
+      roleId: roleByAccess[u.role]?._id,
+    }))
+  )
 
   await HospitalSettings.create({
     key: 'default',
@@ -278,39 +258,16 @@ async function seed() {
   })
 
   await ServiceCategory.insertMany(CATEGORIES)
+  await Bed.insertMany(buildBeds())
+  const hospitalSetup = await seedBaselineDepartmentsAndWards()
 
-  const occupied = SAMPLE_PATIENTS.map((p) => p.bed)
-  await Bed.insertMany(buildBeds(occupied))
-
-  for (const p of SAMPLE_PATIENTS) {
-    await Patient.create(p)
-    await Deposit.create({
-      patientId: p.patientId,
-      amount: p.depositTotal,
-      method: 'Cash',
-      date: p.admissionDate,
-      receivedBy: 'Sara Bekele',
-      isInitial: true,
-    })
-    const bed = await Bed.findOne({ label: p.bed })
-    await RoomAssignment.create({
-      patientId: p.patientId,
-      bedId: p.bed,
-      roomType: p.room,
-      bedLabel: p.bed,
-      startDate: p.admissionDate,
-      dailyRate: bed.dailyRate,
-      reason: 'Initial admission',
-      assignedBy: 'Sara Bekele',
-    })
-    await ensureAutomaticDailyCharges(p, '2026-07-19')
-  }
-
-  console.log('Seed complete:')
+  console.log('Seed complete (catalog and staff only — no demo patients, doctors, or charges):')
   console.log('  Users: 4 (password: password)')
   console.log('  Beds:', await Bed.countDocuments())
-  console.log('  Patients: 2')
+  console.log('  Patients: 0')
+  console.log('  Doctors: 0')
   console.log('  Categories:', await ServiceCategory.countDocuments())
+  printSeedSummary(hospitalSetup, { heading: 'Baseline departments and wards:' })
   await mongoose.disconnect()
 }
 

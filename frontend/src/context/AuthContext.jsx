@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { users } from '@/data/mockData'
 import { api, setToken, USE_API } from '@/api/client'
+import { hasAllPermissions, hasAnyPermission, hasPermission } from '@/lib/permissions'
 
 const AuthContext = React.createContext(null)
 
@@ -24,15 +25,21 @@ function getInitials(name) {
 }
 
 function toSessionUser(user) {
-  const roleKey = user.role.toLowerCase()
+  const accessRole = user.accessRole || user.role
+  const roleKey = String(accessRole || '').toLowerCase()
   return {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role,
+    role: accessRole,
+    roleName: user.roleName || user.role,
+    accessRole,
     roleKey,
-    dashboardPath: user.dashboardPath || ROLE_ROUTES[user.role],
+    roleId: user.roleId || null,
+    roleSlug: user.roleSlug || null,
+    dashboardPath: user.dashboardPath || ROLE_ROUTES[accessRole],
     initials: user.initials || getInitials(user.name),
+    permissions: Array.isArray(user.permissions) ? user.permissions : [],
   }
 }
 
@@ -52,6 +59,19 @@ export function AuthProvider({ children }) {
   })
   const [authReady, setAuthReady] = React.useState(!USE_API)
 
+  const applySession = React.useCallback((data) => {
+    const sessionUser = toSessionUser(data)
+    setUser(sessionUser)
+    saveSession(sessionUser)
+    return sessionUser
+  }, [])
+
+  const refreshPermissions = React.useCallback(async () => {
+    if (!USE_API || !sessionStorage.getItem('medbill_token')) return null
+    const data = await api.me()
+    return applySession(data)
+  }, [applySession])
+
   React.useEffect(() => {
     if (!USE_API) return undefined
 
@@ -65,13 +85,7 @@ export function AuthProvider({ children }) {
       return undefined
     }
 
-    api
-      .me()
-      .then((data) => {
-        const sessionUser = toSessionUser(data)
-        setUser(sessionUser)
-        saveSession(sessionUser)
-      })
+    refreshPermissions()
       .catch(() => {
         setUser(null)
         setToken(null)
@@ -79,17 +93,26 @@ export function AuthProvider({ children }) {
       })
       .finally(() => setAuthReady(true))
 
-    return undefined
-  }, [])
+    const onFocus = () => {
+      refreshPermissions().catch(() => {})
+    }
+    window.addEventListener('focus', onFocus)
+    const timer = window.setInterval(() => {
+      refreshPermissions().catch(() => {})
+    }, 15000)
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.clearInterval(timer)
+    }
+  }, [refreshPermissions])
 
   const login = React.useCallback(async (email, password) => {
     if (USE_API) {
       try {
         const data = await api.login(email, password)
         setToken(data.token)
-        const sessionUser = toSessionUser(data.user)
-        setUser(sessionUser)
-        saveSession(sessionUser)
+        const sessionUser = applySession(data.user)
         return { success: true, path: sessionUser.dashboardPath }
       } catch (err) {
         return { error: err.message || 'Invalid email or password' }
@@ -107,13 +130,17 @@ export function AuthProvider({ children }) {
     setUser(sessionUser)
     saveSession(sessionUser)
     return { success: true, path: sessionUser.dashboardPath }
-  }, [])
+  }, [applySession])
 
   const logout = React.useCallback(() => {
     setUser(null)
     setToken(null)
     sessionStorage.removeItem('medbill_user')
   }, [])
+
+  const can = React.useCallback((key) => hasPermission(user, key), [user])
+  const canAny = React.useCallback((keys) => hasAnyPermission(user, keys), [user])
+  const canAll = React.useCallback((keys) => hasAllPermissions(user, keys), [user])
 
   return (
     <AuthContext.Provider
@@ -123,6 +150,10 @@ export function AuthProvider({ children }) {
         authReady,
         login,
         logout,
+        refreshPermissions,
+        hasPermission: can,
+        hasAnyPermission: canAny,
+        hasAllPermissions: canAll,
       }}
     >
       {children}

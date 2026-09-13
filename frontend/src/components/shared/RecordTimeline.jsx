@@ -1,4 +1,4 @@
-import { StatusBadge, Pagination, usePagedItems, LIST_PAGE_SIZE } from '@/components/shared/CommonComponents'
+import { StatusBadge, Pagination, usePagedItems } from '@/components/shared/CommonComponents'
 import { AuditTrail } from '@/components/shared/ServiceTimeline'
 import { computeRecordTotal } from '@/context/ServiceEntriesContext'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
@@ -12,7 +12,7 @@ const statusBorder = {
   rejected: 'border-red-200 dark:border-red-800',
 }
 
-export function RecordTimeline({ records, showAudit = true, hideMoney = false, pageSize = LIST_PAGE_SIZE }) {
+export function RecordTimeline({ records, showAudit = true, hideMoney = false, pageSize, showSubject = false }) {
   const { page, setPage, pageCount, slice, total, pageSize: size } = usePagedItems(records, pageSize)
 
   if (!records?.length) {
@@ -38,6 +38,7 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
                 <div>
                   <p className="font-semibold">{record.recordName}</p>
                   <p className="text-xs text-muted-foreground">
+                    {showSubject ? `${record.subjectType === 'baby' ? 'Baby' : 'Mother'} · ` : ''}
                     {record.type === 'pharmacy_return' ? 'Pharmacy Return' : 'Daily Services'} · {formatDate(record.recordDate)} · {record.recordedBy}
                   </p>
                 </div>

@@ -9,14 +9,22 @@ export function trimText(value) {
   return String(value ?? '').trim()
 }
 
+function localDateStr(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-')
+}
+
 export function isValidDateString(value) {
   if (!value) return false
   const d = new Date(`${value}T12:00:00`)
-  return !Number.isNaN(d.getTime()) && value === d.toISOString().slice(0, 10)
+  return !Number.isNaN(d.getTime()) && value === localDateStr(d)
 }
 
 export function todayStr() {
-  return new Date().toISOString().slice(0, 10)
+  return localDateStr(new Date())
 }
 
 export function computeAgeFromDob(dob) {
@@ -124,8 +132,17 @@ export function validatePatientRegistration(form) {
   return errors
 }
 
-export function validateAdmission(form, { rooms = [], existingPatients = [] } = {}) {
+export function validateAdmission(form, { rooms = [], existingPatients = [], rules = {} } = {}) {
   const errors = { ...validatePatientRegistration(form) }
+  const minimumDeposit = Number.isFinite(Number(rules.minimumInitialDeposit))
+    ? Number(rules.minimumInitialDeposit)
+    : MIN_INITIAL_DEPOSIT
+  const referenceRequired = Array.isArray(rules.referenceRequiredMethods)
+    ? rules.referenceRequiredMethods
+    : NON_CASH_PAYMENT_METHODS
+  const enabledMethods = Array.isArray(rules.paymentMethods) && rules.paymentMethods.length
+    ? rules.paymentMethods
+    : null
 
   if (trimText(form.admissionDate)) {
     const admissionErr = validateAdmissionDate(form.admissionDate)
@@ -134,13 +151,34 @@ export function validateAdmission(form, { rooms = [], existingPatients = [] } = 
 
   if (!trimText(form.bedType)) errors.bedType = 'Room type is required.'
 
-  const depositErr = validatePositiveNumber(form.initialDeposit, 'Initial deposit', { min: MIN_INITIAL_DEPOSIT })
-  if (depositErr) errors.initialDeposit = depositErr
-
-  if (!trimText(form.depositType)) errors.depositType = 'Payment method is required.'
-
-  if (NON_CASH_PAYMENT_METHODS.includes(form.depositType) && !trimText(form.referenceNumber)) {
-    errors.referenceNumber = 'Reference number is required for non-cash payments.'
+  const paymentMode = String(form.admissionPaymentMode || 'paid').toLowerCase()
+  if (paymentMode === 'credit') {
+    const raw = trimText(form.initialDeposit)
+    if (raw === '') {
+      /* credit with blank amount is treated as 0 */
+    } else {
+      const depositErr = validatePositiveNumber(form.initialDeposit, 'Amount paid', { min: 0, allowZero: true })
+      if (depositErr) errors.initialDeposit = depositErr
+    }
+    if (Number(form.initialDeposit) > 0) {
+      if (!trimText(form.depositType)) errors.depositType = 'Payment method is required for a partial deposit.'
+      else if (enabledMethods && !enabledMethods.includes(form.depositType)) {
+        errors.depositType = `${form.depositType} is not an enabled payment method.`
+      }
+      if (referenceRequired.includes(form.depositType) && !trimText(form.referenceNumber)) {
+        errors.referenceNumber = `Reference number is required for ${form.depositType} payments.`
+      }
+    }
+  } else {
+    const depositErr = validatePositiveNumber(form.initialDeposit, 'Initial deposit', { min: minimumDeposit })
+    if (depositErr) errors.initialDeposit = depositErr
+    if (!trimText(form.depositType)) errors.depositType = 'Payment method is required.'
+    else if (enabledMethods && !enabledMethods.includes(form.depositType)) {
+      errors.depositType = `${form.depositType} is not an enabled payment method.`
+    }
+    if (referenceRequired.includes(form.depositType) && !trimText(form.referenceNumber)) {
+      errors.referenceNumber = `Reference number is required for ${form.depositType} payments.`
+    }
   }
 
   const room = rooms.find((r) => r.roomType === form.bedType)
@@ -278,20 +316,103 @@ export function validateReturnCart(returnCart) {
   return errors
 }
 
-export function validateDeposit(form, existingDeposits = []) {
+export function validateDeposit(form, existingDeposits = [], rules = {}) {
   const errors = {}
+  const referenceRequired = Array.isArray(rules.referenceRequiredMethods)
+    ? rules.referenceRequiredMethods
+    : NON_CASH_PAYMENT_METHODS
+  const enabledMethods = Array.isArray(rules.paymentMethods) && rules.paymentMethods.length
+    ? rules.paymentMethods
+    : null
   const amountErr = validatePositiveNumber(form.amount, 'Deposit amount', { min: 0 })
   if (amountErr) errors.amount = amountErr
 
   if (!trimText(form.method)) errors.method = 'Payment method is required.'
+  else if (enabledMethods && !enabledMethods.includes(form.method)) {
+    errors.method = `${form.method} is not an enabled payment method.`
+  }
 
   const ref = trimText(form.referenceNumber)
-  if (NON_CASH_PAYMENT_METHODS.includes(form.method) && !ref) {
-    errors.referenceNumber = 'Reference number is required for non-cash payments.'
+  if (referenceRequired.includes(form.method) && !ref) {
+    errors.referenceNumber = `Reference number is required for ${form.method} payments.`
   }
 
   if (ref && existingDeposits.some((d) => trimText(d.referenceNumber) === ref)) {
     errors.referenceNumber = 'This payment reference has already been used.'
+  }
+
+  return errors
+}
+
+const DATE_FORMAT_VALUES = ['locale', 'iso', 'dmy']
+const TIME_FORMAT_VALUES = ['locale', '12h', '24h']
+
+function isValidTimezoneName(value) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Mirrors the backend settings validation so the form fails before a request is sent. */
+export function validateHospitalSettings(form = {}, { paymentMethods = [] } = {}) {
+  const errors = {}
+
+  if (!trimText(form.name)) errors.name = 'Hospital name is required.'
+  if (trimText(form.email) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimText(form.email))) {
+    errors.email = 'Enter a valid email address.'
+  }
+  if (!trimText(form.currency)) errors.currency = 'Currency is required.'
+  else if (!/^[A-Za-z]{3}$/.test(trimText(form.currency))) {
+    errors.currency = 'Use a 3-letter currency code, for example ETB.'
+  }
+
+  const vat = Number(form.vatPercent)
+  if (!Number.isFinite(vat) || vat < 0 || vat > 100) errors.vatPercent = 'VAT must be between 0 and 100.'
+
+  const money = {
+    lowBalanceThreshold: 'Low balance threshold',
+    minimumInitialDeposit: 'Minimum initial deposit',
+    dailyDoctorVisitFee: 'Daily doctor visit fee',
+  }
+  for (const [key, label] of Object.entries(money)) {
+    const value = form[key]
+    if (value === '' || value === null || value === undefined) continue
+    const num = Number(value)
+    if (!Number.isFinite(num) || num < 0) errors[key] = `${label} must be 0 or more.`
+  }
+
+  if (!Array.isArray(form.paymentMethods) || form.paymentMethods.length === 0) {
+    errors.paymentMethods = 'Enable at least one payment method.'
+  } else if (paymentMethods.length) {
+    const unknown = form.paymentMethods.filter((method) => !paymentMethods.includes(method))
+    if (unknown.length) errors.paymentMethods = `Unknown payment method: ${unknown.join(', ')}.`
+  }
+
+  if (
+    Array.isArray(form.paymentMethods) &&
+    form.paymentMethods.length &&
+    trimText(form.defaultPaymentMethod) &&
+    !form.paymentMethods.includes(form.defaultPaymentMethod)
+  ) {
+    errors.defaultPaymentMethod = 'Default payment method must be an enabled method.'
+  }
+
+  if (trimText(form.timezone) && !isValidTimezoneName(trimText(form.timezone))) {
+    errors.timezone = 'Enter a valid IANA timezone, for example Africa/Addis_Ababa.'
+  }
+  if (form.dateFormat && !DATE_FORMAT_VALUES.includes(form.dateFormat)) {
+    errors.dateFormat = 'Choose a supported date format.'
+  }
+  if (form.timeFormat && !TIME_FORMAT_VALUES.includes(form.timeFormat)) {
+    errors.timeFormat = 'Choose a supported time format.'
+  }
+
+  const pageSize = Number(form.listPageSize)
+  if (!Number.isInteger(pageSize) || pageSize < 5 || pageSize > 100) {
+    errors.listPageSize = 'Rows per page must be a whole number between 5 and 100.'
   }
 
   return errors

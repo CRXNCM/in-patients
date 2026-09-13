@@ -74,8 +74,8 @@ Role checks that exist today:
 |-------|-------|
 | `PUT /api/settings` | Admin |
 | `PATCH /api/settings/categories/:slug/billing-type` | Admin |
-| `GET /api/manager/dashboard` | Manager, Admin |
-| `GET /api/manager/reports/:type` | Manager, Admin |
+| `GET /api/manager/dashboard` | `reports.view` (Super Admin bypass). Finance subsections also need `payments.view` / `credit.view`. |
+| `GET /api/manager/reports/:type` | `reports.view` (Super Admin bypass) |
 
 All other `/api/patients`, `/api/records`, `/api/beds` routes: **any authenticated role**.
 

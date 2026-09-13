@@ -4,9 +4,26 @@ import { Patient } from '../models/Patient.js'
 import { Deposit } from '../models/Deposit.js'
 import { RoomAssignment } from '../models/RoomAssignment.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
-import { authRequired, requireRole } from '../middleware/auth.js'
+import { authRequired, requirePermission, requireAnyPermission, requireRole } from '../middleware/auth.js'
+import { roleHasPermission } from '../utils/permissions.js'
 import { ensureAutomaticDailyCharges, calcPatientBalance, setDoctorVisitDisabled } from '../services/autoCharges.js'
 import { requestDischarge, approveDischarge, rejectDischarge } from '../services/discharge.js'
+import { DoctorAssignment } from '../models/DoctorAssignment.js'
+import { listAssignments, assignDoctor, assignDoctorsOnAdmit, endAssignment } from '../services/doctorAssignments.js'
+import { claimAvailableBed, releaseBed } from '../services/beds.js'
+import { applyCreditFlags, normalizeAdmissionPaymentMode } from '../utils/credit.js'
+import { MaternityBaby } from '../models/MaternityBaby.js'
+import {
+  normalizeAdmissionType,
+  toFrontendBaby,
+  validateBabyBody,
+  resolveRecordSubject,
+  babyFieldsFromBody,
+} from '../utils/maternity.js'
+import { toFrontendAssignment as toDoctorAssignment } from '../utils/doctors.js'
+import { todayStr } from '../utils/dates.js'
+import { HospitalSettings } from '../models/HospitalSettings.js'
+import { loadResolvedSettings } from '../utils/settings.js'
 import {
   validateAdmitBody,
   validateDepositBody,
@@ -26,6 +43,17 @@ import {
 
 const router = Router()
 
+function requireAdmit(req, res, next) {
+  if (!roleHasPermission(req.auth?.role, 'admissions.create')) {
+    return res.status(403).json({ error: 'Forbidden' })
+  }
+  const mode = String(req.body?.admissionPaymentMode || '').toLowerCase()
+  if (mode === 'credit' && !roleHasPermission(req.auth.role, 'credit.create_admission')) {
+    return res.status(403).json({ error: 'Forbidden' })
+  }
+  next()
+}
+
 async function nextPatientId() {
   const last = await Patient.findOne().sort({ patientId: -1 })
   const num = last ? parseInt(last.patientId.replace('PAT-', ''), 10) + 1 : 1
@@ -36,7 +64,35 @@ function audit(action, by, note = '') {
   return { action, by, at: new Date().toISOString(), note }
 }
 
-router.get('/', authRequired, async (req, res) => {
+async function assignmentsByPatientIds(patientIds) {
+  const rows = await DoctorAssignment.find({ patientId: { $in: patientIds } }).sort({ effectiveFrom: 1, assignedAt: 1 })
+  const map = {}
+  for (const row of rows) {
+    if (!map[row.patientId]) map[row.patientId] = []
+    map[row.patientId].push(toDoctorAssignment(row))
+  }
+  return map
+}
+
+function mapPatient(doc, balance, assignedDoctors = [], baby = null) {
+  return toFrontendPatient({ ...doc.toObject(), assignedDoctors, baby }, balance)
+}
+
+async function mapPatientWithBaby(doc, balance, assignedDoctors = []) {
+  const baby = await MaternityBaby.findOne({ motherPatientId: doc.patientId })
+  return mapPatient(doc, balance, assignedDoctors, toFrontendBaby(baby))
+}
+
+async function babiesByMotherIds(patientIds) {
+  const ids = patientIds.filter(Boolean)
+  if (!ids.length) return {}
+  const rows = await MaternityBaby.find({ motherPatientId: { $in: ids } })
+  const map = {}
+  for (const row of rows) map[row.motherPatientId] = toFrontendBaby(row)
+  return map
+}
+
+router.get('/', authRequired, requirePermission('patients.view'), async (req, res) => {
   try {
     if (req.query.view === 'full') {
       const [patients, beds, allDeposits, assignments] = await Promise.all([
@@ -46,10 +102,12 @@ router.get('/', authRequired, async (req, res) => {
         RoomAssignment.find().sort({ startDate: 1 }),
       ])
 
+      const doctorMap = await assignmentsByPatientIds(patients.map((p) => p.patientId))
+      const babyMap = await babiesByMotherIds(patients.map((p) => p.patientId))
       const list = await Promise.all(
         patients.map(async (p) => {
           const balance = await calcPatientBalance(p.patientId)
-          const base = toFrontendPatient(p, balance)
+          const base = mapPatient(p, balance, doctorMap[p.patientId] || [], babyMap[p.patientId] || null)
           const pAssignments = assignments.filter((a) => a.patientId === p.patientId)
           return { ...base, roomHistory: buildRoomHistory(pAssignments) }
         })
@@ -70,10 +128,12 @@ router.get('/', authRequired, async (req, res) => {
     }
 
     const patients = await Patient.find({ status: { $ne: 'discharged' } }).sort({ admissionDate: -1 })
+    const doctorMap = await assignmentsByPatientIds(patients.map((p) => p.patientId))
+    const babyMap = await babiesByMotherIds(patients.map((p) => p.patientId))
     const list = await Promise.all(
       patients.map(async (p) => {
         const balance = await calcPatientBalance(p.patientId)
-        return toFrontendPatient(p, balance)
+        return mapPatient(p, balance, doctorMap[p.patientId] || [], babyMap[p.patientId] || null)
       })
     )
     res.json(list)
@@ -83,13 +143,15 @@ router.get('/', authRequired, async (req, res) => {
   }
 })
 
-router.get('/pending-discharge', authRequired, async (_req, res) => {
+router.get('/pending-discharge', authRequired, requireAnyPermission('admissions.discharge', 'admissions.view'), async (_req, res) => {
   try {
     const patients = await Patient.find({ status: 'pending-discharge' }).sort({ dischargeRequestedAt: -1, admissionDate: -1 })
+    const doctorMap = await assignmentsByPatientIds(patients.map((p) => p.patientId))
+    const babyMap = await babiesByMotherIds(patients.map((p) => p.patientId))
     const list = await Promise.all(
       patients.map(async (p) => {
         const balance = await calcPatientBalance(p.patientId)
-        return toFrontendPatient(p, balance)
+        return mapPatient(p, balance, doctorMap[p.patientId] || [], babyMap[p.patientId] || null)
       })
     )
     res.json(list)
@@ -99,13 +161,15 @@ router.get('/pending-discharge', authRequired, async (_req, res) => {
   }
 })
 
-router.get('/discharged', authRequired, async (_req, res) => {
+router.get('/discharged', authRequired, requirePermission('patients.view'), async (_req, res) => {
   try {
     const patients = await Patient.find({ status: 'discharged' }).sort({ dischargeCompletedAt: -1, updatedAt: -1 })
+    const doctorMap = await assignmentsByPatientIds(patients.map((p) => p.patientId))
+    const babyMap = await babiesByMotherIds(patients.map((p) => p.patientId))
     const list = await Promise.all(
       patients.map(async (p) => {
         const balance = await calcPatientBalance(p.patientId)
-        return toFrontendPatient(p, balance)
+        return mapPatient(p, balance, doctorMap[p.patientId] || [], babyMap[p.patientId] || null)
       })
     )
     res.json(list)
@@ -115,7 +179,55 @@ router.get('/discharged', authRequired, async (_req, res) => {
   }
 })
 
-router.get('/:id/records', authRequired, async (req, res) => {
+router.get('/:id/baby', authRequired, requirePermission('patients.view'), async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ patientId: req.params.id })
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const baby = await MaternityBaby.findOne({ motherPatientId: patient.patientId })
+    res.json({ baby: toFrontendBaby(baby) })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to load newborn' })
+  }
+})
+
+router.put('/:id/baby', authRequired, requireAnyPermission('patients.edit', 'admissions.create'), async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ patientId: req.params.id })
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    if (patient.admissionType !== 'maternity') {
+      return res.status(400).json({ error: 'Newborn details can only be added to a maternity admission.' })
+    }
+
+    const babyErrors = validateBabyBody(req.body)
+    if (babyErrors.length) return res.status(400).json({ error: babyErrors[0] })
+
+    const fields = babyFieldsFromBody(req.body)
+    const baby = await MaternityBaby.findOneAndUpdate(
+      { motherPatientId: patient.patientId },
+      {
+        $set: { ...fields, updatedBy: req.user.name },
+        $setOnInsert: { motherPatientId: patient.patientId, createdBy: req.user.name },
+      },
+      { upsert: true, new: true }
+    )
+
+    const assignedDoctors = await listAssignments(patient.patientId)
+    res.json({
+      baby: toFrontendBaby(baby),
+      patient: mapPatient(patient, await calcPatientBalance(patient.patientId), assignedDoctors, toFrontendBaby(baby)),
+    })
+  } catch (err) {
+    if (err?.code === 11000) {
+      const existing = await MaternityBaby.findOne({ motherPatientId: req.params.id })
+      return res.json({ baby: toFrontendBaby(existing) })
+    }
+    console.error(err)
+    res.status(500).json({ error: 'Failed to save newborn' })
+  }
+})
+
+router.get('/:id/records', authRequired, requirePermission('patients.view'), async (req, res) => {
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
@@ -127,7 +239,7 @@ router.get('/:id/records', authRequired, async (req, res) => {
   }
 })
 
-router.post('/:id/records', authRequired, async (req, res) => {
+router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 'doctors.assign'), async (req, res) => {
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
@@ -137,7 +249,11 @@ router.post('/:id/records', authRequired, async (req, res) => {
     const { services, source = 'nurse', recordDate, recordName } = req.body
     if (!services?.length) return res.status(400).json({ error: 'Services required' })
 
-    const date = recordDate || new Date().toISOString().slice(0, 10)
+    const baby = await MaternityBaby.findOne({ motherPatientId: patient.patientId })
+    const subject = resolveRecordSubject(patient, req.body, baby)
+    if (subject.error) return res.status(400).json({ error: subject.error })
+
+    const date = recordDate || todayStr()
     const isReception = source === 'reception'
     const now = new Date()
     const lines = services.map((s, i) => ({
@@ -152,6 +268,8 @@ router.post('/:id/records', authRequired, async (req, res) => {
 
     const record = await ServiceRecord.create({
       patientId: patient.patientId,
+      subjectType: subject.subjectType,
+      babyId: subject.babyId,
       recordName: recordName || patient.name,
       date,
       status: isReception ? 'approved' : 'pending',
@@ -175,7 +293,7 @@ router.post('/:id/records', authRequired, async (req, res) => {
   }
 })
 
-router.post('/:id/returns', authRequired, async (req, res) => {
+router.post('/:id/returns', authRequired, requireAnyPermission('patients.edit', 'doctors.assign'), async (req, res) => {
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
@@ -185,7 +303,11 @@ router.post('/:id/returns', authRequired, async (req, res) => {
     const { returnItems, source = 'nurse', recordDate } = req.body
     if (!returnItems?.length) return res.status(400).json({ error: 'Return items required' })
 
-    const date = recordDate || new Date().toISOString().slice(0, 10)
+    const baby = await MaternityBaby.findOne({ motherPatientId: patient.patientId })
+    const subject = resolveRecordSubject(patient, req.body, baby)
+    if (subject.error) return res.status(400).json({ error: subject.error })
+
+    const date = recordDate || todayStr()
     const isReception = source === 'reception'
     const now = new Date()
     const items = returnItems.map((r, i) => ({
@@ -199,6 +321,8 @@ router.post('/:id/returns', authRequired, async (req, res) => {
 
     const record = await ServiceRecord.create({
       patientId: patient.patientId,
+      subjectType: subject.subjectType,
+      babyId: subject.babyId,
       recordName: patient.name,
       date,
       status: isReception ? 'approved' : 'pending',
@@ -223,7 +347,7 @@ router.post('/:id/returns', authRequired, async (req, res) => {
   }
 })
 
-router.post('/:id/transfer-room', authRequired, async (req, res) => {
+router.post('/:id/transfer-room', authRequired, requirePermission('rooms.assign_beds'), async (req, res) => {
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
     const transferErrors = validateTransferBody(req.body, patient)
@@ -233,31 +357,26 @@ router.post('/:id/transfer-room', authRequired, async (req, res) => {
     const { bedId, transferDate, transferReason } = req.body
     const bedLabel = String(bedId || '').replace(/^BED-/, '')
 
-    const targetBed = await Bed.findOne({ label: bedLabel })
-    if (!targetBed || targetBed.status !== 'available') {
-      return res.status(400).json({ error: 'Bed not available' })
-    }
-
-    if (targetBed.label === patient.bed && targetBed.roomType === patient.room) {
+    const preview = await Bed.findOne({ label: bedLabel })
+    if (preview && preview.label === patient.bed && preview.roomType === patient.room) {
       return res.status(400).json({ error: 'Cannot transfer to the same room and bed.' })
     }
 
     const currentAssignment = await RoomAssignment.findOne({ patientId: patient.patientId, endDate: null })
     if (!currentAssignment) return res.status(400).json({ error: 'No active room assignment' })
 
-    const oldBed = await Bed.findOne({ label: currentAssignment.bedLabel })
-    if (oldBed) {
-      oldBed.status = 'available'
-      oldBed.patientId = null
-      await oldBed.save()
+    let targetBed
+    try {
+      targetBed = await claimAvailableBed({ label: bedLabel, patientId: patient.patientId })
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message || 'Bed not available' })
     }
+
+    const oldBed = await Bed.findOne({ label: currentAssignment.bedLabel })
+    await releaseBed(oldBed, patient.patientId)
 
     currentAssignment.endDate = transferDate
     await currentAssignment.save()
-
-    targetBed.status = 'occupied'
-    targetBed.patientId = patient.patientId
-    await targetBed.save()
 
     await RoomAssignment.create({
       patientId: patient.patientId,
@@ -276,7 +395,7 @@ router.post('/:id/transfer-room', authRequired, async (req, res) => {
     patient.updatedBy = req.user.name
     await patient.save()
 
-    await ensureAutomaticDailyCharges(patient, new Date().toISOString().slice(0, 10))
+    await ensureAutomaticDailyCharges(patient)
 
     const assignments = await RoomAssignment.find({ patientId: patient.patientId }).sort({ startDate: 1 })
     const beds = await Bed.find()
@@ -284,7 +403,7 @@ router.post('/:id/transfer-room', authRequired, async (req, res) => {
       roomType: targetBed.roomType,
       bedLabel: targetBed.label,
       dailyRate: targetBed.dailyRate,
-      patient: { ...toFrontendPatient(patient, await calcPatientBalance(patient.patientId)), roomHistory: buildRoomHistory(assignments) },
+      patient: { ...await mapPatientWithBaby(patient, await calcPatientBalance(patient.patientId), await listAssignments(patient.patientId)), roomHistory: buildRoomHistory(assignments) },
       assignments: assignments.map(toFrontendAssignment),
       rooms: buildRoomsFromBeds(beds),
     })
@@ -294,7 +413,7 @@ router.post('/:id/transfer-room', authRequired, async (req, res) => {
   }
 })
 
-router.patch('/:id/doctor-visits/:date', authRequired, async (req, res) => {
+router.patch('/:id/doctor-visits/:date', authRequired, requirePermission('doctors.assign'), async (req, res) => {
   try {
     const existing = await Patient.findOne({ patientId: req.params.id })
     const visitBlock = inpatientActionError(existing, 'doctor-visit')
@@ -304,28 +423,35 @@ router.patch('/:id/doctor-visits/:date', authRequired, async (req, res) => {
     const { disabled } = req.body
     const patient = await setDoctorVisitDisabled(req.params.id, req.params.date, !!disabled)
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
-    res.json(toFrontendPatient(patient, await calcPatientBalance(patient.patientId)))
+    const assignedDoctors = await listAssignments(patient.patientId)
+    res.json(await mapPatientWithBaby(patient, await calcPatientBalance(patient.patientId), assignedDoctors))
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to update doctor visit' })
   }
 })
 
-router.get('/:id', authRequired, async (req, res) => {
+router.get('/:id', authRequired, requirePermission('patients.view'), async (req, res) => {
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
 
-    const [deposits, assignments, records, balance] = await Promise.all([
+    if (patient.status !== 'discharged') {
+      await ensureAutomaticDailyCharges(patient)
+    }
+
+    const [deposits, assignments, records, balance, assignedDoctors, baby] = await Promise.all([
       Deposit.find({ patientId: patient.patientId }).sort({ date: -1 }),
       RoomAssignment.find({ patientId: patient.patientId }).sort({ startDate: 1 }),
       ServiceRecord.find({ patientId: patient.patientId }).sort({ date: -1 }),
       calcPatientBalance(patient.patientId),
+      listAssignments(patient.patientId),
+      MaternityBaby.findOne({ motherPatientId: patient.patientId }),
     ])
 
     res.json({
       patient: {
-        ...toFrontendPatient(patient, balance),
+        ...mapPatient(patient, balance, assignedDoctors, toFrontendBaby(baby)),
         roomHistory: buildRoomHistory(assignments),
       },
       deposits: deposits.map(toFrontendDeposit),
@@ -339,10 +465,12 @@ router.get('/:id', authRequired, async (req, res) => {
   }
 })
 
-router.post('/', authRequired, async (req, res) => {
+router.post('/', authRequired, requireAdmit, async (req, res) => {
+  let bedDoc = null
   try {
     const body = req.body
-    const admitErrors = validateAdmitBody(body)
+    const rules = await loadResolvedSettings(HospitalSettings)
+    const admitErrors = validateAdmitBody(body, rules)
     if (admitErrors.length) return res.status(400).json({ error: admitErrors[0] })
 
     const mrn = String(body.mrn || '').trim()
@@ -357,18 +485,23 @@ router.post('/', authRequired, async (req, res) => {
     }
 
     const label = String(body.bedId).replace(/^BED-/, '')
-    const bedDoc = await Bed.findOne({ label })
-    if (!bedDoc || bedDoc.status !== 'available') {
-      return res.status(400).json({ error: 'Selected bed is not available.' })
+    try {
+      bedDoc = await claimAvailableBed({ label, patientId: 'pending' })
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message })
     }
 
     const patientId = await nextPatientId()
     const deposit = Number(body.depositAmount)
     const admissionDate = resolveAdmissionDate(body.admissionDate)
+    const paymentMode = normalizeAdmissionPaymentMode(body.admissionPaymentMode)
+    const requiredInitialDeposit = rules.minimumInitialDeposit
     const ageValue =
       body.age !== undefined && body.age !== null && body.age !== ''
         ? Number(body.age)
         : computeAgeFromDob(body.dateOfBirth)
+
+    const admissionType = normalizeAdmissionType(body.admissionType) || 'normal'
 
     const patient = await Patient.create({
       patientId,
@@ -376,6 +509,7 @@ router.post('/', authRequired, async (req, res) => {
       age: ageValue,
       dateOfBirth: body.dateOfBirth || null,
       gender: body.gender,
+      admissionType,
       phone: body.phone?.trim() || '',
       address: String(body.address).trim(),
       emergencyContact: body.emergencyContact?.trim() || '',
@@ -387,13 +521,17 @@ router.post('/', authRequired, async (req, res) => {
       room: bedDoc.roomType,
       bed: bedDoc.label,
       bedId: bedDoc._id.toString(),
-      depositTotal: deposit,
+      depositTotal: deposit > 0 ? deposit : 0,
+      requiredInitialDeposit,
+      admissionPaymentMode: paymentMode,
+      isCreditPatient: paymentMode === 'credit' && deposit < requiredInitialDeposit,
+      creditMarkedBy: paymentMode === 'credit' ? req.user.name : undefined,
+      creditMarkedAt: paymentMode === 'credit' ? new Date() : undefined,
       status: 'admitted',
       createdBy: req.user.name,
       updatedBy: req.user.name,
     })
 
-    bedDoc.status = 'occupied'
     bedDoc.patientId = patientId
     await bedDoc.save()
 
@@ -420,22 +558,77 @@ router.post('/', authRequired, async (req, res) => {
       })
     }
 
-    await ensureAutomaticDailyCharges(patient, admissionDate)
+    let assignedDoctors = []
+    try {
+      assignedDoctors = await assignDoctorsOnAdmit(patient, body.doctorIds || [], req.user.name)
+    } catch (err) {
+      if (err.status) return res.status(err.status).json({ error: err.message })
+      throw err
+    }
+    await ensureAutomaticDailyCharges(patient, null, { range: true })
     const balance = await calcPatientBalance(patientId)
     const assignments = await RoomAssignment.find({ patientId }).sort({ startDate: 1 })
     const beds = await Bed.find()
 
     res.status(201).json({
-      patient: { ...toFrontendPatient(patient, balance), roomHistory: buildRoomHistory(assignments) },
+      patient: { ...mapPatient(patient, balance, assignedDoctors), roomHistory: buildRoomHistory(assignments) },
       rooms: buildRoomsFromBeds(beds),
     })
   } catch (err) {
+    if (bedDoc) {
+      await releaseBed(bedDoc, bedDoc.patientId || 'pending').catch(() => {})
+    }
     console.error(err)
     res.status(500).json({ error: 'Failed to admit patient' })
   }
 })
 
-router.post('/:id/deposits', authRequired, async (req, res) => {
+router.get('/:id/doctors', authRequired, requireAnyPermission('doctors.view', 'doctors.assign'), async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ patientId: req.params.id })
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    res.json(await listAssignments(patient.patientId))
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to load assigned doctors' })
+  }
+})
+
+router.post('/:id/doctors', authRequired, requirePermission('doctors.assign'), async (req, res) => {
+  try {
+    const assignment = await assignDoctor(req.params.id, req.body, req.user.name)
+    const patient = await Patient.findOne({ patientId: req.params.id })
+    const assignedDoctors = await listAssignments(req.params.id)
+    res.status(201).json({
+      assignment,
+      assignedDoctors,
+      patient: await mapPatientWithBaby(patient, await calcPatientBalance(req.params.id), assignedDoctors),
+    })
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message })
+    console.error(err)
+    res.status(500).json({ error: 'Failed to assign doctor' })
+  }
+})
+
+router.patch('/:id/doctors/:assignmentId/end', authRequired, requirePermission('doctors.assign'), async (req, res) => {
+  try {
+    const assignment = await endAssignment(req.params.id, req.params.assignmentId, req.user.name)
+    const assignedDoctors = await listAssignments(req.params.id)
+    const patient = await Patient.findOne({ patientId: req.params.id })
+    res.json({
+      assignment,
+      assignedDoctors,
+      patient: await mapPatientWithBaby(patient, await calcPatientBalance(req.params.id), assignedDoctors),
+    })
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message })
+    console.error(err)
+    res.status(500).json({ error: 'Failed to end doctor assignment' })
+  }
+})
+
+router.post('/:id/deposits', authRequired, requireAnyPermission('payments.create', 'credit.record_payment'), async (req, res) => {
   try {
     const { amount, method, date, referenceNumber } = req.body
     const patient = await Patient.findOne({ patientId: req.params.id })
@@ -443,8 +636,11 @@ router.post('/:id/deposits', authRequired, async (req, res) => {
     const depositBlock = inpatientActionError(patient, 'deposits')
     if (depositBlock) return res.status(400).json({ error: depositBlock })
 
-    const existingRefs = await Deposit.find({ referenceNumber: { $exists: true, $ne: '' } }).distinct('referenceNumber')
-    const depositErrors = validateDepositBody({ amount, method, referenceNumber }, existingRefs)
+    const [existingRefs, rules] = await Promise.all([
+      Deposit.find({ referenceNumber: { $exists: true, $ne: '' } }).distinct('referenceNumber'),
+      loadResolvedSettings(HospitalSettings),
+    ])
+    const depositErrors = validateDepositBody({ amount, method, referenceNumber }, existingRefs, rules)
     if (depositErrors.length) return res.status(400).json({ error: depositErrors[0] })
 
     const deposit = await Deposit.create({
@@ -452,15 +648,20 @@ router.post('/:id/deposits', authRequired, async (req, res) => {
       amount: Number(amount),
       method: method || 'Cash',
       referenceNumber: referenceNumber?.trim() || undefined,
-      date: date || new Date().toISOString().slice(0, 10),
+      date: date || todayStr(),
       receivedBy: req.user.name,
     })
 
     patient.depositTotal += Number(amount)
+    applyCreditFlags(patient, patient.depositTotal)
     patient.updatedBy = req.user.name
     await patient.save()
 
-    res.status(201).json(toFrontendDeposit(deposit))
+    const assignedDoctors = await listAssignments(patient.patientId)
+    res.status(201).json({
+      deposit: toFrontendDeposit(deposit),
+      patient: await mapPatientWithBaby(patient, await calcPatientBalance(patient.patientId), assignedDoctors),
+    })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to add deposit' })
@@ -480,19 +681,19 @@ router.post('/:id/discharge-request', authRequired, requireRole('Nurse'), async 
       userName: req.user.name,
     })
     const balance = await calcPatientBalance(patient.patientId)
-    res.json(toFrontendPatient(patient, balance))
+    res.json(await mapPatientWithBaby(patient, balance, await listAssignments(patient.patientId)))
   } catch (err) {
     sendDischargeError(res, err, 'Failed to request discharge')
   }
 })
 
-router.post('/:id/discharge/approve', authRequired, requireRole('Reception', 'Admin'), async (req, res) => {
+router.post('/:id/discharge/approve', authRequired, requirePermission('admissions.discharge'), async (req, res) => {
   try {
     const { patient, balance } = await approveDischarge(req.params.id, { userName: req.user.name })
     const assignments = await RoomAssignment.find({ patientId: patient.patientId }).sort({ startDate: 1 })
     const beds = await Bed.find()
     res.json({
-      patient: { ...toFrontendPatient(patient, balance), roomHistory: buildRoomHistory(assignments) },
+      patient: { ...await mapPatientWithBaby(patient, balance, await listAssignments(patient.patientId)), roomHistory: buildRoomHistory(assignments) },
       assignments: assignments.map(toFrontendAssignment),
       rooms: buildRoomsFromBeds(beds),
       balance,
@@ -502,14 +703,14 @@ router.post('/:id/discharge/approve', authRequired, requireRole('Reception', 'Ad
   }
 })
 
-router.post('/:id/discharge/reject', authRequired, requireRole('Reception', 'Admin'), async (req, res) => {
+router.post('/:id/discharge/reject', authRequired, requirePermission('admissions.discharge'), async (req, res) => {
   try {
     const patient = await rejectDischarge(req.params.id, {
       reason: req.body?.reason,
       userName: req.user.name,
     })
     const balance = await calcPatientBalance(patient.patientId)
-    res.json(toFrontendPatient(patient, balance))
+    res.json(await mapPatientWithBaby(patient, balance, await listAssignments(patient.patientId)))
   } catch (err) {
     sendDischargeError(res, err, 'Failed to reject discharge')
   }

@@ -79,6 +79,7 @@ in-patients/
 | File | Responsibility |
 |------|----------------|
 | `CommonComponents.jsx` | StatCard, StatusBadge, DataTable (10-per-page), Pagination, PageHeader, EmptyState |
+| `DashboardChrome.jsx` | Shared command-overview chrome (frame, hero, glass panel, metric ring) |
 | `ServiceRecordBuilder.jsx` | Daily service + pharmacy return cart |
 | `RecordTimeline.jsx` | Record history and detail dialog content |
 | `RoomTransferPanel.jsx` | Transfer form + room history table |
@@ -95,7 +96,8 @@ Radix/shadcn primitives: button, input, dialog, alert-dialog, card, tabs, toast,
 
 | File | Purpose |
 |------|---------|
-| `useManagerDashboard.js` | Loads `/api/manager/dashboard` or builds mock KPIs |
+| `useManagerDashboard.js` | Loads `/api/manager/dashboard` only (error/retry; no mock finance) |
+| `useAdminDashboard.js` | Loads `/api/admin/dashboard`; no mock fallback; retry on error |
 
 No other custom hooks exist.
 
@@ -159,6 +161,8 @@ Mongoose schemas. There is no separate RoomType collection; room type is a strin
 |------|----------------------|
 | `User.js` | users |
 | `Patient.js` | patients |
+| `Doctor.js` | doctors |
+| `DoctorAssignment.js` | doctorassignments |
 | `Deposit.js` | deposits |
 | `Bed.js` | beds |
 | `RoomAssignment.js` | roomassignments |
@@ -176,16 +180,23 @@ Express routers. These **are** the controllers.
 |------|-------|
 | `auth.routes.js` | `/api/auth` |
 | `patients.routes.js` | `/api/patients` |
+| `doctors.routes.js` | `/api/doctors` |
+| `charges.routes.js` | `/api/charges` |
 | `beds.routes.js` | `/api/beds` |
 | `records.routes.js` | `/api/records` |
 | `settings.routes.js` | `/api/settings` |
 | `manager.routes.js` | `/api/manager` |
+| `admin.routes.js` | `/api/admin` |
 
 ### `server/services/`
 
 | File | Responsibility |
 |------|----------------|
-| `autoCharges.js` | Daily room/doctor upsert, doctor-visit disable, `calcPatientBalance` |
+| `adminDashboard.js` | `GET /api/admin/dashboard` counts and permission-scoped payload |
+| `nurseDashboard.js` | `GET /api/nurse/dashboard` operational census and work queue |
+| `managerDashboard.js` | `GET /api/manager/dashboard` finance + utilization; report snapshot |
+| `autoCharges.js` | Daily room/doctor upsert (assignment snapshots), doctor-visit disable, `calcPatientBalance` |
+| `doctorAssignments.js` | Assign / end visiting doctors |
 | `discharge.js` | Request / reject / complete discharge |
 
 ### `server/utils/`

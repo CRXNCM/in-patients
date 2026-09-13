@@ -19,10 +19,12 @@ import {
   firstError,
   trimText,
 } from '@/lib/validation'
+import { isMaternityAdmission } from '@/lib/maternity'
 
 export function ServiceRecordBuilder({
   patientId,
   patientName,
+  patient,
   source,
   recordedBy,
   hideMoney = false,
@@ -54,10 +56,12 @@ export function ServiceRecordBuilder({
   const [editingReturnId, setEditingReturnId] = useState(null)
   const [paperSlipRef, setPaperSlipRef] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const maternity = isMaternityAdmission(patient)
+  const [subjectType, setSubjectType] = useState('mother')
 
   const today = new Date().toISOString().split('T')[0]
-  const pendingDaily = getPendingEditableRecord(patientId, 'daily_services', today)
-  const pendingReturn = getPendingEditableRecord(patientId, 'pharmacy_return', today)
+  const pendingDaily = getPendingEditableRecord(patientId, 'daily_services', today, maternity ? subjectType : 'mother')
+  const pendingReturn = getPendingEditableRecord(patientId, 'pharmacy_return', today, maternity ? subjectType : 'mother')
   const activeCat = categories.find((c) => c.name === activeCategory)
 
   useEffect(() => {
@@ -65,7 +69,7 @@ export function ServiceRecordBuilder({
       setCart(pendingDaily.services.filter((s) => s.category !== 'Room Services' && s.category !== 'Doctor Visits'))
       setEditingRecordId(pendingDaily.id)
     }
-  }, [pendingDaily?.id])
+  }, [pendingDaily?.id, subjectType])
 
   useEffect(() => {
     if (pendingReturn && mode === 'returns') {
@@ -202,6 +206,8 @@ export function ServiceRecordBuilder({
         recordedBy,
         existingRecordId: editingRecordId,
         recordDate: today,
+        subjectType: maternity ? subjectType : 'mother',
+        babyId: maternity && subjectType === 'baby' ? patient?.baby?.id : null,
       })
       setCart([])
       setEditingRecordId(null)
@@ -258,6 +264,8 @@ export function ServiceRecordBuilder({
         source,
         recordedBy,
         existingRecordId: editingReturnId,
+        subjectType: maternity ? subjectType : 'mother',
+        babyId: maternity && subjectType === 'baby' ? patient?.baby?.id : null,
       })
       setReturnCart([])
       setEditingReturnId(null)
@@ -293,7 +301,10 @@ export function ServiceRecordBuilder({
             </p>
             {!isRoom && !hideMoney && (
               <p className="text-sm font-medium text-primary">
-                Daily fee: {formatCurrency(settings.dailyDoctorVisitFee)}
+                Fallback daily fee: {formatCurrency(settings.dailyDoctorVisitFee)}
+                <span className="block text-xs font-normal text-muted-foreground">
+                  Assigned doctors use their own catalog price. This fee is used only when a doctor has no price.
+                </span>
               </p>
             )}
             <div className="flex items-start gap-2 text-left text-xs text-muted-foreground bg-background rounded-lg p-3 border max-w-md mx-auto">
@@ -338,6 +349,45 @@ export function ServiceRecordBuilder({
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {maternity && (
+          <div className="mb-4 rounded-xl border p-4">
+            <p className="text-sm font-medium mb-2">Subject</p>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name={`subject-${patientId}`}
+                  checked={subjectType === 'mother'}
+                  onChange={() => {
+                    setSubjectType('mother')
+                    setCart([])
+                    setEditingRecordId(null)
+                  }}
+                />
+                Mother
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name={`subject-${patientId}`}
+                  checked={subjectType === 'baby'}
+                  onChange={() => {
+                    setSubjectType('baby')
+                    setCart([])
+                    setEditingRecordId(null)
+                  }}
+                  disabled={!patient?.baby}
+                />
+                Baby
+              </label>
+            </div>
+            {!patient?.baby && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Register the newborn on this maternity admission before adding baby records.
+              </p>
+            )}
+          </div>
+        )}
         <Tabs value={mode} onValueChange={setMode} className="mb-4">
           <TabsList>
             <TabsTrigger value="services">Services</TabsTrigger>

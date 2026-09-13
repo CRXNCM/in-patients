@@ -4,8 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { PageHeader, StatusBadge } from '@/components/shared/CommonComponents'
 import { RequestDischargeButton } from '@/components/shared/DischargeWorkflow'
+import { AssignedDoctorsPanel } from '@/components/shared/AssignedDoctorsPanel'
+import { CreditBadge } from '@/components/shared/CreditBadge'
 import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
 import { RecordTimeline } from '@/components/shared/RecordTimeline'
+import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
+import { isMaternityAdmission } from '@/lib/maternity'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { formatDate } from '@/lib/utils'
@@ -13,7 +17,7 @@ import { formatDate } from '@/lib/utils'
 export default function PatientServiceEntry() {
   const { patientId } = useParams()
   const navigate = useNavigate()
-  const { getPatient } = usePatients()
+  const { getPatient, applyPatientUpdate } = usePatients()
   const { getPatientRecords, CURRENT_NURSE } = useServiceEntries()
 
   const patient = getPatient(patientId)
@@ -28,6 +32,9 @@ export default function PatientServiceEntry() {
   }
 
   const records = getPatientRecords(patientId)
+  const maternity = isMaternityAdmission(patient)
+  const motherRecords = records.filter((r) => (r.subjectType || 'mother') !== 'baby')
+  const babyRecords = records.filter((r) => r.subjectType === 'baby')
 
   return (
     <div>
@@ -44,7 +51,7 @@ export default function PatientServiceEntry() {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" />{patient.name}</CardTitle>
-          <CardDescription className="flex items-center gap-2">ID: {patient.id} <StatusBadge status={patient.status} /></CardDescription>
+          <CardDescription className="flex items-center gap-2">ID: {patient.id} <StatusBadge status={patient.status} /> <CreditBadge patient={patient} /></CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
@@ -55,6 +62,16 @@ export default function PatientServiceEntry() {
           </div>
         </CardContent>
       </Card>
+
+      <MaternityAdmissionPanel patient={patient} canEdit={patient.status !== 'discharged'} />
+
+      <AssignedDoctorsPanel
+        patient={patient}
+        canAdd={patient.status !== 'discharged'}
+        onChanged={(res) => {
+          if (res?.patient) applyPatientUpdate(res.patient)
+        }}
+      />
 
       {patient.status === 'pending-discharge' && (
         <div className="rounded-xl border border-purple-200 bg-purple-50/70 dark:bg-purple-950/20 dark:border-purple-900 p-4 mb-6 text-sm">
@@ -67,6 +84,7 @@ export default function PatientServiceEntry() {
           <ServiceRecordBuilder
             patientId={patientId}
             patientName={patient.name}
+            patient={patient}
             source="nurse"
             recordedBy={CURRENT_NURSE}
             hideMoney
@@ -79,10 +97,25 @@ export default function PatientServiceEntry() {
       <Card>
         <CardHeader>
           <CardTitle>Record History — {patient.name}</CardTitle>
-          <CardDescription>All submitted daily records and pharmacy returns</CardDescription>
+          <CardDescription>
+            {maternity ? 'Mother and baby records stay on this same maternity admission.' : 'All submitted daily records and pharmacy returns'}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <RecordTimeline records={records} hideMoney />
+        <CardContent className="space-y-6">
+          {maternity ? (
+            <>
+              <div>
+                <h4 className="text-sm font-semibold mb-3">Mother records</h4>
+                <RecordTimeline records={motherRecords} hideMoney showSubject />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold mb-3">Baby records</h4>
+                <RecordTimeline records={babyRecords} hideMoney showSubject />
+              </div>
+            </>
+          ) : (
+            <RecordTimeline records={records} hideMoney />
+          )}
         </CardContent>
       </Card>
     </div>

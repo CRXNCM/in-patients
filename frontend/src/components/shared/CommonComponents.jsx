@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { DEFAULT_LIST_PAGE_SIZE, getListPageSize } from '@/lib/displayPrefs'
 
-export const LIST_PAGE_SIZE = 10
+export const LIST_PAGE_SIZE = DEFAULT_LIST_PAGE_SIZE
 
-export function usePagedItems(items = [], pageSize = LIST_PAGE_SIZE) {
+/** Omit `pageSize` to follow the configured rows-per-page setting. */
+export function usePagedItems(items = [], pageSizeOverride) {
   const [page, setPage] = useState(1)
+  const pageSize = pageSizeOverride ?? getListPageSize()
   const total = items?.length || 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize) || 1)
   const current = Math.min(page, pageCount)
@@ -108,6 +111,9 @@ export function StatusBadge({ status }) {
     admitted: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     'pending-discharge': 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
     discharged: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+    occupied: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    maintenance: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    out_of_service: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
     pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
@@ -124,6 +130,9 @@ export function StatusBadge({ status }) {
     admitted: 'Admitted',
     'pending-discharge': 'Pending Discharge',
     discharged: 'Discharged',
+    occupied: 'Occupied',
+    maintenance: 'Maintenance',
+    out_of_service: 'Out of service',
     pending: 'Pending',
     approved: 'Approved',
     rejected: 'Rejected',
@@ -174,7 +183,7 @@ export function PageHeader({ title, description, action }) {
   )
 }
 
-export function DataTable({ columns, data, onRowClick, emptyState, pageSize = LIST_PAGE_SIZE }) {
+export function DataTable({ columns, data, onRowClick, emptyState, pageSize }) {
   const { page, setPage, pageCount, slice, total, pageSize: size } = usePagedItems(data, pageSize)
 
   if (!data || data.length === 0) {

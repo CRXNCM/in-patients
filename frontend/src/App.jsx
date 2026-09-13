@@ -7,6 +7,7 @@ import { BillingConfigProvider } from '@/context/BillingConfigContext'
 import { ServiceEntriesProvider } from '@/context/ServiceEntriesContext'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RequireAuth } from '@/components/auth/RequireAuth'
+import { RequirePermission } from '@/components/auth/RequirePermission'
 import LoginPage from '@/pages/LoginPage'
 
 import ReceptionDashboard from '@/pages/reception/ReceptionDashboard'
@@ -49,12 +50,20 @@ export default function App() {
                     <Route element={<RequireAuth role="reception" />}>
                       <Route path="/reception" element={<AppLayout role="reception" />}>
                         <Route index element={<ReceptionDashboard />} />
-                        <Route path="patients" element={<PatientsList />} />
-                        <Route path="pending-discharges" element={<PendingDischarges />} />
-                        <Route path="discharged" element={<DischargedPatients />} />
-                        <Route path="add-patient" element={<AddPatient />} />
-                        <Route path="approvals" element={<PendingApprovals />} />
-                        <Route path="patient/:patientId" element={<PatientBilling />} />
+                        <Route element={<RequirePermission permission="patients.view" />}>
+                          <Route path="patients" element={<PatientsList />} />
+                          <Route path="discharged" element={<DischargedPatients />} />
+                          <Route path="patient/:patientId" element={<PatientBilling />} />
+                        </Route>
+                        <Route element={<RequirePermission permission="admissions.discharge" />}>
+                          <Route path="pending-discharges" element={<PendingDischarges />} />
+                        </Route>
+                        <Route element={<RequirePermission permission="admissions.create" />}>
+                          <Route path="add-patient" element={<AddPatient />} />
+                        </Route>
+                        <Route element={<RequirePermission anyOf={['admissions.edit', 'patients.edit']} />}>
+                          <Route path="approvals" element={<PendingApprovals />} />
+                        </Route>
                       </Route>
                     </Route>
 
@@ -69,20 +78,32 @@ export default function App() {
                     <Route element={<RequireAuth role="admin" />}>
                       <Route path="/admin" element={<AppLayout role="admin" />}>
                         <Route index element={<AdminDashboard />} />
-                        <Route path="services" element={<ServicesPage />} />
-                        <Route path="medicines" element={<MedicinesPage />} />
-                        <Route path="departments" element={<DepartmentsPage />} />
-                        <Route path="room-charges" element={<RoomChargesPage />} />
-                        <Route path="doctors" element={<DoctorsPage />} />
-                        <Route path="users" element={<UsersPage />} />
-                        <Route path="settings" element={<SettingsPage />} />
+                        <Route element={<RequirePermission anyOf={['system.view_settings', 'system.modify_settings']} />}>
+                          <Route path="services" element={<ServicesPage />} />
+                          <Route path="medicines" element={<MedicinesPage />} />
+                          <Route path="settings" element={<SettingsPage />} />
+                        </Route>
+                        <Route element={<RequirePermission anyOf={['departments.view', 'wards.view', 'rooms.view', 'beds.view']} />}>
+                          <Route path="departments" element={<DepartmentsPage />} />
+                        </Route>
+                        <Route element={<RequirePermission anyOf={['rooms.manage_rooms', 'system.modify_settings']} />}>
+                          <Route path="room-charges" element={<RoomChargesPage />} />
+                        </Route>
+                        <Route element={<RequirePermission anyOf={['doctors.view', 'doctors.manage']} />}>
+                          <Route path="doctors" element={<DoctorsPage />} />
+                        </Route>
+                        <Route element={<RequirePermission permission="users.view" />}>
+                          <Route path="users" element={<UsersPage />} />
+                        </Route>
                       </Route>
                     </Route>
 
                     <Route element={<RequireAuth role="manager" />}>
                       <Route path="/manager" element={<AppLayout role="manager" />}>
                         <Route index element={<ManagerDashboard />} />
-                        <Route path="reports" element={<ReportsPage />} />
+                        <Route element={<RequirePermission permission="reports.view" />}>
+                          <Route path="reports" element={<ReportsPage />} />
+                        </Route>
                       </Route>
                     </Route>
 

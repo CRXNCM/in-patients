@@ -1,73 +1,48 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, USE_API } from '@/api/client'
-import {
-  patients as mockPatients,
-  revenueByDepartment as mockRevenueByDept,
-  dailyRevenueTrend as mockDailyTrend,
-  topServices as mockTopServices,
-  topMedicines as mockTopMedicines,
-  getPatientBalanceStatus,
-} from '@/data/mockData'
-import { usePatients } from '@/context/PatientsContext'
-import { useServiceEntries } from '@/context/ServiceEntriesContext'
-import { useBillingConfig } from '@/context/BillingConfigContext'
 
 export function useManagerDashboard() {
-  const { patients } = usePatients()
-  const { records } = useServiceEntries()
-  const { settings } = useBillingConfig()
   const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(USE_API)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [reloadToken, setReloadToken] = useState(0)
+
+  const reload = useCallback(() => {
+    setReloadToken((n) => n + 1)
+  }, [])
 
   useEffect(() => {
-    if (USE_API) {
-      api
-        .getManagerDashboard()
-        .then(setData)
-        .catch(console.error)
-        .finally(() => setLoading(false))
+    let cancelled = false
+
+    if (!USE_API) {
+      setData(null)
+      setError('Manager dashboard requires the live API.')
+      setLoading(false)
       return undefined
     }
 
-    const threshold = settings.lowBalanceThreshold ?? 3000
-    const list = patients.length ? patients : mockPatients
-    const totalDeposits = list.reduce((s, p) => s + (p.deposit || 0), 0)
-    const outstandingBalance = list.reduce((s, p) => s + Math.max(0, (p.totalCharges || 0) - (p.deposit || 0)), 0)
-    const nearLowBalance = list.filter((p) => getPatientBalanceStatus(p, threshold) !== 'sufficient').length
+    setLoading(true)
+    setError(null)
 
-    const recentPatients = list
-      .slice()
-      .sort((a, b) => (b.admissionDate || '').localeCompare(a.admissionDate || ''))
-      .slice(0, 10)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        deposit: p.deposit || 0,
-        balance: (p.deposit || 0) - (p.totalCharges || 0),
-        admissionDate: p.admissionDate,
-        room: p.room,
-        bed: p.bed,
-      }))
+    api
+      .getManagerDashboard()
+      .then((payload) => {
+        if (cancelled) return
+        setData(payload)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setData(null)
+        setError(err.message || 'Failed to load dashboard')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
 
-    setData({
-      stats: {
-        todayRevenue: 59500,
-        monthlyRevenue: 1203000,
-        totalDeposits,
-        outstandingBalance,
-        inpatientCount: list.length,
-        nearLowBalance,
-      },
-      revenueByDepartment: mockRevenueByDept,
-      dailyRevenueTrend: mockDailyTrend,
-      topServices: mockTopServices,
-      topMedicines: mockTopMedicines,
-      recentPatients,
-      hospitalName: settings.name,
-    })
-    setLoading(false)
-    return undefined
-  }, [patients, records, settings])
+    return () => {
+      cancelled = true
+    }
+  }, [reloadToken])
 
-  return { data, loading }
+  return { data, loading, error, reload }
 }
