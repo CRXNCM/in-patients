@@ -12,7 +12,7 @@ Versions below are from `package.json` / `server/package.json` at documentation 
 |---------|---------|----------------|
 | `react` / `react-dom` | ^18.3.1 | UI runtime |
 | `react-router-dom` | ^6.28.1 | Role-based client routing (`BrowserRouter`, `Outlet`, `Navigate`) |
-| `lucide-react` | ^0.469.0 | Icons |
+| `motion` | ^13.4.0 | Local animation engine (`motion/react`). Bundled at build time; no runtime CDN. |
 | `recharts` | ^2.15.0 | Manager dashboard charts |
 | `clsx` | ^2.1.1 | Conditional class names |
 | `tailwind-merge` | ^2.6.0 | Resolve Tailwind class conflicts in `cn()` |
@@ -29,7 +29,7 @@ Versions below are from `package.json` / `server/package.json` at documentation 
 | `@radix-ui/react-switch` | ^1.1.3 | Switch primitive |
 | `@radix-ui/react-tabs` | ^1.1.3 | Charge-entry category tabs |
 | `@radix-ui/react-toast` | ^1.2.6 | Toast viewport |
-| `@radix-ui/react-tooltip` | ^1.1.8 | Declared; **no tooltip wrapper in `src/components/ui`** — unused or reserved |
+| `@radix-ui/react-tooltip` | ^1.1.8 | Icon-button hints (Record Builder remove controls) |
 
 There is **no** axios, react-query, redux, formik/yup, or date library. HTTP is `fetch`. Dates use `Date` / ISO strings.
 

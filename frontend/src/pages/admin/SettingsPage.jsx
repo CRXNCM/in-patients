@@ -504,7 +504,7 @@ export default function SettingsPage() {
             <ToggleRow
               id="discharge-outstanding"
               label="Allow discharge with outstanding balance"
-              hint="When off, discharge approval is blocked until approved charges are covered by deposits."
+              hint="Non-credit patients must always settle approved charges before discharge. When on, credit patients may be discharged with an outstanding balance that remains on the stay. When off, credit patients must also settle first."
               checked={form.allowDischargeWithOutstandingBalance}
               onCheckedChange={set('allowDischargeWithOutstandingBalance')}
             />

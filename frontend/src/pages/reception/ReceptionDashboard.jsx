@@ -17,6 +17,7 @@ import { useReceptionDashboard } from '@/hooks/useReceptionDashboard'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { api } from '@/api/client'
+import { PatientLink } from '@/components/shared/PatientLink'
 
 function isForbiddenError(message) {
   return /forbidden/i.test(message || '')
@@ -111,8 +112,12 @@ export default function ReceptionDashboard() {
   }
 
   const columns = [
-    { key: 'id', header: 'Patient ID', render: (row) => <span className="font-mono text-xs font-medium text-primary">{row.id}</span> },
-    { key: 'name', header: 'Patient Name', render: (row) => <span className="font-medium">{row.name}</span> },
+    { key: 'id', header: 'Patient ID', render: (row) => (
+      <PatientLink patientId={row.id} className="font-mono text-xs font-medium">{row.id}</PatientLink>
+    ) },
+    { key: 'name', header: 'Patient Name', render: (row) => (
+      <PatientLink patientId={row.id} className="font-medium">{row.name}</PatientLink>
+    ) },
     { key: 'room', header: 'Room/Bed', render: (row) => locationLabel(row) },
     { key: 'admissionDate', header: 'Admission Date', render: (row) => formatDate(row.admissionDate) },
   ]
@@ -215,7 +220,7 @@ export default function ReceptionDashboard() {
                     {includeMoney ? ` · ${formatCurrency(Math.abs(record.amount))}${record.amount < 0 ? ' credit' : ''}` : ''}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {record.patientName || record.patientId}
+                    <PatientLink patientId={record.patientId}>{record.patientName || record.patientId}</PatientLink>
                     {record.recordedBy ? ` · By ${record.recordedBy}` : ''}
                     {record.recordedAt ? ` · ${formatDateTime(record.recordedAt)}` : ''}
                   </p>

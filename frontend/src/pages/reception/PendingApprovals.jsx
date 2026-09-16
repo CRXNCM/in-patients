@@ -17,6 +17,7 @@ import { computeRecordTotal } from '@/context/ServiceEntriesContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { PatientLink } from '@/components/shared/PatientLink'
 
 export default function PendingApprovals() {
   const { toast } = useToast()
@@ -63,7 +64,9 @@ export default function PendingApprovals() {
       render: (row) => (
         <div>
           <p className="font-semibold">{row.recordName}</p>
-          <p className="text-xs text-muted-foreground font-mono">{row.patientId}</p>
+          <p className="text-xs text-muted-foreground font-mono">
+            <PatientLink patientId={row.patientId}>{row.patientId}</PatientLink>
+          </p>
         </div>
       ),
     },

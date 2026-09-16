@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { DEFAULT_LIST_PAGE_SIZE, getListPageSize } from '@/lib/displayPrefs'
+import { motion, useReducedMotion, hoverLift, tapPress, microTransition } from '@/lib/motion'
 
 export const LIST_PAGE_SIZE = DEFAULT_LIST_PAGE_SIZE
 
@@ -48,10 +49,10 @@ export function Pagination({ page, pageCount, onPageChange, total, pageSize }) {
                 type="button"
                 onClick={() => onPageChange(n)}
                 className={cn(
-                  'min-w-8 h-8 rounded-md px-2 text-sm font-medium transition-colors',
+                  'min-w-8 h-8 rounded-md px-2 text-sm font-medium transition-[color,background-color,box-shadow] duration-140 ease-out-soft',
                   n === page
-                    ? 'bg-primary text-primary-foreground'
-                    : 'border bg-background hover:bg-muted text-foreground'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'border bg-background text-foreground hover:bg-muted hover:shadow-sm'
                 )}
               >
                 {n}
@@ -65,25 +66,38 @@ export function Pagination({ page, pageCount, onPageChange, total, pageSize }) {
 }
 
 export function StatCard({ title, value, subtitle, icon: Icon, trend, className, iconClassName, onClick }) {
+  const reduced = useReducedMotion()
+  const Comp = onClick ? motion.div : 'div'
+  const interactive = onClick && !reduced
+    ? {
+        whileHover: hoverLift(reduced),
+        whileTap: tapPress(reduced),
+        transition: microTransition(reduced),
+      }
+    : {}
+
   return (
-    <div
+    <Comp
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
       className={cn(
-        'rounded-xl border bg-card p-6 shadow-sm transition-shadow hover:shadow-md',
-        onClick && 'cursor-pointer',
+        'rounded-xl border bg-card p-6 shadow-sm',
+        onClick
+          ? 'cursor-pointer'
+          : 'transition-shadow duration-200 ease-out-soft',
         className
       )}
+      {...interactive}
     >
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-2xl font-bold tracking-tight">{value}</p>
+          <p className="text-2xl font-bold tracking-tight tabular-nums">{value}</p>
           {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
           {trend && (
-            <p className={cn('text-xs font-medium', trend.positive ? 'text-emerald-600' : 'text-red-600')}>
+            <p className={cn('text-xs font-medium', trend.positive ? 'text-success' : 'text-destructive')}>
               {trend.positive ? '↑' : '↓'} {trend.value}
             </p>
           )}
@@ -94,7 +108,7 @@ export function StatCard({ title, value, subtitle, icon: Icon, trend, className,
           </div>
         )}
       </div>
-    </div>
+    </Comp>
   )
 }
 
@@ -138,7 +152,7 @@ export function StatusBadge({ status }) {
     rejected: 'Rejected',
   }
   return (
-    <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold', map[status] || map.active)}>
+    <span className={cn('inline-flex items-center rounded-full border border-transparent px-2.5 py-0.5 text-xs font-semibold transition-colors duration-140 ease-out-soft', map[status] || map.active)}>
       {labels[status] || status}
     </span>
   )
@@ -146,8 +160,8 @@ export function StatusBadge({ status }) {
 
 export function EmptyState({ icon: Icon, title, description, action }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="rounded-full bg-muted p-4 mb-4">
+    <div className="ui-enter flex flex-col items-center justify-center py-16 text-center">
+      <div className="mb-4 rounded-full border bg-muted p-4 shadow-sm">
         <Icon className="h-8 w-8 text-muted-foreground" />
       </div>
       <h3 className="text-lg font-semibold mb-1">{title}</h3>
@@ -173,7 +187,7 @@ export function TableSkeleton({ rows = 5, cols = 6 }) {
 
 export function PageHeader({ title, description, action }) {
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
         {description && <p className="text-muted-foreground mt-1">{description}</p>}
@@ -193,13 +207,13 @@ export function DataTable({ columns, data, onRowClick, emptyState, pageSize }) {
   }
 
   return (
-    <div className="rounded-xl border overflow-hidden">
+    <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
               {columns.map((col) => (
-                <th key={col.key} className="px-4 py-3 text-left font-semibold text-muted-foreground whitespace-nowrap">
+                <th key={col.key} className="whitespace-nowrap px-4 py-3 text-left font-semibold text-muted-foreground">
                   {col.header}
                 </th>
               ))}
@@ -209,7 +223,10 @@ export function DataTable({ columns, data, onRowClick, emptyState, pageSize }) {
             {slice.map((row, idx) => (
               <tr
                 key={row.id || idx}
-                className={cn('border-b transition-colors hover:bg-muted/30', onRowClick && 'cursor-pointer')}
+                className={cn(
+                  'border-b transition-colors duration-140 ease-out-soft hover:bg-muted/40',
+                  onRowClick && 'cursor-pointer'
+                )}
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((col) => (

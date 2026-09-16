@@ -10,7 +10,7 @@ Items below are observed in the current code. There are **no `TODO` / `FIXME` co
 
 | Item | Evidence |
 |------|----------|
-| Discharge balance policy | Discharge does not require a zero balance; outstanding/credit is snapshotted only (no refund document) |
+| Discharge refunds | Overpayment at discharge is snapshotted only; there is no refund document |
 | User management API | Admin Users page reads `mockData.users` only |
 | Services / medicines CRUD persistence | Local React state; catalog used for billing is `ServiceCategory` and has no item-level API |
 | Departments / doctors / room-charge admin | Read-only mock arrays; room occupancy numbers (e.g. 45 GW beds) disagree with seed (20) |

@@ -30,6 +30,7 @@ export const api = {
   getPatientsFull: () => apiFetch('/api/patients?view=full'),
   getPatients: () => apiFetch('/api/patients'),
   getPatient: (id) => apiFetch(`/api/patients/${id}`),
+  getPatientProfile: (id) => apiFetch(`/api/patients/${encodeURIComponent(id)}/profile`),
   createPatient: (body) => apiFetch('/api/patients', { method: 'POST', body: JSON.stringify(body) }),
   upsertMaternityBaby: (id, body) =>
     apiFetch(`/api/patients/${id}/baby`, { method: 'PUT', body: JSON.stringify(body) }),
@@ -97,9 +98,65 @@ export const api = {
 
   getManagerDashboard: () => apiFetch('/api/manager/dashboard'),
   getManagerReport: (type) => apiFetch(`/api/manager/reports/${type}`),
+  getManagerDeposits: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') qs.set(key, value)
+    })
+    const query = qs.toString()
+    return apiFetch(`/api/manager/deposits${query ? `?${query}` : ''}`)
+  },
+  getManagerCharges: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') qs.set(key, value)
+    })
+    const query = qs.toString()
+    return apiFetch(`/api/manager/charges${query ? `?${query}` : ''}`)
+  },
+  getManagerOutstanding: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') qs.set(key, value)
+    })
+    const query = qs.toString()
+    return apiFetch(`/api/manager/outstanding${query ? `?${query}` : ''}`)
+  },
+  getManagerCreditPatients: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') qs.set(key, value)
+    })
+    const query = qs.toString()
+    return apiFetch(`/api/manager/credit-patients${query ? `?${query}` : ''}`)
+  },
+  getManagerDischargedPatients: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') qs.set(key, value)
+    })
+    const query = qs.toString()
+    return apiFetch(`/api/manager/discharged-patients${query ? `?${query}` : ''}`)
+  },
   getAdminDashboard: () => apiFetch('/api/admin/dashboard'),
   getNurseDashboard: () => apiFetch('/api/nurse/dashboard'),
   getReceptionDashboard: () => apiFetch('/api/reception/dashboard'),
+  getReceptionCriticalBalances: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') qs.set(key, value)
+    })
+    const query = qs.toString()
+    return apiFetch(`/api/reception/critical-balances${query ? `?${query}` : ''}`)
+  },
+  getReceptionRecentlyApproved: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') qs.set(key, value)
+    })
+    const query = qs.toString()
+    return apiFetch(`/api/reception/recently-approved${query ? `?${query}` : ''}`)
+  },
   search: (q) => apiFetch(`/api/search?q=${encodeURIComponent(q)}`),
 
   getUsers: () => apiFetch('/api/users'),

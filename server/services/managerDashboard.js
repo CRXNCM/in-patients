@@ -3,7 +3,7 @@ import { Bed } from '../models/Bed.js'
 import { Deposit } from '../models/Deposit.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { HospitalSettings } from '../models/HospitalSettings.js'
-import { todayStr, localDayRange, shiftDate } from '../utils/dates.js'
+import { todayStr, localDayRange, localMonthRange, shiftDate } from '../utils/dates.js'
 import { roleHasPermission } from '../utils/permissions.js'
 import { occupancyFromStatusCounts } from './adminDashboard.js'
 
@@ -121,6 +121,21 @@ async function sumDeposits(DepositModel, match) {
   const [row] = await DepositModel.aggregate([
     { $match: match },
     { $group: { _id: null, total: { $sum: '$amount' } } },
+  ])
+  return row?.total || 0
+}
+
+/** Stay billed total at completion (`calcPatientBalance.totalCharges` snapshot). */
+async function sumDischargeFinalCharges(PatientModel, range) {
+  if (!range?.start || !range?.end) return 0
+  const [row] = await PatientModel.aggregate([
+    {
+      $match: {
+        status: 'discharged',
+        dischargeCompletedAt: { $gte: range.start, $lt: range.end },
+      },
+    },
+    { $group: { _id: null, total: { $sum: { $ifNull: ['$dischargeFinalCharges', 0] } } } },
   ])
   return row?.total || 0
 }
@@ -252,6 +267,10 @@ async function collectMetrics(auth, injected, { includeFinance, includeCredit, i
     depositsMonth: includeFinance
       ? sumDeposits(deps.Deposit, { date: { $regex: `^${month}` } })
       : Promise.resolve(null),
+    dischargeAmountToday: includeFinance ? sumDischargeFinalCharges(deps.Patient, day) : Promise.resolve(null),
+    dischargeAmountMonth: includeFinance
+      ? sumDischargeFinalCharges(deps.Patient, localMonthRange(today))
+      : Promise.resolve(null),
     chargesToday: includeFinance ? sumApprovedCharges(deps.ServiceRecord, { date: today }) : Promise.resolve(null),
     chargesMonth: includeFinance
       ? sumApprovedCharges(deps.ServiceRecord, { date: { $regex: `^${month}` } })
@@ -325,6 +344,10 @@ function shapeDashboard({ includeFinance, includeCredit, includeCensus, includeO
       approvedCharges: {
         today: collected.raw.chargesToday || 0,
         month: collected.raw.chargesMonth || 0,
+      },
+      dischargeAmount: {
+        today: collected.raw.dischargeAmountToday || 0,
+        month: collected.raw.dischargeAmountMonth || 0,
       },
     }
     if (includeCredit) {

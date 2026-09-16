@@ -67,7 +67,7 @@ Occupied on admit and transfer. Freed on transfer. Discharge did not free beds.
 
 `remaining = depositTotal − sum(approved record totals)`. Pending records do not affect the bill. VAT is unused. `ensureAutomaticDailyCharges` skips `status === 'discharged'` and upserts room/doctor lines by `{ patientId, date, autoType }`. Assignment coverage: `startDate <= date` and (`endDate` is null or `endDate > date`). Triggered on admit and transfer, not on GET patient.
 
-There is **no** rule that discharge requires a zero balance. Payments may exceed charges.
+There is **no** rule that discharge requires a zero remaining balance for credit patients. Payments may exceed charges (overpayment is kept). Non-credit patients must settle outstanding approved charges.
 
 ### Existing permission structure
 
@@ -190,9 +190,9 @@ Guards added on existing writes:
 | Request | `status === 'admitted'` |
 | Approve / reject | `status === 'pending-discharge'` |
 | Reject body | non-empty `reason` |
-| Approve | patient exists; open assignment exists; bed exists (or is already free for this patient) |
+| Approve | patient exists; no pending records; non-credit outstanding must be 0; credit outstanding allowed unless settings forbid it; open assignment exists; bed exists (or is already free for this patient) |
 
-Financial state is **not** a hard block (no existing clearance policy). Outstanding and overpayment are allowed; the snapshot is stored.
+Financial state is a hard block for non-credit outstanding balances. Credit patients may keep outstanding unless settings `allowDischargeWithOutstandingBalance` is off. Overpayment is allowed and snapshotted.
 
 ---
 
@@ -200,7 +200,7 @@ Financial state is **not** a hard block (no existing clearance policy). Outstand
 
 Uses `calcPatientBalance` only. Before approve, `ensureAutomaticDailyCharges(patient, dischargeDate)` runs while the assignment is still open so the final day is upserted. After `status` is `discharged`, auto-charge generation skips the patient. Previous deposits and records are never deleted. Overpayment remains as positive remaining balance; there is still no refund document type.
 
-**Assumption:** Reception may complete discharge with a non-zero outstanding or credit. Pending (unapproved) records stay in history and do not change the snapshot.
+**Assumption:** Non-credit patients must settle outstanding approved charges before discharge. Credit patients may complete discharge with a remaining outstanding balance unless hospital settings `allowDischargeWithOutstandingBalance` is off. Pending (unapproved) records must be approved or rejected before discharge can be completed. They stay off the bill until approved.
 
 ---
 
@@ -238,8 +238,8 @@ New uses of existing `requireRole` only. No new roles or permission documents.
 | Already pending | 400 on second request |
 | Missing open assignment on approve | 400, no status change |
 | Missing bed on approve | 400 if no bed row; if bed already available for this patient, discharge continues |
-| Pending charges | Shown in review; do not block |
-| Zero / outstanding / overpay | All allowed; snapshot stored |
+| Pending charges | Shown in review; **block** complete-discharge until every pending record is approved or rejected. Reject-discharge remains allowed. |
+| Zero / outstanding / overpay | Non-credit outstanding blocked; credit outstanding allowed unless settings forbid it; overpayment snapshotted |
 | Active services | Existing records kept; new daily records blocked only after discharged |
 | Transfer while pending | 400 |
 | Concurrent request | `findOneAndUpdate` on `status: admitted` → 409 if lost |
@@ -254,14 +254,14 @@ New uses of existing `requireRole` only. No new roles or permission documents.
 
 ## Testing
 
-Existing repo had no test runner. Server now has `npm test` → `node --test` on `dischargeRules.test.js` (status transitions, reject reason, inpatient write guards). No frontend test runner was added (no Vitest in the project). Full API/E2E cases remain manual (see TESTING.md).
+Existing repo had no test runner. Server now has `npm test` → `node --test` including `dischargeRules.test.js` (status transitions, pending records, outstanding/credit gate, reject reason, inpatient write guards) and `dischargeSettings.http.test.js`. No frontend test runner was added (no Vitest in the project). Full API/E2E cases remain manual (see TESTING.md).
 
 ---
 
 ## Known assumptions
 
 1. One Patient document = one stay. Re-admission of the same person is a new patient id (existing admit rules).
-2. Discharge does not require zero balance.
+2. Non-credit patients must settle outstanding approved charges before discharge. Credit patients may keep an outstanding balance unless settings `allowDischargeWithOutstandingBalance` is off. Overpayment is snapshotted; there is no refund document.
 3. Deposits remain allowed while `pending-discharge` so reception can take clearance payments; they are blocked after `discharged`.
 4. Nurse services remain allowed while `pending-discharge` (care continues); blocked after `discharged`.
 5. Room transfer is blocked while `pending-discharge`.

@@ -7,6 +7,7 @@ import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { CreditBadge } from '@/components/shared/CreditBadge'
 import { useAuth } from '@/context/AuthContext'
+import { PatientLink } from '@/components/shared/PatientLink'
 
 export default function PatientsList() {
   const navigate = useNavigate()
@@ -15,10 +16,14 @@ export default function PatientsList() {
   const { getPatientBalance, getBalanceStatus } = useServiceEntries()
 
   const columns = [
-    { key: 'id', header: 'Patient ID', render: (row) => <span className="font-mono text-xs font-medium text-primary">{row.id}</span> },
+    { key: 'id', header: 'Patient ID', render: (row) => (
+      <PatientLink patientId={row.id} className="font-mono text-xs font-medium">
+        {row.id}
+      </PatientLink>
+    ) },
     { key: 'name', header: 'Patient Name', render: (row) => (
       <div className="flex flex-col gap-1">
-        <span className="font-medium">{row.name}</span>
+        <PatientLink patientId={row.id} className="font-medium">{row.name}</PatientLink>
         <div className="flex flex-wrap gap-1">
           {row.admissionType === 'maternity' && (
             <span className="text-[10px] uppercase tracking-wide rounded bg-rose-100 text-rose-700 px-1.5 py-0.5">Maternity</span>

@@ -230,6 +230,29 @@ export function validateDischargeRejectReason(reason) {
   return null
 }
 
+export function dischargePendingRecordsError(pendingCount) {
+  const n = Number(pendingCount) || 0
+  if (n <= 0) return null
+  return n === 1
+    ? 'Cannot complete discharge while 1 pending record is awaiting approval or rejection.'
+    : `Cannot complete discharge while ${n} pending records are awaiting approval or rejection.`
+}
+
+/** Outstanding = max(0, approved charges − deposits). Credit patients may proceed when allowCreditOutstanding. */
+export function dischargeOutstandingBalanceError({
+  outstanding,
+  isCreditPatient,
+  allowCreditOutstanding = true,
+} = {}) {
+  const due = Number(outstanding) || 0
+  if (due <= 0) return null
+  if (isCreditPatient) {
+    if (allowCreditOutstanding) return null
+    return `Outstanding balance of ${due} ETB must be settled before discharge. Hospital settings do not allow discharge with an outstanding balance.`
+  }
+  return `Non-credit patients must settle an outstanding balance of ${due} ETB before discharge.`
+}
+
 export function validateRoomTransfer(form, patient, rooms) {
   const errors = {}
 

@@ -177,6 +177,9 @@ describe('GET /api/manager/dashboard HTTP', { skip: !hasDb }, () => {
       status: 'discharged',
       dischargeCompletedAt: new Date(),
       depositTotal: 1000,
+      dischargeFinalCharges: 4500,
+      dischargeFinalDeposits: 1000,
+      dischargeFinalBalance: -3500,
     })
     createdPatientIds.push(admitted._id, pending._id, discharged._id)
 
@@ -254,6 +257,8 @@ describe('GET /api/manager/dashboard HTTP', { skip: !hasDb }, () => {
     assert.equal(res.body.finance.deposits.today, depToday?.total || 0)
     assert.equal(res.body.finance.deposits.month, depMonth?.total || 0)
     assert.ok(res.body.finance.deposits.today >= 275)
+    assert.ok(res.body.finance.dischargeAmount.today >= 4500)
+    assert.ok(res.body.finance.dischargeAmount.month >= 4500)
 
     const labBucket = res.body.chargesByCategory.find((row) => row.name === `${PREFIX}Laboratory`)
     assert.ok(labBucket)

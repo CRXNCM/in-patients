@@ -4,14 +4,19 @@ import { Button } from '@/components/ui/button'
 import { PageHeader, DataTable, StatusBadge } from '@/components/shared/CommonComponents'
 import { usePatients } from '@/context/PatientsContext'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
+import { PatientLink } from '@/components/shared/PatientLink'
 
 export default function DischargedPatients() {
   const navigate = useNavigate()
   const { dischargedPatients } = usePatients()
 
   const columns = [
-    { key: 'name', header: 'Patient', render: (row) => <span className="font-medium">{row.name}</span> },
-    { key: 'id', header: 'Patient ID', render: (row) => <span className="font-mono text-xs font-medium text-primary">{row.id}</span> },
+    { key: 'name', header: 'Patient', render: (row) => (
+      <PatientLink patientId={row.id} className="font-medium">{row.name}</PatientLink>
+    ) },
+    { key: 'id', header: 'Patient ID', render: (row) => (
+      <PatientLink patientId={row.id} className="font-mono text-xs font-medium">{row.id}</PatientLink>
+    ) },
     { key: 'room', header: 'Final room', render: (row) => row.discharge?.finalRoom || row.room },
     { key: 'bed', header: 'Final bed', render: (row) => row.discharge?.finalBed || row.bed },
     { key: 'admissionDate', header: 'Admission', render: (row) => formatDate(row.admissionDate) },

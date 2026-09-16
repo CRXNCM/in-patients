@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   dischargeRequestStatusError,
   dischargeApproveStatusError,
+  dischargePendingRecordsError,
+  dischargeOutstandingBalanceError,
   dischargeRejectStatusError,
   validateDischargeRejectBody,
   inpatientActionError,
@@ -30,6 +32,64 @@ describe('discharge approve status', () => {
   it('blocks admitted and discharged', () => {
     assert.match(dischargeApproveStatusError('admitted'), /pending discharge/)
     assert.match(dischargeApproveStatusError('discharged'), /already discharged/)
+  })
+})
+
+describe('discharge pending records', () => {
+  it('allows completion when there are no pending records', () => {
+    assert.equal(dischargePendingRecordsError(0), null)
+    assert.equal(dischargePendingRecordsError(undefined), null)
+  })
+
+  it('blocks completion while records await review', () => {
+    assert.match(dischargePendingRecordsError(1), /1 pending record is awaiting/)
+    assert.match(dischargePendingRecordsError(3), /3 pending records are awaiting/)
+  })
+})
+
+describe('discharge outstanding balance', () => {
+  it('allows completion when there is no outstanding amount', () => {
+    assert.equal(
+      dischargeOutstandingBalanceError({ outstanding: 0, isCreditPatient: false }),
+      null
+    )
+    assert.equal(
+      dischargeOutstandingBalanceError({ outstanding: -10, isCreditPatient: false }),
+      null
+    )
+  })
+
+  it('always blocks non-credit patients with an outstanding balance', () => {
+    assert.match(
+      dischargeOutstandingBalanceError({
+        outstanding: 10000,
+        isCreditPatient: false,
+        allowCreditOutstanding: true,
+      }),
+      /Non-credit patients must settle an outstanding balance of 10000 ETB/
+    )
+  })
+
+  it('lets credit patients proceed when outstanding credit is allowed', () => {
+    assert.equal(
+      dischargeOutstandingBalanceError({
+        outstanding: 20000,
+        isCreditPatient: true,
+        allowCreditOutstanding: true,
+      }),
+      null
+    )
+  })
+
+  it('blocks credit patients when outstanding credit is not allowed', () => {
+    assert.match(
+      dischargeOutstandingBalanceError({
+        outstanding: 400,
+        isCreditPatient: true,
+        allowCreditOutstanding: false,
+      }),
+      /Outstanding balance of 400 ETB must be settled/
+    )
   })
 })
 

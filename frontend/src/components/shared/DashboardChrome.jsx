@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/lib/utils'
+import { MotionPage } from '@/lib/motion'
 
 /** Shared command-overview look first used on the Admin Dashboard. Do not use on CRUD/workstation screens. */
 
@@ -9,7 +10,7 @@ export const DASHBOARD_PANEL =
 export const DASHBOARD_OUTLINE_BUTTON = 'border-primary/30'
 
 export const DASHBOARD_TILE =
-  'rounded-xl border border-primary/10 bg-background/50 dark:border-white/10 dark:bg-white/5'
+  'rounded-xl border border-primary/10 bg-background/50 shadow-sm dark:border-white/10 dark:bg-white/5'
 
 export const DASHBOARD_FOLD_GRID = 'grid gap-5 lg:grid-cols-12'
 
@@ -111,7 +112,7 @@ export function DashboardFrame({ children, busy, className }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] bg-[size:44px_44px] opacity-40 [mask-image:radial-gradient(ellipse_at_center,black,transparent_78%)]"
       />
-      <div className="dashboard-enter relative mx-auto max-w-[1400px] space-y-6">{children}</div>
+      <MotionPage className="relative mx-auto max-w-[1400px] space-y-6">{children}</MotionPage>
     </div>
   )
 }

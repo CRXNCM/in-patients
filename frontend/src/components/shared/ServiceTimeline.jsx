@@ -110,14 +110,14 @@ export function AuditTrail({ trail }) {
   }
 
   const actionColors = {
-    recorded: 'text-blue-600',
-    approved: 'text-emerald-600',
-    rejected: 'text-red-600',
+    recorded: 'text-primary',
+    approved: 'text-success',
+    rejected: 'text-destructive',
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-dashed">
-      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Audit Trail</p>
+    <div className="mt-3 border-t border-dashed pt-3">
+      <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Audit Trail</p>
       <div className="space-y-1.5">
         {trail.map((item, i) => (
           <div key={i} className="flex flex-wrap items-baseline gap-x-2 text-xs">
@@ -126,7 +126,7 @@ export function AuditTrail({ trail }) {
             </span>
             <span className="text-muted-foreground">by {item.by}</span>
             <span className="text-muted-foreground">· {formatDateTime(item.at)}</span>
-            {item.note && <span className="text-muted-foreground w-full sm:w-auto">— {item.note}</span>}
+            {item.note && <span className="w-full text-muted-foreground sm:w-auto">— {item.note}</span>}
           </div>
         ))}
       </div>

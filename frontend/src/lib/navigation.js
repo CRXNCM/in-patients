@@ -1,20 +1,26 @@
 import {
+  AlertTriangle,
   Archive,
   Bed,
   Building2,
+  CheckCircle2,
   ClipboardCheck,
   ClipboardList,
+  CreditCard,
   FileText,
   LayoutDashboard,
   LogOut,
   Pill,
+  Receipt,
+  Scale,
   Settings,
   Stethoscope,
   UserCog,
   UserPlus,
   Users,
+  Wallet,
 } from 'lucide-react'
-import { hasAnyPermission, hasPermission } from '@/lib/permissions'
+import { hasAllPermissions, hasAnyPermission, hasPermission } from '@/lib/permissions'
 
 /**
  * Single source of truth for role home-page navigation.
@@ -43,12 +49,26 @@ export const NAVIGATION = {
       label: 'Admissions',
       items: [
         {
+          id: 'reception-critical-balances',
+          label: 'Critical Balances',
+          path: '/reception/critical-balances',
+          icon: AlertTriangle,
+          allOf: ['patients.view', 'payments.view'],
+        },
+        {
           id: 'reception-approvals',
           label: 'Pending Approvals',
           path: '/reception/approvals',
           icon: ClipboardCheck,
           permission: 'admissions.edit',
           badge: 'pendingApprovals',
+        },
+        {
+          id: 'reception-recently-approved',
+          label: 'Recently Approved',
+          path: '/reception/recently-approved',
+          icon: CheckCircle2,
+          permission: 'admissions.edit',
         },
         {
           id: 'reception-pending-discharge',
@@ -131,6 +151,29 @@ export const NAVIGATION = {
         { id: 'manager-reports', label: 'Reports', path: '/manager/reports', icon: FileText, permission: 'reports.view' },
       ],
     },
+    {
+      id: 'finance',
+      label: 'Finance',
+      items: [
+        { id: 'manager-deposits', label: 'Deposits', path: '/manager/deposits', icon: Wallet, permission: 'payments.view' },
+        { id: 'manager-charges', label: 'Revenue & Charges', path: '/manager/charges', icon: Receipt, permission: 'payments.view' },
+        { id: 'manager-outstanding', label: 'Outstanding Balances', path: '/manager/outstanding', icon: Scale, permission: 'payments.view' },
+        { id: 'manager-credit', label: 'Credit Patients', path: '/manager/credit-patients', icon: CreditCard, permission: 'credit.view' },
+      ],
+    },
+    {
+      id: 'operations',
+      label: 'Operations',
+      items: [
+        {
+          id: 'manager-discharged',
+          label: 'Discharged Patients',
+          path: '/manager/discharged-patients',
+          icon: Archive,
+          permission: 'payments.view',
+        },
+      ],
+    },
   ],
 }
 
@@ -138,6 +181,7 @@ export function isNavItemVisible(user, item) {
   if (item.roles?.length && user?.roleKey && !item.roles.includes(user.roleKey)) return false
   if (item.permission && !hasPermission(user, item.permission)) return false
   if (item.anyOf?.length && !hasAnyPermission(user, item.anyOf)) return false
+  if (item.allOf?.length && !hasAllPermissions(user, item.allOf)) return false
   return true
 }
 
@@ -170,7 +214,12 @@ export function getPageContext(pathname, roleKey, extras = {}) {
     }
   }
 
-  const stay = pathname.match(/\/patient\/([^/]+)$/)
+  const stay = pathname.match(/\/patients\/([^/]+)$/) || pathname.match(/\/patient\/([^/]+)$/)
+  if (pathname.match(/^\/patients\/[^/]+$/)) {
+    const name = extras.entityLabel || stay?.[1]
+    return { crumbs: [{ label: 'Patient Profile' }, { label: name }] }
+  }
+
   if (stay && active) {
     const name = extras.entityLabel || stay[1]
     return {

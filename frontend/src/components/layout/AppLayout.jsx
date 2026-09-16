@@ -3,8 +3,11 @@ import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { AppNavbar } from './AppNavbar'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/context/AuthContext'
 
 export function AppLayout({ role }) {
+  const { user } = useAuth()
+  const navRole = role || user?.roleKey
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -25,7 +28,7 @@ export function AppLayout({ role }) {
   return (
     <div className="min-h-screen overflow-x-hidden bg-background">
       <Sidebar
-        role={role}
+        role={navRole}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((prev) => !prev)}
       />
@@ -39,7 +42,7 @@ export function AppLayout({ role }) {
             onClick={() => setMobileOpen(false)}
           />
           <Sidebar
-            role={role}
+            role={navRole}
             variant="drawer"
             onNavigate={() => setMobileOpen(false)}
             onClose={() => setMobileOpen(false)}
@@ -48,7 +51,7 @@ export function AppLayout({ role }) {
       )}
 
       <AppNavbar
-        role={role}
+        role={navRole}
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
         onOpenMobile={() => setMobileOpen(true)}

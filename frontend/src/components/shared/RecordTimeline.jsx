@@ -8,9 +8,19 @@ import { CheckCircle2, XCircle, Clock, FileText, RotateCcw, Pencil } from 'lucid
 
 const statusIcons = { pending: Clock, approved: CheckCircle2, rejected: XCircle }
 const statusBorder = {
-  pending: 'border-amber-200 dark:border-amber-800',
-  approved: 'border-emerald-200 dark:border-emerald-800',
-  rejected: 'border-red-200 dark:border-red-800',
+  pending: 'border-warning/40',
+  approved: 'border-success/25',
+  rejected: 'border-destructive/25',
+}
+const statusIconClass = {
+  pending: 'text-warning',
+  approved: 'text-success',
+  rejected: 'text-destructive',
+}
+const statusSurface = {
+  pending: 'bg-card',
+  approved: 'bg-card',
+  rejected: 'bg-muted/40',
 }
 
 function canEditPending(record) {
@@ -21,7 +31,7 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
   const { page, setPage, pageCount, slice, total, pageSize: size } = usePagedItems(records, pageSize)
 
   if (!records?.length) {
-    return <div className="text-center py-8 text-muted-foreground text-sm">No records yet</div>
+    return <div className="py-8 text-center text-sm text-muted-foreground">No records yet</div>
   }
 
   return (
@@ -31,23 +41,42 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
         const Icon = record.type === 'pharmacy_return' ? RotateCcw : (statusIcons[record.status] || FileText)
         const isLast = index === slice.length - 1
         const total = computeRecordTotal(record)
+        const isReturn = record.type === 'pharmacy_return'
+        const isRejected = record.status === 'rejected'
 
         return (
-          <div key={record.id} className="relative flex gap-4 pb-6">
-            {!isLast && <div className="absolute left-[15px] top-8 bottom-0 w-px bg-border" />}
-            <div className={cn('relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 bg-background', statusBorder[record.status])}>
-              <Icon className={cn('h-4 w-4', record.type === 'pharmacy_return' ? 'text-orange-600' : record.status === 'pending' ? 'text-amber-600' : record.status === 'approved' ? 'text-emerald-600' : 'text-red-600')} />
+          <div key={record.id} className="relative flex gap-3 pb-5">
+            {!isLast && <div className="absolute left-[11px] top-6 bottom-0 w-px bg-border" />}
+            <div
+              className={cn(
+                'relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border bg-background',
+                isReturn ? 'border-warning/40' : statusBorder[record.status]
+              )}
+              aria-hidden="true"
+            >
+              <Icon
+                className={cn(
+                  'h-3.5 w-3.5',
+                  isReturn ? 'text-warning' : statusIconClass[record.status]
+                )}
+              />
             </div>
-            <div className={cn('flex-1 min-w-0 rounded-xl border bg-card p-4', statusBorder[record.status])}>
-              <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+            <div
+              className={cn(
+                'min-w-0 flex-1 rounded-lg border p-4',
+                isRejected ? statusSurface.rejected : statusSurface[record.status] || 'bg-card',
+                isReturn && !isRejected ? 'border-warning/30' : statusBorder[record.status]
+              )}
+            >
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="font-semibold">{record.recordName}</p>
+                  <p className={cn('font-semibold', isRejected && 'text-muted-foreground')}>{record.recordName}</p>
                   <p className="text-xs text-muted-foreground">
                     {showSubject ? `${record.subjectType === 'baby' ? 'Baby' : 'Mother'} · ` : ''}
-                    {record.type === 'pharmacy_return' ? 'Pharmacy Return' : 'Daily Services'} · {formatDate(record.recordDate)} · {record.recordedBy}
+                    {isReturn ? 'Pharmacy Return' : 'Daily Services'} · {formatDate(record.recordDate)} · {record.recordedBy}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {onEdit && canEditPending(record) && (
                     <Button variant="outline" size="sm" onClick={() => onEdit(record)}>
                       <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
@@ -55,7 +84,12 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
                   )}
                   <StatusBadge status={record.status} />
                   {!hideMoney && (
-                    <span className={cn('text-sm font-semibold', total < 0 ? 'text-emerald-600' : '')}>
+                    <span
+                      className={cn(
+                        'text-sm font-semibold tabular-nums',
+                        total < 0 ? 'text-success' : ''
+                      )}
+                    >
                       {total < 0 ? '-' : ''}{formatCurrency(Math.abs(total))}
                     </span>
                   )}
@@ -63,16 +97,23 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
               </div>
 
               {record.type === 'daily_services' && record.services?.length > 0 && (
-                <div className="rounded-lg border overflow-hidden mb-3">
+                <div className="mb-3 overflow-x-auto rounded-md border">
                   <table className="w-full text-xs">
-                    <thead><tr className="bg-muted/50 border-b"><th className="px-3 py-2 text-left">Category</th><th className="px-3 py-2 text-left">Service</th><th className="px-3 py-2">Qty</th>{!hideMoney && <th className="px-3 py-2 text-right">Amount</th>}</tr></thead>
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Category</th>
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Service</th>
+                        <th className="px-3 py-2 text-center font-medium text-muted-foreground">Qty</th>
+                        {!hideMoney && <th className="px-3 py-2 text-right font-medium text-muted-foreground">Amount</th>}
+                      </tr>
+                    </thead>
                     <tbody>
                       {record.services.map((s) => (
-                        <tr key={s.id} className="border-b last:border-0">
+                        <tr key={s.id} className="border-b last:border-0 transition-colors duration-140 ease-out-soft hover:bg-muted/40">
                           <td className="px-3 py-2 text-muted-foreground">{s.category}</td>
                           <td className="px-3 py-2 font-medium">{s.serviceName}</td>
-                          <td className="px-3 py-2 text-center">{s.quantity}</td>
-                          {!hideMoney && <td className="px-3 py-2 text-right">{formatCurrency(s.total)}</td>}
+                          <td className="px-3 py-2 text-center tabular-nums">{s.quantity}</td>
+                          {!hideMoney && <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(s.total)}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -80,17 +121,26 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
                 </div>
               )}
 
-              {record.type === 'pharmacy_return' && record.returnItems?.length > 0 && (
-                <div className="rounded-lg border border-orange-200 overflow-hidden mb-3">
+              {isReturn && record.returnItems?.length > 0 && (
+                <div className="mb-3 overflow-x-auto rounded-md border border-warning/30">
                   <table className="w-full text-xs">
-                    <thead><tr className="bg-orange-50 dark:bg-orange-950/30 border-b"><th className="px-3 py-2 text-left">Medicine</th><th className="px-3 py-2">Qty</th><th className="px-3 py-2 text-left">Reason</th>{!hideMoney && <th className="px-3 py-2 text-right">Credit</th>}</tr></thead>
+                    <thead>
+                      <tr className="border-b bg-warning/10">
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Medicine</th>
+                        <th className="px-3 py-2 text-center font-medium text-muted-foreground">Qty</th>
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Reason</th>
+                        {!hideMoney && <th className="px-3 py-2 text-right font-medium text-muted-foreground">Credit</th>}
+                      </tr>
+                    </thead>
                     <tbody>
                       {record.returnItems.map((item) => (
-                        <tr key={item.id} className="border-b last:border-0">
+                        <tr key={item.id} className="border-b last:border-0 transition-colors duration-140 ease-out-soft hover:bg-muted/40">
                           <td className="px-3 py-2 font-medium">{item.serviceName}</td>
-                          <td className="px-3 py-2 text-center">{item.quantity}</td>
+                          <td className="px-3 py-2 text-center tabular-nums">{item.quantity}</td>
                           <td className="px-3 py-2 text-muted-foreground">{item.reason || '—'}</td>
-                          {!hideMoney && <td className="px-3 py-2 text-right text-emerald-600">-{formatCurrency(item.total)}</td>}
+                          {!hideMoney && (
+                            <td className="px-3 py-2 text-right tabular-nums text-success">-{formatCurrency(item.total)}</td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -98,7 +148,9 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
                 </div>
               )}
 
-              {record.rejectionReason && <p className="text-xs text-red-600 mb-2">Rejected: {record.rejectionReason}</p>}
+              {record.rejectionReason && (
+                <p className="mb-2 text-xs text-destructive">Rejected: {record.rejectionReason}</p>
+              )}
               {showAudit && record.auditTrail?.length > 0 && <AuditTrail trail={record.auditTrail} />}
             </div>
           </div>
@@ -113,44 +165,52 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
 export function RecordDetailView({ record, showMoney = true }) {
   if (!record) return null
   const total = computeRecordTotal(record)
+  const isReturn = record.type === 'pharmacy_return'
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div><span className="text-muted-foreground">Record Name:</span> <strong>{record.recordName}</strong></div>
-        <div><span className="text-muted-foreground">Type:</span> {record.type === 'pharmacy_return' ? 'Pharmacy Return' : 'Daily Services'}</div>
+        <div><span className="text-muted-foreground">Type:</span> {isReturn ? 'Pharmacy Return' : 'Daily Services'}</div>
         <div><span className="text-muted-foreground">Date:</span> {formatDate(record.recordDate)}</div>
         <div><span className="text-muted-foreground">Recorded By:</span> {record.recordedBy}</div>
         <div><span className="text-muted-foreground">Submitted:</span> {formatDateTime(record.recordedAt)}</div>
-        <div><span className="text-muted-foreground">Status:</span> <StatusBadge status={record.status} /></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground">Status:</span> <StatusBadge status={record.status} />
+        </div>
         {showMoney && (
-          <div className="col-span-2"><span className="text-muted-foreground">Record Total:</span> <strong className={total < 0 ? 'text-emerald-600' : ''}>{total < 0 ? '-' : ''}{formatCurrency(Math.abs(total))}</strong></div>
+          <div className="sm:col-span-2">
+            <span className="text-muted-foreground">Record Total:</span>{' '}
+            <strong className={cn('tabular-nums', total < 0 ? 'text-success' : '')}>
+              {total < 0 ? '-' : ''}{formatCurrency(Math.abs(total))}
+            </strong>
+          </div>
         )}
       </div>
 
       {record.type === 'daily_services' && (
         <div>
-          <p className="text-sm font-semibold mb-2">Services ({record.services?.length || 0})</p>
-          <div className="rounded-lg border overflow-hidden">
+          <p className="mb-2 text-sm font-semibold">Services ({record.services?.length || 0})</p>
+          <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-muted/50 border-b">
-                  <th className="px-3 py-2 text-left">Category</th>
-                  <th className="px-3 py-2 text-left">Service</th>
-                  <th className="px-3 py-2 text-center">Qty</th>
-                  {showMoney && <th className="px-3 py-2 text-right">Unit Price</th>}
-                  {showMoney && <th className="px-3 py-2 text-right">Total</th>}
-                  <th className="px-3 py-2 text-left">Notes</th>
+                <tr className="border-b bg-muted/50">
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Category</th>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Service</th>
+                  <th className="px-3 py-2 text-center font-medium text-muted-foreground">Qty</th>
+                  {showMoney && <th className="px-3 py-2 text-right font-medium text-muted-foreground">Unit Price</th>}
+                  {showMoney && <th className="px-3 py-2 text-right font-medium text-muted-foreground">Total</th>}
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Notes</th>
                 </tr>
               </thead>
               <tbody>
                 {record.services?.map((s) => (
-                  <tr key={s.id} className="border-b last:border-0">
+                  <tr key={s.id} className="border-b last:border-0 transition-colors duration-140 ease-out-soft hover:bg-muted/40">
                     <td className="px-3 py-2 text-muted-foreground">{s.category}</td>
                     <td className="px-3 py-2 font-medium">{s.serviceName}</td>
-                    <td className="px-3 py-2 text-center">{s.quantity}</td>
-                    {showMoney && <td className="px-3 py-2 text-right">{formatCurrency(s.unitPrice)}</td>}
-                    {showMoney && <td className="px-3 py-2 text-right font-semibold">{formatCurrency(s.total)}</td>}
+                    <td className="px-3 py-2 text-center tabular-nums">{s.quantity}</td>
+                    {showMoney && <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(s.unitPrice)}</td>}
+                    {showMoney && <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatCurrency(s.total)}</td>}
                     <td className="px-3 py-2 text-xs text-muted-foreground">{s.notes || '—'}</td>
                   </tr>
                 ))}
@@ -160,27 +220,29 @@ export function RecordDetailView({ record, showMoney = true }) {
         </div>
       )}
 
-      {record.type === 'pharmacy_return' && (
+      {isReturn && (
         <div>
-          <p className="text-sm font-semibold mb-2 text-orange-700">Returned Medicines ({record.returnItems?.length || 0})</p>
-          <div className="rounded-lg border border-orange-200 overflow-hidden">
+          <p className="mb-2 text-sm font-semibold text-warning">Returned Medicines ({record.returnItems?.length || 0})</p>
+          <div className="overflow-x-auto rounded-md border border-warning/30">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-orange-50 dark:bg-orange-950/30 border-b">
-                  <th className="px-3 py-2 text-left">Medicine</th>
-                  <th className="px-3 py-2 text-center">Qty Returned</th>
-                  {showMoney && <th className="px-3 py-2 text-right">Unit Price</th>}
-                  {showMoney && <th className="px-3 py-2 text-right">Credit</th>}
-                  <th className="px-3 py-2 text-left">Reason</th>
+                <tr className="border-b bg-warning/10">
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Medicine</th>
+                  <th className="px-3 py-2 text-center font-medium text-muted-foreground">Qty Returned</th>
+                  {showMoney && <th className="px-3 py-2 text-right font-medium text-muted-foreground">Unit Price</th>}
+                  {showMoney && <th className="px-3 py-2 text-right font-medium text-muted-foreground">Credit</th>}
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Reason</th>
                 </tr>
               </thead>
               <tbody>
                 {record.returnItems?.map((item) => (
-                  <tr key={item.id} className="border-b last:border-0">
+                  <tr key={item.id} className="border-b last:border-0 transition-colors duration-140 ease-out-soft hover:bg-muted/40">
                     <td className="px-3 py-2 font-medium">{item.serviceName}</td>
-                    <td className="px-3 py-2 text-center">{item.quantity}</td>
-                    {showMoney && <td className="px-3 py-2 text-right">{formatCurrency(item.unitPrice)}</td>}
-                    {showMoney && <td className="px-3 py-2 text-right text-emerald-600 font-semibold">-{formatCurrency(item.total)}</td>}
+                    <td className="px-3 py-2 text-center tabular-nums">{item.quantity}</td>
+                    {showMoney && <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(item.unitPrice)}</td>}
+                    {showMoney && (
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-success">-{formatCurrency(item.total)}</td>
+                    )}
                     <td className="px-3 py-2 text-muted-foreground">{item.reason || '—'}</td>
                   </tr>
                 ))}

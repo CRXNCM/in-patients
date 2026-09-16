@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { PageHeader, DataTable, StatusBadge } from '@/components/shared/CommonComponents'
 import { usePatients } from '@/context/PatientsContext'
 import { formatDate, formatDateTime } from '@/lib/utils'
+import { PatientLink } from '@/components/shared/PatientLink'
 
 export default function PendingDischarges() {
   const navigate = useNavigate()
@@ -11,8 +12,12 @@ export default function PendingDischarges() {
   const pending = patients.filter((p) => p.status === 'pending-discharge')
 
   const columns = [
-    { key: 'name', header: 'Patient', render: (row) => <span className="font-medium">{row.name}</span> },
-    { key: 'id', header: 'Patient ID', render: (row) => <span className="font-mono text-xs font-medium text-primary">{row.id}</span> },
+    { key: 'name', header: 'Patient', render: (row) => (
+      <PatientLink patientId={row.id} className="font-medium">{row.name}</PatientLink>
+    ) },
+    { key: 'id', header: 'Patient ID', render: (row) => (
+      <PatientLink patientId={row.id} className="font-mono text-xs font-medium">{row.id}</PatientLink>
+    ) },
     { key: 'room', header: 'Room' },
     { key: 'bed', header: 'Bed' },
     { key: 'admissionDate', header: 'Admission date', render: (row) => formatDate(row.admissionDate) },

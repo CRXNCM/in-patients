@@ -15,6 +15,7 @@ import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { formatCurrency } from '@/lib/utils'
 import { useManagerDashboard } from '@/hooks/useManagerDashboard'
+import { PatientLink } from '@/components/shared/PatientLink'
 
 const CHART_STROKE = 'hsl(var(--primary))'
 
@@ -43,6 +44,16 @@ function FinancePanel({ finance }) {
         <MetricTile label="Monthly deposits" value={formatCurrency(finance.deposits.month)} />
         <MetricTile label="Today’s charges" value={formatCurrency(finance.approvedCharges.today)} />
         <MetricTile label="Monthly charges" value={formatCurrency(finance.approvedCharges.month)} />
+        <MetricTile
+          label="Discharge amount"
+          value={formatCurrency(finance.dischargeAmount?.today || 0)}
+          subtitle="Today · billed at completion"
+        />
+        <MetricTile
+          label="Monthly discharge amount"
+          value={formatCurrency(finance.dischargeAmount?.month || 0)}
+          subtitle="This month · billed at completion"
+        />
       </div>
       {(finance.outstandingBalance !== undefined || finance.creditAdmissions !== undefined) && (
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
@@ -154,8 +165,12 @@ const watchColumns = [
     header: 'Patient',
     render: (row) => (
       <div className="min-w-[8rem]">
-        <p className="truncate font-medium" title={row.patientName}>{row.patientName}</p>
-        <p className="font-mono text-xs text-primary">{row.id}</p>
+        <p className="truncate font-medium" title={row.patientName}>
+          <PatientLink patientId={row.id}>{row.patientName}</PatientLink>
+        </p>
+        <p className="font-mono text-xs text-primary">
+          <PatientLink patientId={row.id}>{row.id}</PatientLink>
+        </p>
       </div>
     ),
   },
@@ -176,8 +191,12 @@ const admissionColumns = [
     header: 'Patient',
     render: (row) => (
       <div className="min-w-[8rem]">
-        <p className="truncate font-medium" title={row.patientName}>{row.patientName}</p>
-        <p className="font-mono text-xs text-primary">{row.id}</p>
+        <p className="truncate font-medium" title={row.patientName}>
+          <PatientLink patientId={row.id}>{row.patientName}</PatientLink>
+        </p>
+        <p className="font-mono text-xs text-primary">
+          <PatientLink patientId={row.id}>{row.id}</PatientLink>
+        </p>
       </div>
     ),
   },

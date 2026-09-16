@@ -77,6 +77,15 @@ export default {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      transitionTimingFunction: {
+        'out-soft': 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+      },
+      transitionDuration: {
+        140: '140ms',
+        180: '180ms',
+        220: '220ms',
+        240: '240ms',
+      },
     },
   },
   plugins: [tailwindcssAnimate],

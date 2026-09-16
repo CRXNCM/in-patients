@@ -36,11 +36,7 @@ export function allowedSearchScopes(role) {
 }
 
 export function resultRoute(accessRole, type, id) {
-  if (type === 'patient') {
-    if (accessRole === 'Reception') return `/reception/patient/${id}`
-    if (accessRole === 'Nurse') return `/nurse/patient/${id}`
-    return null
-  }
+  if (type === 'patient') return `/patients/${id}`
   if (accessRole !== 'Admin') return null
   if (type === 'doctor') return '/admin/doctors'
   if (type === 'room' || type === 'bed' || type === 'department' || type === 'ward') return '/admin/departments'

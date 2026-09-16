@@ -484,7 +484,7 @@ returns `400`. Omitted fields are left untouched.
 | `creditAdmissionsEnabled` | `POST /api/patients` rejects `admissionPaymentMode: 'credit'` when false |
 | `paymentMethods` | Admission deposits and `POST /api/patients/:id/deposits` reject a disabled method |
 | `referenceRequiredMethods` | Those methods require a unique `referenceNumber` on deposits |
-| `allowDischargeWithOutstandingBalance` | `POST /api/patients/:id/discharge/approve` returns `400` while approved charges exceed deposits |
+| `allowDischargeWithOutstandingBalance` | Extra gate for **credit** patients only. Non-credit patients are always blocked from `POST /api/patients/:id/discharge/approve` while approved charges exceed deposits. When this setting is `false`, credit patients with an outstanding balance are blocked too. |
 | `lowBalanceThreshold` | Existing low-balance logic; Manager keeps its wider 2× attention band on top |
 | `vatPercent`, receipt/invoice fields | Rendered invoice and deposit receipt |
 | `timezone`, `dateFormat`, `timeFormat`, `listPageSize` | Frontend timestamp rendering and default list page size. Calendar-day records stay server-local (`todayStr()`). |

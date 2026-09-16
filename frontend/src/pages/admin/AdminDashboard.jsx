@@ -16,6 +16,7 @@ import { useAuth } from '@/context/AuthContext'
 import { MetricTile } from '@/components/shared/MetricTile'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
+import { PatientLink } from '@/components/shared/PatientLink'
 
 const BED_SEGMENTS = [
   { key: 'occupied', label: 'Occupied', className: 'bg-primary' },
@@ -149,8 +150,12 @@ const admissionColumns = [
     header: 'Patient',
     render: (row) => (
       <div className="min-w-[10rem] max-w-xs">
-        <p className="font-medium truncate" title={row.name}>{row.name}</p>
-        <p className="font-mono text-xs font-medium text-primary">{row.patientId}</p>
+        <p className="font-medium truncate" title={row.name}>
+          <PatientLink patientId={row.patientId}>{row.name}</PatientLink>
+        </p>
+        <p className="font-mono text-xs font-medium text-primary">
+          <PatientLink patientId={row.patientId}>{row.patientId}</PatientLink>
+        </p>
       </div>
     ),
   },

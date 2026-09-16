@@ -40,6 +40,7 @@ import {
   buildRoomHistory,
   toFrontendRecord,
 } from '../utils/mappers.js'
+import { buildPatientProfile } from '../services/patientProfile.js'
 
 const router = Router()
 
@@ -418,6 +419,16 @@ router.post('/:id/transfer-room', authRequired, requirePermission('rooms.assign_
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to transfer room' })
+  }
+})
+
+router.get('/:id/profile', authRequired, requirePermission('patients.view'), async (req, res) => {
+  try {
+    res.json(await buildPatientProfile(req.auth, req.params.id))
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message })
+    console.error(err)
+    res.status(500).json({ error: 'Failed to load patient profile' })
   }
 })
 

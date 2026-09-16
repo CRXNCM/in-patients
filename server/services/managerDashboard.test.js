@@ -75,6 +75,8 @@ function makeDeps({
   topServices = [],
   topMedicines = [],
   chargesByPatient = [],
+  dischargeAmountToday = 0,
+  dischargeAmountMonth = 0,
   beds = [],
   settings,
   onRecordFind,
@@ -96,6 +98,15 @@ function makeDeps({
         return 0
       },
       find: () => queryResult(inpatients),
+      aggregate: async (pipeline) => {
+        const match = pipeline[0]?.$match || {}
+        if (match.status !== 'discharged') return []
+        const start = match.dischargeCompletedAt?.$gte
+        const end = match.dischargeCompletedAt?.$lt
+        const span = start instanceof Date && end instanceof Date ? end - start : 0
+        const total = span <= 36 * 60 * 60 * 1000 ? dischargeAmountToday : dischargeAmountMonth
+        return total ? [{ total }] : []
+      },
     },
     Bed: {
       aggregate: async () => beds,
@@ -396,10 +407,12 @@ describe('buildManagerDashboard', () => {
   it('returns finance without outstanding when credit.view is missing', async () => {
     const data = await buildManagerDashboard(
       { role: roleWith(['reports.view', 'payments.view']) },
-      makeDeps({ depositsToday: 10, chargesToday: 20 })
+      makeDeps({ depositsToday: 10, chargesToday: 20, dischargeAmountToday: 40, dischargeAmountMonth: 90 })
     )
     assert.equal(data.finance.deposits.today, 10)
     assert.equal(data.finance.approvedCharges.today, 20)
+    assert.equal(data.finance.dischargeAmount.today, 40)
+    assert.equal(data.finance.dischargeAmount.month, 90)
     assert.equal(data.finance.outstandingBalance, undefined)
     assert.equal(data.finance.creditAdmissions, undefined)
     assert.equal(data.watchlist, undefined)

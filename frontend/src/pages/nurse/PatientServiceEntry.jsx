@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, User, Phone, Calendar, Bed } from 'lucide-react'
+import { ArrowLeft, Phone, Calendar, Bed } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { PageHeader, StatusBadge } from '@/components/shared/CommonComponents'
@@ -14,6 +14,7 @@ import { isMaternityAdmission } from '@/lib/maternity'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { formatDate } from '@/lib/utils'
+import { MotionPage, MotionReveal } from '@/lib/motion'
 
 export default function PatientServiceEntry() {
   const { patientId } = useParams()
@@ -27,7 +28,7 @@ export default function PatientServiceEntry() {
   if (!patient) {
     return (
       <div className="text-center py-20">
-        <p className="text-muted-foreground mb-4">Patient not found</p>
+        <p className="mb-4 text-muted-foreground">Patient not found</p>
         <Button onClick={() => navigate('/nurse')}>Back to Dashboard</Button>
       </div>
     )
@@ -39,7 +40,7 @@ export default function PatientServiceEntry() {
   const babyRecords = records.filter((r) => r.subjectType === 'baby')
 
   return (
-    <div>
+    <MotionPage>
       <Button variant="ghost" onClick={() => navigate('/nurse')} className="mb-4">
         <ArrowLeft className="h-4 w-4 mr-2" /> Back to Dashboard
       </Button>
@@ -51,12 +52,18 @@ export default function PatientServiceEntry() {
       />
 
       <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" />{patient.name}</CardTitle>
-          <CardDescription className="flex items-center gap-2">ID: {patient.id} <StatusBadge status={patient.status} /> <CreditBadge patient={patient} /></CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+        <CardContent className="p-5 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Inpatient stay</p>
+              <p className="mt-1 font-mono text-xs font-medium text-primary">{patient.id}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <StatusBadge status={patient.status} />
+                <CreditBadge patient={patient} />
+              </div>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div><p className="text-xs text-muted-foreground">Age / Gender</p><p className="font-medium">{patient.age} years · {patient.gender}</p></div>
             <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> Phone</p><p className="font-medium">{patient.phone}</p></div>
             <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> Admitted</p><p className="font-medium">{formatDate(patient.admissionDate)}</p></div>
@@ -76,9 +83,9 @@ export default function PatientServiceEntry() {
       />
 
       {patient.status === 'pending-discharge' && (
-        <div className="rounded-xl border border-purple-200 bg-purple-50/70 dark:bg-purple-950/20 dark:border-purple-900 p-4 mb-6 text-sm">
+        <MotionReveal className="mb-6 rounded-lg border border-warning/40 bg-warning/5 p-4 text-sm shadow-sm">
           Discharge request is pending reception review. The patient still occupies {patient.room} / {patient.bed}.
-        </div>
+        </MotionReveal>
       )}
 
       {patient.status !== 'discharged' ? (
@@ -100,7 +107,8 @@ export default function PatientServiceEntry() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Record History — {patient.name}</CardTitle>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">History</p>
+          <CardTitle className="mt-1 text-lg">Record History — {patient.name}</CardTitle>
           <CardDescription>
             {maternity ? 'Mother and baby records stay on this same maternity admission.' : 'All submitted daily records and pharmacy returns'}
           </CardDescription>
@@ -122,6 +130,6 @@ export default function PatientServiceEntry() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </MotionPage>
   )
 }

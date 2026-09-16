@@ -3,7 +3,8 @@ import { Pagination, usePagedItems } from '@/components/shared/CommonComponents'
 import { ArrowRightLeft, Bed, History } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/ui/native-select'
+import { FormField } from '@/components/ui/form-field'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog'
@@ -14,11 +15,6 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { validateRoomTransfer, firstError, trimText } from '@/lib/validation'
 import { hospitalRooms } from '@/data/mockData'
 
-function FieldError({ message }) {
-  if (!message) return null
-  return <p className="text-xs text-destructive mt-1">{message}</p>
-}
-
 export function RoomHistoryTable({ assignments, rooms = hospitalRooms }) {
   const sorted = [...(assignments || [])].sort((a, b) => new Date(b.start_date) - new Date(a.start_date))
   const { page, setPage, pageCount, slice, total, pageSize } = usePagedItems(sorted)
@@ -28,7 +24,7 @@ export function RoomHistoryTable({ assignments, rooms = hospitalRooms }) {
   }
 
   return (
-    <div className="rounded-xl border overflow-hidden">
+    <div className="overflow-x-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/50">
@@ -46,17 +42,17 @@ export function RoomHistoryTable({ assignments, rooms = hospitalRooms }) {
             const bed = room?.beds.find((b) => b.id === a.bed_id)
             const isCurrent = a.end_date === null
             return (
-              <tr key={a.id} className="border-b">
+              <tr key={a.id} className="border-b transition-colors duration-140 ease-out-soft hover:bg-muted/40">
                 <td className="px-4 py-3">
                   <span className="font-medium">{room?.roomType || '—'}</span>
                   <span className="text-muted-foreground"> · {bed?.label || a.bed_id}</span>
                   {isCurrent && (
-                    <span className="ml-2 inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-xs font-medium">
+                    <span className="ml-2 inline-flex items-center rounded-full bg-success/15 px-2 py-0.5 text-xs font-medium text-success">
                       Current
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3">{formatCurrency(a.daily_rate)}</td>
+                <td className="px-4 py-3 tabular-nums">{formatCurrency(a.daily_rate)}</td>
                 <td className="px-4 py-3">{formatDate(a.start_date)}</td>
                 <td className="px-4 py-3">{a.end_date ? formatDate(a.end_date) : '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground">{a.transfer_reason || '—'}</td>
@@ -247,8 +243,7 @@ function TransferDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div>
-            <Label>Transfer Date *</Label>
+          <FormField label="Transfer Date" required error={errors.transferDate}>
             <Input
               type="date"
               min={patient?.admissionDate}
@@ -256,12 +251,9 @@ function TransferDialog({
               value={form.transferDate}
               onChange={(e) => update('transferDate', e.target.value)}
             />
-            <FieldError message={errors.transferDate} />
-          </div>
-          <div>
-            <Label>New Room Type *</Label>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          </FormField>
+          <FormField label="New Room Type" required error={errors.roomId}>
+            <NativeSelect
               value={form.roomId}
               onChange={(e) => {
                 setForm((p) => ({ ...p, roomId: e.target.value, bedId: '' }))
@@ -277,13 +269,10 @@ function TransferDialog({
                   </option>
                 )
               })}
-            </select>
-            <FieldError message={errors.roomId} />
-          </div>
-          <div>
-            <Label>Available Bed *</Label>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            </NativeSelect>
+          </FormField>
+          <FormField label="Available Bed" required error={errors.bedId}>
+            <NativeSelect
               value={form.bedId}
               onChange={(e) => update('bedId', e.target.value)}
               disabled={!form.roomId}
@@ -292,20 +281,17 @@ function TransferDialog({
               {availableBedsInRoom.map((bed) => (
                 <option key={bed.id} value={bed.id}>{bed.label}</option>
               ))}
-            </select>
-            <FieldError message={errors.bedId} />
-          </div>
-          <div>
-            <Label>Transfer Reason *</Label>
+            </NativeSelect>
+          </FormField>
+          <FormField label="Transfer Reason" required error={errors.transferReason}>
             <Input
               placeholder="Clinical need, upgrade, isolation..."
               value={form.transferReason}
               onChange={(e) => update('transferReason', e.target.value)}
             />
-            <FieldError message={errors.transferReason} />
-          </div>
+          </FormField>
           {availableCount === 0 && (
-            <p className="text-sm text-amber-600">No available beds in the hospital right now.</p>
+            <p className="text-sm text-warning">No available beds in the hospital right now.</p>
           )}
         </div>
         <DialogFooter>

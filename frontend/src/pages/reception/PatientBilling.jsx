@@ -6,7 +6,8 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/ui/native-select'
+import { FormField } from '@/components/ui/form-field'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -15,6 +16,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { LoadingState } from '@/components/shared/LoadingState'
+import { ErrorState } from '@/components/shared/ErrorState'
 import { StatCard, DataTable, StatusBadge, Pagination, usePagedItems } from '@/components/shared/CommonComponents'
 import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
 import { RecordTimeline } from '@/components/shared/RecordTimeline'
@@ -39,11 +42,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { useToast } from '@/context/ToastContext'
 import { cn } from '@/lib/utils'
 import { validateDeposit, firstError, trimText, NON_CASH_PAYMENT_METHODS } from '@/lib/validation'
-
-function FieldError({ message }) {
-  if (!message) return null
-  return <p className="text-xs text-destructive mt-1">{message}</p>
-}
+import { MotionPage, MotionReveal } from '@/lib/motion'
 
 function PagedDoctorVisitGrid({ dates, disabledMap, onToggle }) {
   const { page, setPage, pageCount, slice, total, pageSize } = usePagedItems(dates)
@@ -57,7 +56,7 @@ function PagedDoctorVisitGrid({ dates, disabledMap, onToggle }) {
               key={date}
               className={cn(
                 'flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
-                disabled ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20' : 'hover:bg-muted/50'
+                disabled ? 'border-warning/40 bg-warning/5' : 'hover:bg-muted/50'
               )}
             >
               <input
@@ -184,14 +183,14 @@ export default function PatientBilling() {
   const depositPaged = usePagedItems(deposits)
 
   if (loading) {
-    return <div className="text-center py-20 text-muted-foreground">Loading patient...</div>
+    return <LoadingState message="Loading patient…" />
   }
 
   if (!patient) {
     return (
-      <div className="text-center py-20">
-        <p className="text-muted-foreground mb-4">Patient not found</p>
-        <Button onClick={() => navigate('/reception')}>Back to Dashboard</Button>
+      <div className="py-20 text-center">
+        <ErrorState title="Patient not found" message="This stay could not be loaded." />
+        <Button className="mt-4" onClick={() => navigate('/reception')}>Back to Dashboard</Button>
       </div>
     )
   }
@@ -306,7 +305,7 @@ export default function PatientBilling() {
       key: 'total',
       header: 'Total',
       render: (row) => (
-        <span className={row.total < 0 ? 'text-emerald-600 font-semibold' : ''}>
+        <span className={row.total < 0 ? 'font-semibold tabular-nums text-success' : 'tabular-nums'}>
           {row.total < 0 ? '-' : ''}{formatCurrency(Math.abs(row.total))}
         </span>
       ),
@@ -325,7 +324,7 @@ export default function PatientBilling() {
 
   return (
     <>
-      <div className="no-print">
+      <MotionPage className="no-print">
         <Button variant="ghost" onClick={() => navigate('/reception')} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" /> Back to Dashboard
         </Button>
@@ -333,44 +332,44 @@ export default function PatientBilling() {
         <DischargeReviewPanel patient={patient} />
 
         {isLowBalance && !isDischarged && (
-          <div className="flex items-center gap-3 rounded-xl border-2 border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-800 p-4 mb-6">
-            <AlertTriangle className="h-6 w-6 text-red-600 shrink-0" />
+          <MotionReveal className="mb-6 flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4 shadow-sm">
+            <AlertTriangle className="h-6 w-6 shrink-0 text-destructive" />
             <div>
-              <p className="font-semibold text-red-700 dark:text-red-400">Critical Balance Warning</p>
-              <p className="text-sm text-red-600 dark:text-red-300">
+              <p className="font-semibold text-destructive">Critical Balance Warning</p>
+              <p className="text-sm text-muted-foreground">
                 Remaining balance is {formatCurrency(remainingBalance)} — below {formatCurrency(lowBalanceThreshold)} threshold.
                 {pendingCharges > 0 && ` (${formatCurrency(pendingCharges)} pending not yet applied.)`}
               </p>
             </div>
-          </div>
+          </MotionReveal>
         )}
 
         {pendingRecords.length > 0 && (
-          <div className="rounded-xl border-2 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-4 mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="h-5 w-5 text-amber-600" />
-              <h3 className="font-semibold text-amber-800 dark:text-amber-300">Pending Records ({pendingRecords.length})</h3>
+          <MotionReveal className="mb-6 rounded-lg border border-warning/40 bg-warning/5 p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
+              <Clock className="h-5 w-5 text-warning" />
+              <h3 className="font-semibold text-warning">Pending Records ({pendingRecords.length})</h3>
             </div>
             <div className="space-y-2">
               {pendingPaged.slice.map((record) => {
                 const total = computeRecordTotal(record)
                 const count = record.type === 'pharmacy_return' ? record.returnItems?.length : record.services?.length
                 return (
-                  <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
+                  <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3 shadow-sm transition-colors duration-140 ease-out-soft hover:bg-muted/30">
                     <div>
                       <p className="font-semibold text-sm">{record.recordName}</p>
                       <p className="text-xs text-muted-foreground">
                         {isMaternityAdmission(patient) ? `${subjectLabel(record.subjectType)} · ` : ''}
-                        {record.type === 'pharmacy_return' ? 'Pharmacy Return' : 'Daily Services'} · {count} item(s) · {formatCurrency(Math.abs(total))}
+                        {record.type === 'pharmacy_return' ? 'Pharmacy Return' : 'Daily Services'} · {count} item(s) · <span className="tabular-nums">{formatCurrency(Math.abs(total))}</span>
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button size="sm" variant="outline" onClick={() => setDetailRecord(record)}>Details</Button>
                       <StatusBadge status="pending" />
-                      <Button size="sm" variant="outline" className="text-emerald-600" onClick={() => handleApprove(record)}>
+                      <Button size="sm" variant="outline" className="text-success" onClick={() => handleApprove(record)}>
                         <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
                       </Button>
-                      <Button size="sm" variant="outline" className="text-red-600" onClick={() => setRejectRecordId(record.id)}>
+                      <Button size="sm" variant="outline" className="text-destructive" onClick={() => setRejectRecordId(record.id)}>
                         <XCircle className="h-4 w-4 mr-1" /> Reject
                       </Button>
                     </div>
@@ -385,14 +384,22 @@ export default function PatientBilling() {
               total={pendingPaged.total}
               pageSize={pendingPaged.pageSize}
             />
-          </div>
+          </MotionReveal>
         )}
 
         <Card className="mb-6">
           <CardHeader className="flex flex-row items-start justify-between gap-4">
             <div>
-              <CardTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" />{patient.name} <CreditBadge patient={patient} /></CardTitle>
-              <CardDescription>Patient ID: {patient.id}</CardDescription>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Inpatient stay</p>
+              <CardTitle className="mt-1 flex flex-wrap items-center gap-2 text-xl">
+                <User className="h-5 w-5 text-primary" />
+                {patient.name}
+                <CreditBadge patient={patient} />
+              </CardTitle>
+              <CardDescription className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="font-mono text-xs font-medium text-primary">{patient.id}</span>
+                <StatusBadge status={patient.status} />
+              </CardDescription>
             </div>
             {canTransfer && (
               <RoomTransferPanel
@@ -427,21 +434,21 @@ export default function PatientBilling() {
         />
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-          <StatCard title="Total Deposit" value={formatCurrency(patient.deposit)} icon={Wallet} iconClassName="bg-emerald-100 text-emerald-600" />
+          <StatCard title="Total Deposit" value={formatCurrency(patient.deposit)} icon={Wallet} iconClassName="bg-success/15 text-success" />
           <StatCard
             title="Approved Charges"
             value={formatCurrency(totalCharges)}
             subtitle={vatPercent > 0 ? `VAT ${vatPercent}% · ${formatCurrency(vatAmount)}` : undefined}
             icon={Receipt}
-            iconClassName="bg-blue-100 text-blue-600"
+            iconClassName="bg-primary/10 text-primary"
           />
           <StatCard
             title="Remaining Balance"
             value={formatCurrency(remainingBalance)}
             icon={Wallet}
-            iconClassName={remainingBalance >= 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}
+            iconClassName={remainingBalance >= 0 ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}
           />
-          <StatCard title="Pending Charges" value={formatCurrency(pendingCharges)} subtitle="Not yet on bill" icon={Clock} iconClassName="bg-amber-100 text-amber-600" />
+          <StatCard title="Pending Charges" value={formatCurrency(pendingCharges)} subtitle="Not yet on bill" icon={Clock} iconClassName="bg-warning/15 text-warning" />
         </div>
 
         <Card className="mb-8">
@@ -508,7 +515,8 @@ export default function PatientBilling() {
 
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Record History — {patient.name}</CardTitle>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">History</p>
+            <CardTitle className="mt-1 text-lg">Record History — {patient.name}</CardTitle>
             <CardDescription>
               {maternity
                 ? 'Mother and baby records stay on this same maternity admission.'
@@ -565,9 +573,9 @@ export default function PatientBilling() {
                   </thead>
                   <tbody>
                     {depositPaged.slice.map((d) => (
-                      <tr key={d.id} className="border-b">
+                      <tr key={d.id} className="border-b transition-colors duration-140 ease-out-soft hover:bg-muted/40">
                         <td className="px-4 py-3">{formatDate(d.date)}</td>
-                        <td className="px-4 py-3 font-semibold text-emerald-600">{formatCurrency(d.amount)}</td>
+                        <td className="px-4 py-3 font-semibold tabular-nums text-success">{formatCurrency(d.amount)}</td>
                         <td className="px-4 py-3">{d.method}</td>
                         <td className="px-4 py-3">{d.receivedBy}</td>
                         <td className="px-4 py-3 text-right">
@@ -651,24 +659,21 @@ export default function PatientBilling() {
             <DialogDescription>Record deposit for {patient.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div>
-              <Label>Amount ({hospitalConfig.currency || 'ETB'}) *</Label>
+            <FormField label={`Amount (${hospitalConfig.currency || 'ETB'})`} required error={depositErrors.amount}>
               <Input
                 type="number"
                 min="0.01"
                 step="0.01"
+                className="tabular-nums"
                 value={newDeposit.amount}
                 onChange={(e) => {
                   setNewDeposit((p) => ({ ...p, amount: e.target.value }))
                   setDepositErrors((er) => ({ ...er, amount: undefined }))
                 }}
               />
-              <FieldError message={depositErrors.amount} />
-            </div>
-            <div>
-              <Label>Payment Method *</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            </FormField>
+            <FormField label="Payment Method" required error={depositErrors.method}>
+              <NativeSelect
                 value={newDeposit.method}
                 onChange={(e) => {
                   setNewDeposit((p) => ({ ...p, method: e.target.value }))
@@ -676,12 +681,10 @@ export default function PatientBilling() {
                 }}
               >
                 {paymentMethods.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <FieldError message={depositErrors.method} />
-            </div>
+              </NativeSelect>
+            </FormField>
             {referenceRequiredMethods.includes(newDeposit.method) && (
-              <div>
-                <Label>Payment Reference *</Label>
+              <FormField label="Payment Reference" required error={depositErrors.referenceNumber}>
                 <Input
                   value={newDeposit.referenceNumber}
                   onChange={(e) => {
@@ -690,8 +693,7 @@ export default function PatientBilling() {
                   }}
                   placeholder="Transaction / reference number"
                 />
-                <FieldError message={depositErrors.referenceNumber} />
-              </div>
+              </FormField>
             )}
           </div>
           <DialogFooter>
@@ -728,14 +730,18 @@ export default function PatientBilling() {
             <AlertDialogTitle>Reject Record?</AlertDialogTitle>
             <AlertDialogDescription>This will be logged in the audit trail.</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="py-2"><Label>Reason</Label><Input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} /></div>
+          <div className="py-2">
+            <FormField label="Reason">
+              <Input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+            </FormField>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setRejectReason('')}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleReject} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Reject</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      </div>
+      </MotionPage>
 
       <PrintPortal className="print-invoice">
         <InvoicePreview

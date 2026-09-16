@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Stethoscope } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/ui/native-select'
+import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { todayStr } from '@/lib/validation'
@@ -12,6 +13,7 @@ import { useToast } from '@/context/ToastContext'
 export function AssignedDoctorsPanel({
   patient,
   canAdd = false,
+  hideMoney = false,
   onChanged,
 }) {
   const { toast } = useToast()
@@ -77,12 +79,15 @@ export function AssignedDoctorsPanel({
   return (
     <Card className="mb-8">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Stay operations</p>
+        <CardTitle className="mt-1 flex items-center gap-2 text-lg">
           <Stethoscope className="h-5 w-5 text-primary" />
           Assigned Doctors
         </CardTitle>
         <CardDescription>
-          Daily visit prices are stored when the doctor is assigned. Later catalog price changes do not rewrite past days.
+          {hideMoney
+            ? 'Visiting doctors assigned to this admission.'
+            : 'Daily visit prices are stored when the doctor is assigned. Later catalog price changes do not rewrite past days.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -91,11 +96,20 @@ export function AssignedDoctorsPanel({
         )}
         <div className="space-y-3">
           {assignments.map((assignment) => (
-            <div key={assignment.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3">
+            <div key={assignment.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-background/60 p-3 transition-colors duration-140 ease-out-soft hover:bg-muted/30">
               <div>
-                <p className="font-medium">{assignment.doctorName}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium">{assignment.doctorName}</p>
+                  {assignment.status === 'active' ? (
+                    <span className="text-xs font-medium text-success">Active</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Ended</span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">{assignment.specialty}</p>
-                <p className="text-sm">{formatCurrency(assignment.visitPrice)} / day</p>
+                {!hideMoney ? (
+                  <p className="text-sm tabular-nums">{formatCurrency(assignment.visitPrice)} / day</p>
+                ) : null}
                 <p className="text-xs text-muted-foreground">
                   Assigned {formatDate(assignment.effectiveFrom)}
                   {assignment.effectiveTo ? ` · Ended ${formatDate(assignment.effectiveTo)}` : ''}
@@ -112,24 +126,21 @@ export function AssignedDoctorsPanel({
         </div>
 
         {canAdd && patient.status !== 'discharged' && (
-          <div className="grid gap-3 sm:grid-cols-3 items-end">
-            <div className="sm:col-span-1">
-              <Label>Add doctor</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          <div className="grid items-end gap-3 sm:grid-cols-3">
+            <FormField label="Add doctor">
+              <NativeSelect
                 value={doctorId}
                 onChange={(e) => setDoctorId(e.target.value)}
               >
                 <option value="">Select an active doctor</option>
                 {addable.map((doctor) => (
                   <option key={doctor.id} value={doctor.id}>
-                    {doctor.name} — {doctor.specialty} — {formatCurrency(doctor.visitPrice)}/day
+                    {doctor.name} — {doctor.specialty}{hideMoney ? '' : ` — ${formatCurrency(doctor.visitPrice)}/day`}
                   </option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <Label>Effective date</Label>
+              </NativeSelect>
+            </FormField>
+            <FormField label="Effective date">
               <Input
                 type="date"
                 min={patient.admissionDate}
@@ -137,7 +148,7 @@ export function AssignedDoctorsPanel({
                 value={effectiveFrom}
                 onChange={(e) => setEffectiveFrom(e.target.value)}
               />
-            </div>
+            </FormField>
             <Button type="button" onClick={handleAdd} disabled={submitting || !doctorId}>
               {submitting ? 'Saving...' : 'Add doctor'}
             </Button>

@@ -2,17 +2,22 @@ import { useState } from 'react'
 import { Baby, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/ui/native-select'
+import { FormField } from '@/components/ui/form-field'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { StatusBadge } from '@/components/shared/CommonComponents'
 import { usePatients } from '@/context/PatientsContext'
+import { cn } from '@/lib/utils'
 import { useToast } from '@/context/ToastContext'
 import { isMaternityAdmission } from '@/lib/maternity'
+import { motion, useReducedMotion, fadeUp, revealTransition } from '@/lib/motion'
 
-function Field({ label, value }) {
+function Field({ label, value, mono }) {
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-medium">{value || '—'}</p>
+      <p className={cn('font-medium', mono && 'font-mono text-sm text-primary')}>{value || '—'}</p>
     </div>
   )
 }
@@ -20,6 +25,7 @@ function Field({ label, value }) {
 export function MaternityAdmissionPanel({ patient, canEdit = true }) {
   const { saveMaternityBaby } = usePatients()
   const { toast } = useToast()
+  const reducedMotion = useReducedMotion()
   const baby = patient?.baby
   const [open, setOpen] = useState(!baby)
   const [submitting, setSubmitting] = useState(false)
@@ -53,30 +59,34 @@ export function MaternityAdmissionPanel({ patient, canEdit = true }) {
   }
 
   return (
-    <Card className="mb-6 border-rose-200 dark:border-rose-900">
+    <Card className="mb-6">
       <CardHeader>
-        <CardTitle>Maternity Admission</CardTitle>
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Stay operations</p>
+        <CardTitle className="mt-1 text-lg">Maternity Admission</CardTitle>
         <CardDescription>
           One maternity case with two subjects. The mother is the primary patient; the newborn is recorded under this same admission.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
-            <p className="text-sm font-semibold flex items-center gap-2">
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+            <p className="flex items-center gap-2 text-sm font-semibold">
               <User className="h-4 w-4 text-primary" /> Mother
             </p>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <Field label="Name" value={patient.name} />
-              <Field label="Patient ID" value={patient.id} />
+              <Field label="Patient ID" value={patient.id} mono />
               <Field label="Room" value={patient.room} />
               <Field label="Bed" value={patient.bed} />
-              <Field label="Admission status" value={patient.status} />
+              <div>
+                <p className="text-xs text-muted-foreground">Admission status</p>
+                <div className="mt-1"><StatusBadge status={patient.status} /></div>
+              </div>
             </div>
           </div>
-          <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
-            <p className="text-sm font-semibold flex items-center gap-2">
-              <Baby className="h-4 w-4 text-rose-600" /> Baby
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Baby className="h-4 w-4 text-primary" /> Baby
             </p>
             {baby ? (
               <div className="grid grid-cols-2 gap-3 text-sm">
@@ -103,60 +113,50 @@ export function MaternityAdmissionPanel({ patient, canEdit = true }) {
                 {baby ? 'Update newborn details' : 'Add newborn details'}
               </Button>
             ) : (
-              <form onSubmit={handleSave} className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <Label>Baby name</Label>
+              <motion.form
+                onSubmit={handleSave}
+                className="grid gap-3 sm:grid-cols-2"
+                initial={reducedMotion ? false : fadeUp.initial}
+                animate={fadeUp.animate}
+                transition={revealTransition(reducedMotion)}
+              >
+                <FormField label="Baby name">
                   <Input value={form.name} onChange={(e) => set('name', e.target.value)} />
-                </div>
-                <div>
-                  <Label>Sex</Label>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={form.sex}
-                    onChange={(e) => set('sex', e.target.value)}
-                  >
+                </FormField>
+                <FormField label="Sex">
+                  <NativeSelect value={form.sex} onChange={(e) => set('sex', e.target.value)}>
                     <option value="">Not recorded</option>
                     <option>Female</option>
                     <option>Male</option>
                     <option>Undetermined</option>
-                  </select>
-                </div>
-                <div>
-                  <Label>Date of birth</Label>
+                  </NativeSelect>
+                </FormField>
+                <FormField label="Date of birth">
                   <Input type="date" value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
-                </div>
-                <div>
-                  <Label>Time of birth</Label>
+                </FormField>
+                <FormField label="Time of birth">
                   <Input type="time" value={form.timeOfBirth} onChange={(e) => set('timeOfBirth', e.target.value)} />
-                </div>
-                <div>
-                  <Label>Birth weight (grams)</Label>
-                  <Input type="number" min="0" value={form.birthWeightGrams} onChange={(e) => set('birthWeightGrams', e.target.value)} />
-                </div>
-                <div>
-                  <Label>Delivery type</Label>
+                </FormField>
+                <FormField label="Birth weight (grams)">
+                  <Input type="number" min="0" className="tabular-nums" value={form.birthWeightGrams} onChange={(e) => set('birthWeightGrams', e.target.value)} />
+                </FormField>
+                <FormField label="Delivery type">
                   <Input value={form.deliveryType} onChange={(e) => set('deliveryType', e.target.value)} placeholder="SVD, C-section..." />
-                </div>
-                <div>
-                  <Label>Baby status</Label>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={form.status}
-                    onChange={(e) => set('status', e.target.value)}
-                  >
+                </FormField>
+                <FormField label="Baby status">
+                  <NativeSelect value={form.status} onChange={(e) => set('status', e.target.value)}>
                     <option value="admitted">Admitted</option>
                     <option value="discharged">Discharged</option>
-                  </select>
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Notes</Label>
-                  <Input value={form.notes} onChange={(e) => set('notes', e.target.value)} />
-                </div>
-                <div className="sm:col-span-2 flex gap-2">
+                  </NativeSelect>
+                </FormField>
+                <FormField label="Notes" className="sm:col-span-2">
+                  <Textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+                </FormField>
+                <div className="flex gap-2 sm:col-span-2">
                   <Button type="submit" disabled={submitting}>{submitting ? 'Saving...' : 'Save newborn'}</Button>
                   <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
                 </div>
-              </form>
+              </motion.form>
             )}
           </div>
         )}

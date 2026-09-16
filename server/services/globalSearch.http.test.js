@@ -191,7 +191,7 @@ describe('GET /api/search HTTP', { skip: !hasDb }, () => {
     assert.equal(res.body.groups.doctors, undefined)
     assert.equal(res.body.groups.users, undefined)
     const patient = res.body.groups.patients.items.find((row) => row.id === `${PREFIX}PAT-ABEBE`)
-    assert.equal(patient.route, `/nurse/patient/${PREFIX}PAT-ABEBE`)
+    assert.equal(patient.route, `/patients/${PREFIX}PAT-ABEBE`)
     assert.equal(patient.depositTotal, undefined)
     assertNoSecrets(res.body)
   })

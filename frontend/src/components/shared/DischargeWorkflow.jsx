@@ -17,8 +17,11 @@ import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
 import { formatCurrency, formatDate, formatDateTime, stayDurationDays } from '@/lib/utils'
-import { validateDischargeRejectReason, validateDischargeRequest } from '@/lib/validation'
+import { dischargePendingRecordsError, dischargeOutstandingBalanceError, validateDischargeRejectReason, validateDischargeRequest } from '@/lib/validation'
+import { computeCreditState } from '@/lib/credit'
 import { useAuth } from '@/context/AuthContext'
+import { useBillingConfig } from '@/context/BillingConfigContext'
+import { MotionReveal } from '@/lib/motion'
 
 export function RequestDischargeButton({ patient }) {
   const { toast } = useToast()
@@ -70,7 +73,7 @@ export function RequestDischargeButton({ patient }) {
           <div className="grid gap-3 text-sm">
             <div className="grid grid-cols-2 gap-3">
               <div><p className="text-xs text-muted-foreground">Patient</p><p className="font-medium">{patient.name}</p></div>
-              <div><p className="text-xs text-muted-foreground">Patient ID</p><p className="font-mono font-medium">{patient.id}</p></div>
+              <div><p className="text-xs text-muted-foreground">Patient ID</p><p className="font-mono text-sm font-medium text-primary">{patient.id}</p></div>
               <div><p className="text-xs text-muted-foreground">Room</p><p className="font-medium">{patient.room}</p></div>
               <div><p className="text-xs text-muted-foreground">Bed</p><p className="font-medium">{patient.bed}</p></div>
               <div><p className="text-xs text-muted-foreground">Admission date</p><p className="font-medium">{formatDate(patient.admissionDate)}</p></div>
@@ -106,7 +109,9 @@ export function RequestDischargeButton({ patient }) {
 export function DischargeReviewPanel({ patient }) {
   const { toast } = useToast()
   const { approveDischarge, rejectDischarge, getRoomAssignments } = usePatients()
-  const { getPatientBalance } = useServiceEntries()
+  const { getPatientBalance, getPatientRecords } = useServiceEntries()
+  const { hasPermission } = useAuth()
+  const { settings } = useBillingConfig()
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
   const [reason, setReason] = useState('')
@@ -119,14 +124,27 @@ export function DischargeReviewPanel({ patient }) {
   const stayDays = stayDurationDays(patient.admissionDate, discharge.completedAt?.slice?.(0, 10))
   const assignments = getRoomAssignments(patient.id)
   const openAssignment = assignments.find((a) => !a.end_date)
-  const { hasPermission } = useAuth()
   const canDischarge = hasPermission('admissions.discharge')
   const isPending = patient.status === 'pending-discharge'
   const remaining = balance.remainingBalance
   const outstanding = remaining < 0 ? Math.abs(remaining) : 0
   const credit = remaining > 0 ? remaining : 0
+  const pendingRecordCount = getPatientRecords(patient.id).filter((r) => r.status === 'pending').length
+  const pendingBlock = dischargePendingRecordsError(pendingRecordCount)
+  const creditState = computeCreditState(patient)
+  const outstandingBlock = dischargeOutstandingBalanceError({
+    outstanding,
+    isCreditPatient: creditState.isCreditPatient,
+    allowCreditOutstanding: settings.allowDischargeWithOutstandingBalance !== false,
+  })
+  const dischargeBlock = pendingBlock || outstandingBlock
 
   const handleApprove = async () => {
+    if (dischargeBlock) {
+      toast({ title: 'Cannot complete discharge', description: dischargeBlock, variant: 'destructive' })
+      setConfirmApprove(false)
+      return
+    }
     setSubmitting(true)
     try {
       await approveDischarge(patient.id)
@@ -167,7 +185,8 @@ export function DischargeReviewPanel({ patient }) {
   }
 
   return (
-    <Card className="mb-6 border-purple-200 dark:border-purple-900">
+    <MotionReveal>
+    <Card className={isPending ? 'mb-6 border-warning/40 shadow-md' : 'mb-6'}>
       <CardHeader>
         <CardTitle>Discharge Request</CardTitle>
         <CardDescription>
@@ -181,7 +200,7 @@ export function DischargeReviewPanel({ patient }) {
           <h3 className="text-sm font-semibold mb-3">Patient information</h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
             <div><p className="text-xs text-muted-foreground">Patient</p><p className="font-medium">{patient.name}</p></div>
-            <div><p className="text-xs text-muted-foreground">Patient ID</p><p className="font-mono font-medium">{patient.id}</p></div>
+            <div><p className="text-xs text-muted-foreground">Patient ID</p><p className="font-mono font-medium text-primary">{patient.id}</p></div>
             <div><p className="text-xs text-muted-foreground">Room / Bed</p><p className="font-medium">{patient.room} · {patient.bed}</p></div>
             <div><p className="text-xs text-muted-foreground">Admission date</p><p className="font-medium">{formatDate(patient.admissionDate)}</p></div>
             <div><p className="text-xs text-muted-foreground">Stay duration</p><p className="font-medium">{stayDays} day{stayDays === 1 ? '' : 's'}</p></div>
@@ -213,23 +232,31 @@ export function DischargeReviewPanel({ patient }) {
         <div>
           <h3 className="text-sm font-semibold mb-3">Financial summary</h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-            <div><p className="text-xs text-muted-foreground">Total charges</p><p className="font-medium">{formatCurrency(balance.totalCharges)}</p></div>
-            <div><p className="text-xs text-muted-foreground">Deposits / payments</p><p className="font-medium">{formatCurrency(patient.deposit)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Total charges</p><p className="font-medium tabular-nums">{formatCurrency(balance.totalCharges)}</p></div>
+            <div><p className="text-xs text-muted-foreground">Deposits / payments</p><p className="font-medium tabular-nums">{formatCurrency(patient.deposit)}</p></div>
             <div>
               <p className="text-xs text-muted-foreground">Outstanding</p>
-              <p className="font-medium text-red-600">{formatCurrency(outstanding)}</p>
+              <p className="font-medium tabular-nums text-destructive">{formatCurrency(outstanding)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Refund / credit</p>
-              <p className="font-medium text-emerald-600">{formatCurrency(credit)}</p>
+              <p className="font-medium tabular-nums text-success">{formatCurrency(credit)}</p>
             </div>
           </div>
           <div className="mt-3">
             <CreditSummary patient={patient} />
           </div>
-          {balance.pendingCharges > 0 && (
-            <p className="text-xs text-amber-600 mt-2">
-              {formatCurrency(balance.pendingCharges)} in pending records (not on the bill).
+          {pendingRecordCount > 0 && (
+            <p className="mt-2 text-sm font-medium text-warning">
+              {pendingBlock} Pending amounts stay off the bill until they are approved.
+            </p>
+          )}
+          {outstandingBlock && (
+            <p className="mt-2 text-sm font-medium text-destructive">{outstandingBlock}</p>
+          )}
+          {!outstandingBlock && outstanding > 0 && creditState.isCreditPatient && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Credit patient: {formatCurrency(outstanding)} remains outstanding after discharge.
             </p>
           )}
         </div>
@@ -247,10 +274,14 @@ export function DischargeReviewPanel({ patient }) {
 
         {isPending && canDischarge && (
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className="text-red-600" onClick={() => setRejectOpen(true)}>
+            <Button variant="outline" className="text-destructive" onClick={() => setRejectOpen(true)}>
               <XCircle className="h-4 w-4 mr-2" /> Reject Discharge
             </Button>
-            <Button onClick={() => setConfirmApprove(true)}>
+            <Button
+              onClick={() => setConfirmApprove(true)}
+              disabled={Boolean(dischargeBlock)}
+              title={dischargeBlock || undefined}
+            >
               <CheckCircle2 className="h-4 w-4 mr-2" /> Approve & Complete Discharge
             </Button>
           </div>
@@ -301,5 +332,6 @@ export function DischargeReviewPanel({ patient }) {
         </DialogContent>
       </Dialog>
     </Card>
+    </MotionReveal>
   )
 }

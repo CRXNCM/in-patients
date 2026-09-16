@@ -45,3 +45,35 @@ export function localDayRange(dateStr = todayStr()) {
     end: new Date(y, m - 1, d + 1, 0, 0, 0, 0),
   }
 }
+
+/** Monday–Sunday week containing `dateStr`. */
+export function mondayWeekRange(dateStr) {
+  const [y, m, d] = String(dateStr).split('-').map(Number)
+  if (!y || !m || !d) return null
+  const weekday = new Date(y, m - 1, d).getDay()
+  const offset = weekday === 0 ? -6 : 1 - weekday
+  const startDate = shiftDate(dateStr, offset)
+  const endDate = shiftDate(startDate, 6)
+  if (!startDate || !endDate) return null
+  return { startDate, endDate }
+}
+
+/** Local calendar month containing `dateStr`. `start`/`end` are [start, end) Date bounds. */
+export function localMonthRange(dateStr) {
+  const [y, m] = String(dateStr).split('-').map(Number)
+  if (!y || !m) return null
+  const lastDay = new Date(y, m, 0).getDate()
+  const startDate = `${y}-${String(m).padStart(2, '0')}-01`
+  const endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  return {
+    startDate,
+    endDate,
+    start: new Date(y, m - 1, 1, 0, 0, 0, 0),
+    end: new Date(y, m, 1, 0, 0, 0, 0),
+  }
+}
+
+export function clampToToday(dateStr, today = todayStr()) {
+  if (!dateStr) return today
+  return dateStr > today ? today : dateStr
+}

@@ -38,7 +38,7 @@ function useDismissable(open, onClose) {
 function PageContext({ role }) {
   const { pathname } = useLocation()
   const { getPatient } = usePatients()
-  const stayId = pathname.match(/\/patient\/([^/]+)$/)?.[1]
+  const stayId = pathname.match(/\/patients\/([^/]+)$/)?.[1] || pathname.match(/\/patient\/([^/]+)$/)?.[1]
   const entityLabel = stayId ? getPatient(stayId)?.name : undefined
   const { crumbs } = getPageContext(pathname, role, { entityLabel })
 
@@ -82,6 +82,7 @@ function flattenSearchItems(groups = {}) {
 
 function GlobalSearch() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [value, setValue] = useState('')
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -137,7 +138,7 @@ function GlobalSearch() {
     if (!row?.route) return
     setOpen(false)
     setValue('')
-    navigate(row.route)
+    navigate(row.route, row.route.startsWith('/patients/') ? { state: { from: `${location.pathname}${location.search}` } } : undefined)
   }
 
   const onKeyDown = (event) => {

@@ -64,11 +64,11 @@ describe('allowedSearchScopes', () => {
 })
 
 describe('resultRoute', () => {
-  it('uses existing stay routes for Reception and Nurse only', () => {
-    assert.equal(resultRoute('Reception', 'patient', 'PAT-1'), '/reception/patient/PAT-1')
-    assert.equal(resultRoute('Nurse', 'patient', 'PAT-1'), '/nurse/patient/PAT-1')
-    assert.equal(resultRoute('Admin', 'patient', 'PAT-1'), null)
-    assert.equal(resultRoute('Manager', 'patient', 'PAT-1'), null)
+  it('uses the shared patient profile route for every access role', () => {
+    assert.equal(resultRoute('Reception', 'patient', 'PAT-1'), '/patients/PAT-1')
+    assert.equal(resultRoute('Nurse', 'patient', 'PAT-1'), '/patients/PAT-1')
+    assert.equal(resultRoute('Admin', 'patient', 'PAT-1'), '/patients/PAT-1')
+    assert.equal(resultRoute('Manager', 'patient', 'PAT-1'), '/patients/PAT-1')
   })
 
   it('uses existing admin catalog routes only for Admin accessRole', () => {

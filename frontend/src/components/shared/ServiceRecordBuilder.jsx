@@ -3,6 +3,8 @@ import { Plus, Trash2, CheckCircle2, RotateCcw, Info, Bed, Stethoscope } from 'l
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/ui/native-select'
+import { FormField } from '@/components/ui/form-field'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useBillingConfig } from '@/context/BillingConfigContext'
@@ -20,6 +22,8 @@ import {
   trimText,
 } from '@/lib/validation'
 import { isMaternityAdmission } from '@/lib/maternity'
+import { AnimatePresence, motion, useReducedMotion, fadeUp, revealTransition } from '@/lib/motion'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 export function ServiceRecordBuilder({
   patientId,
@@ -59,6 +63,7 @@ export function ServiceRecordBuilder({
   const [submitting, setSubmitting] = useState(false)
   const maternity = isMaternityAdmission(patient)
   const [subjectType, setSubjectType] = useState('mother')
+  const reducedMotion = useReducedMotion()
 
   const today = new Date().toISOString().split('T')[0]
   const pendingDaily = getPendingEditableRecord(patientId, 'daily_services', today, maternity ? subjectType : 'mother')
@@ -192,8 +197,8 @@ export function ServiceRecordBuilder({
             <div
               key={svc.name}
               className={cn(
-                'flex items-center gap-3 rounded-lg border p-3 transition-colors',
-                checked ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                'flex items-center gap-3 rounded-lg border bg-card p-3 transition-[border-color,background-color,box-shadow] duration-140 ease-out-soft',
+                checked ? 'border-primary bg-primary/5 shadow-sm' : 'hover:border-primary/25 hover:bg-muted/40 hover:shadow-sm'
               )}
             >
               <input
@@ -204,17 +209,18 @@ export function ServiceRecordBuilder({
               />
               <span className="flex-1 text-sm font-medium min-w-0">{svc.name}</span>
               {!hideMoney && (
-                <span className="text-xs text-muted-foreground shrink-0">{formatCurrency(svc.price)}</span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatCurrency(svc.price)}</span>
               )}
               <div className="flex items-center gap-1 shrink-0">
                 <Label className="text-xs text-muted-foreground sr-only">Qty</Label>
                 <Input
                   type="number"
                   min="1"
-                  className="h-8 w-16 text-center"
+                  className="h-8 w-16 text-center tabular-nums"
                   value={checked ? checkedItems[svc.name] : 1}
                   disabled={!checked}
                   onChange={(e) => setItemQuantity(svc.name, e.target.value)}
+                  aria-label={`${svc.name} quantity`}
                 />
               </div>
             </div>
@@ -388,7 +394,7 @@ export function ServiceRecordBuilder({
             </div>
           </div>
           {isRoom && !hideMoney && (
-            <div className="rounded-xl border p-4 text-left">
+            <div className="border-t pt-4 text-left">
               <RoomTransferPanel patientId={patientId} assignedBy={recordedBy} />
             </div>
           )}
@@ -407,25 +413,27 @@ export function ServiceRecordBuilder({
   }
 
   return (
-    <Card>
+    <TooltipProvider delayDuration={400}>
+    <Card className="shadow-md">
       <CardHeader>
-        <CardTitle>Charge Entry — {patientName}</CardTitle>
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Record builder</p>
+        <CardTitle className="mt-1 text-lg">Charge Entry — {patientName}</CardTitle>
         <CardDescription>
           {hideMoney
             ? 'Entry form changes by category type. Click Done when the day\'s record is complete.'
             : 'Quantity, selection, or automatic billing depending on category.'}
           {editingRecordId && mode === 'services' && (
-            <span className="block text-amber-600 mt-1">Editing pending record — reception has not approved yet</span>
+            <span className="mt-1 block text-warning">Editing pending record — reception has not approved yet</span>
           )}
           {editingReturnId && mode === 'returns' && (
-            <span className="block text-amber-600 mt-1">Editing pending return — reception has not approved yet</span>
+            <span className="mt-1 block text-warning">Editing pending return — reception has not approved yet</span>
           )}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {maternity && (
-          <div className="mb-4 rounded-xl border p-4">
-            <p className="text-sm font-medium mb-2">Subject</p>
+          <div className="mb-5 rounded-lg border p-4">
+            <p className="mb-2 text-sm font-semibold">Record subject</p>
             <div className="flex flex-wrap gap-4 text-sm">
               <label className="flex items-center gap-2">
                 <input
@@ -465,8 +473,9 @@ export function ServiceRecordBuilder({
 
         {mode === 'services' ? (
           <>
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Service category</p>
             <Tabs value={activeCategory} onValueChange={setActiveCategory}>
-              <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 mb-4">
+              <TabsList className="mb-4 flex h-auto flex-wrap gap-1 bg-muted/50 p-1">
                 {categories.map((cat) => (
                   <TabsTrigger key={cat.id} value={cat.name} className="text-xs">
                     {cat.name}
@@ -480,33 +489,43 @@ export function ServiceRecordBuilder({
               ))}
             </Tabs>
 
+            <AnimatePresence initial={false}>
             {cart.length > 0 && (
-              <div className="mt-6 rounded-xl border overflow-hidden">
-                <div className="bg-muted/50 px-4 py-2 font-semibold text-sm">Current Record ({cart.length} items)</div>
-                <table className="w-full text-sm">
+              <motion.div
+                key="service-cart"
+                className="mt-6 overflow-hidden rounded-lg border"
+                initial={reducedMotion ? false : fadeUp.initial}
+                animate={fadeUp.animate}
+                exit={fadeUp.exit}
+                transition={revealTransition(reducedMotion)}
+              >
+                <div className="border-b bg-muted/50 px-4 py-2 text-sm font-semibold">Current record ({cart.length} items)</div>
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[36rem] text-sm">
                   <thead>
                     <tr className="border-b">
-                      <th className="px-4 py-2 text-left">Category</th>
-                      <th className="px-4 py-2 text-left">Service</th>
-                      <th className="px-4 py-2 text-left w-24">Qty</th>
-                      <th className="px-4 py-2 text-left">Notes</th>
-                      {!hideMoney && <th className="px-4 py-2 text-right">Total</th>}
-                      <th className="px-4 py-2"></th>
+                      <th className="px-4 py-2 text-left font-medium text-muted-foreground">Category</th>
+                      <th className="px-4 py-2 text-left font-medium text-muted-foreground">Service</th>
+                      <th className="w-24 px-4 py-2 text-left font-medium text-muted-foreground">Qty</th>
+                      <th className="px-4 py-2 text-left font-medium text-muted-foreground">Notes</th>
+                      {!hideMoney && <th className="px-4 py-2 text-right font-medium text-muted-foreground">Total</th>}
+                      <th className="px-4 py-2"><span className="sr-only">Remove</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     {cart.map((item, idx) => (
-                      <tr key={item.id} className="border-b">
+                      <tr key={item.id} className="border-b last:border-0 transition-colors duration-140 ease-out-soft hover:bg-muted/40">
                         <td className="px-4 py-2 text-muted-foreground">{item.category}</td>
                         <td className="px-4 py-2 font-medium">{item.serviceName}</td>
                         <td className="px-4 py-2">
                           <Input
                             type="number"
                             min="1"
-                            className="h-8 w-20"
+                            className="h-8 w-20 tabular-nums"
                             value={item.quantity}
                             disabled={submitting}
                             onChange={(e) => updateCartLine(idx, { quantity: e.target.value })}
+                            aria-label={`${item.serviceName} quantity`}
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -516,32 +535,45 @@ export function ServiceRecordBuilder({
                             value={item.notes || ''}
                             disabled={submitting}
                             onChange={(e) => updateCartLine(idx, { notes: e.target.value })}
+                            aria-label={`${item.serviceName} notes`}
                           />
                         </td>
-                        {!hideMoney && <td className="px-4 py-2 text-right">{formatCurrency(item.total)}</td>}
+                        {!hideMoney && <td className="px-4 py-2 text-right tabular-nums">{formatCurrency(item.total)}</td>}
                         <td className="px-4 py-2">
-                          <Button variant="ghost" size="icon" disabled={submitting} onClick={() => setCart((p) => p.filter((_, i) => i !== idx))}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={submitting}
+                                onClick={() => setCart((p) => p.filter((_, i) => i !== idx))}
+                                aria-label={`Remove ${item.serviceName}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Remove from record</TooltipContent>
+                          </Tooltip>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
             {activeCat?.billingType !== BILLING_TYPES.AUTOMATIC_DAILY && (
-              <div className="flex flex-wrap gap-2 mt-6 items-end">
-                <div className="flex-1 min-w-[180px]">
-                  <Label className="text-xs">Paper Slip # (optional)</Label>
+              <div className="mt-6 flex flex-wrap items-end gap-2">
+                <FormField label="Paper Slip # (optional)" className="min-w-[180px] flex-1">
                   <Input
                     placeholder="e.g. 12345"
                     value={paperSlipRef}
                     onChange={(e) => setPaperSlipRef(e.target.value)}
                     disabled={submitting}
                   />
-                </div>
+                </FormField>
                 {pendingDaily && !editingRecordId && (
                   <Button variant="outline" onClick={startEditingPendingDaily} disabled={submitting}>
                     Edit Pending Record
@@ -555,14 +587,12 @@ export function ServiceRecordBuilder({
           </>
         ) : (
           <>
-            <p className="text-sm text-muted-foreground mb-4">
+            <p className="mb-4 text-sm text-muted-foreground">
               Record medicines returned to pharmacy. Reception will cross-check before removing from the patient record.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end mb-4">
-              <div className="lg:col-span-2">
-                <Label>Medicine</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            <div className="mb-4 grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <FormField label="Medicine" className="lg:col-span-2">
+                <NativeSelect
                   value={returnForm.serviceName}
                   onChange={(e) => setReturnForm((p) => ({ ...p, serviceName: e.target.value }))}
                 >
@@ -570,45 +600,65 @@ export function ServiceRecordBuilder({
                   {pharmacyCategory?.services.map((s) => (
                     <option key={s.name} value={s.name}>{s.name}</option>
                   ))}
-                </select>
-              </div>
-              <div>
-                <Label>Quantity Returned</Label>
-                <Input type="number" min="1" value={returnForm.quantity} onChange={(e) => setReturnForm((p) => ({ ...p, quantity: e.target.value }))} />
-              </div>
-              <div>
-                <Button type="button" onClick={addToReturnCart} className="w-full"><Plus className="h-4 w-4 mr-1" /> Add</Button>
-              </div>
+                </NativeSelect>
+              </FormField>
+              <FormField label="Quantity Returned">
+                <Input
+                  type="number"
+                  min="1"
+                  className="tabular-nums"
+                  value={returnForm.quantity}
+                  onChange={(e) => setReturnForm((p) => ({ ...p, quantity: e.target.value }))}
+                />
+              </FormField>
+              <Button type="button" onClick={addToReturnCart} className="w-full">
+                <Plus className="h-4 w-4 mr-1" /> Add
+              </Button>
             </div>
-            <div className="mb-4">
-              <Label>Return Reason</Label>
-              <Input placeholder="Unused, expired, wrong order..." value={returnForm.reason} onChange={(e) => setReturnForm((p) => ({ ...p, reason: e.target.value }))} />
-            </div>
+            <FormField label="Return Reason" className="mb-4">
+              <Input
+                placeholder="Unused, expired, wrong order..."
+                value={returnForm.reason}
+                onChange={(e) => setReturnForm((p) => ({ ...p, reason: e.target.value }))}
+              />
+            </FormField>
+            <AnimatePresence initial={false}>
             {returnCart.length > 0 && (
-              <div className="rounded-xl border overflow-hidden mb-4">
-                <div className="bg-red-50 dark:bg-red-950/30 px-4 py-2 font-semibold text-sm text-red-700">Return Items ({returnCart.length})</div>
-                <table className="w-full text-sm">
+              <motion.div
+                key="return-cart"
+                className="mb-4 overflow-hidden rounded-lg border border-warning/30"
+                initial={reducedMotion ? false : fadeUp.initial}
+                animate={fadeUp.animate}
+                exit={fadeUp.exit}
+                transition={revealTransition(reducedMotion)}
+              >
+                <div className="border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm font-semibold text-warning">
+                  Return items ({returnCart.length})
+                </div>
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[32rem] text-sm">
                   <thead>
                     <tr className="border-b">
-                      <th className="px-4 py-2 text-left">Medicine</th>
-                      <th className="px-4 py-2 text-left">Qty</th>
-                      <th className="px-4 py-2 text-left">Reason</th>
-                      {!hideMoney && <th className="px-4 py-2 text-right">Credit</th>}
-                      <th></th>
+                      <th className="px-4 py-2 text-left font-medium text-muted-foreground">Medicine</th>
+                      <th className="px-4 py-2 text-left font-medium text-muted-foreground">Qty</th>
+                      <th className="px-4 py-2 text-left font-medium text-muted-foreground">Reason</th>
+                      {!hideMoney && <th className="px-4 py-2 text-right font-medium text-muted-foreground">Credit</th>}
+                      <th><span className="sr-only">Remove</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     {returnCart.map((item, idx) => (
-                      <tr key={item.id} className="border-b">
+                      <tr key={item.id} className="border-b last:border-0 transition-colors duration-140 ease-out-soft hover:bg-muted/40">
                         <td className="px-4 py-2 font-medium">{item.serviceName}</td>
                         <td className="px-4 py-2">
                           <Input
                             type="number"
                             min="1"
-                            className="h-8 w-20"
+                            className="h-8 w-20 tabular-nums"
                             value={item.quantity}
                             disabled={submitting}
                             onChange={(e) => updateReturnLine(idx, { quantity: e.target.value })}
+                            aria-label={`${item.serviceName} return quantity`}
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -618,20 +668,36 @@ export function ServiceRecordBuilder({
                             value={item.reason || ''}
                             disabled={submitting}
                             onChange={(e) => updateReturnLine(idx, { reason: e.target.value })}
+                            aria-label={`${item.serviceName} return reason`}
                           />
                         </td>
-                        {!hideMoney && <td className="px-4 py-2 text-right text-emerald-600">-{formatCurrency(item.total)}</td>}
+                        {!hideMoney && (
+                          <td className="px-4 py-2 text-right tabular-nums text-success">-{formatCurrency(item.total)}</td>
+                        )}
                         <td className="px-4 py-2">
-                          <Button variant="ghost" size="icon" disabled={submitting} onClick={() => setReturnCart((p) => p.filter((_, i) => i !== idx))}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={submitting}
+                                onClick={() => setReturnCart((p) => p.filter((_, i) => i !== idx))}
+                                aria-label={`Remove ${item.serviceName}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Remove from return</TooltipContent>
+                          </Tooltip>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </motion.div>
             )}
+            </AnimatePresence>
             <div className="flex flex-wrap items-center gap-2">
               <Button size="lg" variant="destructive" onClick={handleDoneReturn} disabled={submitting || returnCart.length === 0}>
                 <CheckCircle2 className="h-4 w-4 mr-2" /> {submitting ? 'Submitting...' : 'Done — Submit Return'}
@@ -646,5 +712,6 @@ export function ServiceRecordBuilder({
         )}
       </CardContent>
     </Card>
+    </TooltipProvider>
   )
 }

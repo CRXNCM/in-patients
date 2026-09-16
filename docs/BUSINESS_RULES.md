@@ -2,7 +2,24 @@
 
 Related documents: [DATABASE.md](./DATABASE.md) · [API_REFERENCE.md](./API_REFERENCE.md) · [AUTHENTICATION.md](./AUTHENTICATION.md)
 
-Rules below are taken from **implemented** validation and handlers. If a rule exists only in the README or comments and not in code, it is omitted or marked as not implemented.
+**BR-001 through BR-010 are authoritative product rules.** Frontend hiding, disabling, or blocking is UX only. If a user can bypass a rule by calling the API, the rule is not implemented.
+
+| ID | Rule |
+|----|------|
+| BR-001 | Backend is the source of truth for permissions, patient/admission status, discharge, billing, service records, payments, and bed assignment. |
+| BR-002 | Discharge is blocked while any service record or pharmacy-return record is still `pending`. Records must be `approved` or `rejected` first. |
+| BR-003 | If `isCreditPatient === false`, discharge is blocked while outstanding balance (`max(0, approved charges − deposits)`) is greater than 0. A deposit alone is not enough. |
+| BR-004 | If `isCreditPatient === true`, an outstanding balance does not by itself block discharge. Credit does not bypass pending-record or other discharge gates. The remaining balance stays on the stay snapshot. |
+| BR-005 | After discharge, the backend rejects new inpatient records, pharmacy records/returns, bed assignment, and room transfer for that stay. History is kept. |
+| BR-006 | Only `approved` records affect balance, invoices, approved charges, dashboards, and discharge calculations. Pending is displayed separately. Rejected is not billable. |
+| BR-007 | Approved records are financially locked (no edit, price change, delete, or status change for normal users). |
+| BR-008 | Editing a pending record PATCHes the same `_id`. Do not create a duplicate financial record. |
+| BR-009 | Authorization is enforced from the authenticated user. Do not trust `req.body` fields such as `source`, `status`, `approved`, or `role`. |
+| BR-010 | Critical patient and financial actions must be auditable (`action`, `user`, `timestamp`) using existing audit trails. |
+
+`isCreditPatient` is computed with `computeCreditState`: credit admission **and** `depositTotal < requiredInitialDeposit`. Outstanding for discharge is recomputed from approved records and deposits at completion, not from frontend state.
+
+The numbered catalog below is the implemented detail of these rules. If a rule exists only in comments and not in code, it is omitted or marked as not implemented.
 
 ---
 
@@ -48,7 +65,7 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 26. Discharge workflow (canonical `status`):
     - Nurse (`requireRole('Nurse')`) may request discharge only when `status === 'admitted'`. Result: `pending-discharge`. The bed stays occupied and the open assignment stays open. Recurring charges continue.
     - Reception or Admin may reject (`reason` required) → `admitted`. Occupancy unchanged.
-    - Reception or Admin may approve → `discharged`. Open assignment `endDate` is set to the discharge date; bed becomes `available`; auto charges are generated through that date then skipped because status is `discharged`.
+    - Reception or Admin may approve → `discharged` only when the stay has **no pending records** and the discharge-balance gate passes. Auto charges are generated through the discharge date first, then outstanding `max(0, approved charges − deposits)` is checked. Non-credit patients (`isCreditPatient === false`) are always rejected (`400`) while outstanding &gt; 0. Credit patients may proceed with outstanding unless settings `allowDischargeWithOutstandingBalance` is `false`. Open assignment `endDate` is set to the discharge date; bed becomes `available`. Approve is rejected (`400`) while any `ServiceRecord` for the patient is still `pending` (includes pharmacy returns). Reject-discharge is still allowed. The stay snapshot stores `dischargeFinalCharges`, `dischargeFinalDeposits`, and `dischargeFinalBalance`.
     - Duplicate request / approve is rejected (`400` / `409`).
     - `pendingDischarge` is kept in sync with `status === 'pending-discharge'` for older UI.
 
@@ -111,7 +128,7 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 51. Room display names are mapped in `BED_TYPES` (General Ward, Private Room, ICU, Operation).
 52. For each date, unless the date is in `disabledDoctorVisitDates`, an approved `autoType: 'doctor'` record is upserted **only if** at least one doctor assignment covers that date (`effectiveFrom &lt;= date` and `effectiveTo` is null or `&gt; date`). Each assigned doctor becomes a service line with the **assignment** price snapshot. Existing lines for a doctor/date are never repriced. Hospital settings `dailyDoctorVisitFee` is no longer the source of truth for new visits.
 53. Disabling a doctor visit **deletes** that day’s doctor auto-record. Re-enabling regenerates from current assignments (new lines use assignment snapshots; prior deleted lines are gone).
-54. Discharged patients are skipped by `ensureAutomaticDailyCharges` (status check). Completing discharge generates charges through the discharge date first, ends active doctor assignments, then sets `discharged`. Outstanding deposit/credit is **not** auto-cleared.
+54. Discharged patients are skipped by `ensureAutomaticDailyCharges` (status check). Completing discharge generates charges through the discharge date first, applies the outstanding/credit gate, ends active doctor assignments, then sets `discharged`. Outstanding credit is **not** auto-cleared; it remains on the discharge snapshot.
 55. Room and doctor auto charges never start before `admissionDate` and never after today (local calendar date). Admit may create the stay range once (`admissionDate` through today). Opening a patient, adding a doctor, transferring, or `POST /api/charges/daily` creates **today only** — it does not backfill older demo or historical days. Upsert + unique `(patientId, date, autoType)` prevent duplicates. Seed no longer inserts sample patients, doctors, or charges.
 55a. A patient admitted with no doctors receives room charges only. Adding a doctor later charges from the effective date forward.
 
@@ -154,5 +171,5 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 - A room type cannot exceed a separate capacity field (capacity is just bed documents).
 - Payments cannot exceed outstanding balance.
 - VAT is added to the legal bill total used for balance.
-- Discharge requires zero balance (outstanding and overpayment are allowed; a snapshot is stored).
+- There is no refund document when deposits exceed approved charges (overpayment is snapshotted only).
 - One pending daily record per patient per day (API allows many).

@@ -2,7 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { todayStr } from './dates.js'
+import { todayStr, mondayWeekRange, localMonthRange, clampToToday } from './dates.js'
 import { resolveAdmissionDate, isValidDateString } from './validation.js'
 
 const serverDir = path.join(import.meta.dirname, '..')
@@ -44,5 +44,17 @@ describe('business day stamping', () => {
         `${file} must stamp business days with todayStr(), not a UTC slice`
       )
     }
+  })
+})
+
+describe('local reporting windows', () => {
+  it('builds a Monday–Sunday week', () => {
+    const week = mondayWeekRange('2026-09-16')
+    assert.equal(week.startDate, '2026-09-14')
+    assert.equal(week.endDate, '2026-09-20')
+    const month = localMonthRange('2026-09-16')
+    assert.equal(month.startDate, '2026-09-01')
+    assert.equal(month.endDate, '2026-09-30')
+    assert.equal(clampToToday('2026-09-20', '2026-09-16'), '2026-09-16')
   })
 })

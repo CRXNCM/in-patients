@@ -2,17 +2,21 @@ import mongoose from 'mongoose'
 import { Patient } from '../models/Patient.js'
 import { Bed } from '../models/Bed.js'
 import { RoomAssignment } from '../models/RoomAssignment.js'
+import { ServiceRecord } from '../models/ServiceRecord.js'
 import { ensureAutomaticDailyCharges, calcPatientBalance } from './autoCharges.js'
 import { endActiveAssignments } from './doctorAssignments.js'
 import {
   dischargeRequestStatusError,
   dischargeApproveStatusError,
+  dischargePendingRecordsError,
+  dischargeOutstandingBalanceError,
   dischargeRejectStatusError,
   validateDischargeRejectBody,
 } from '../utils/validation.js'
 import { todayStr } from '../utils/dates.js'
 import { HospitalSettings } from '../models/HospitalSettings.js'
 import { loadResolvedSettings } from '../utils/settings.js'
+import { computeCreditState } from '../utils/credit.js'
 
 function event(action, by, note = '') {
   return { action, by, at: new Date().toISOString(), note }
@@ -164,6 +168,36 @@ async function completeDischargeWork(patientId, userName, session) {
     throw error
   }
 
+  const pendingCount = await ServiceRecord.countDocuments({ patientId, status: 'pending' }, opt)
+  const pendingError = dischargePendingRecordsError(pendingCount)
+  if (pendingError) {
+    const error = new Error(pendingError)
+    error.status = 400
+    throw error
+  }
+
+  const dischargeDate = todayStr()
+  await ensureAutomaticDailyCharges(patient, dischargeDate)
+
+  const balance = await calcPatientBalance(patientId)
+  const outstanding = Math.max(0, (balance.totalCharges || 0) - (balance.depositTotal || 0))
+  const credit = computeCreditState({
+    admissionPaymentMode: patient.admissionPaymentMode,
+    requiredInitialDeposit: patient.requiredInitialDeposit,
+    depositTotal: balance.depositTotal ?? patient.depositTotal,
+  })
+  const rules = await loadResolvedSettings(HospitalSettings)
+  const outstandingError = dischargeOutstandingBalanceError({
+    outstanding,
+    isCreditPatient: credit.isCreditPatient,
+    allowCreditOutstanding: rules.allowDischargeWithOutstandingBalance !== false,
+  })
+  if (outstandingError) {
+    const error = new Error(outstandingError)
+    error.status = 400
+    throw error
+  }
+
   const assignment = await RoomAssignment.findOne({ patientId, endDate: null }, null, opt)
   if (!assignment) {
     const error = new Error('No active room assignment. Cannot complete discharge.')
@@ -178,8 +212,6 @@ async function completeDischargeWork(patientId, userName, session) {
     throw error
   }
 
-  const dischargeDate = todayStr()
-  await ensureAutomaticDailyCharges(patient, dischargeDate)
   await endActiveAssignments(patientId, dischargeDate, userName)
 
   const closed = await RoomAssignment.findOneAndUpdate(
@@ -203,7 +235,6 @@ async function completeDischargeWork(patientId, userName, session) {
     throw error
   }
 
-  const balance = await calcPatientBalance(patientId)
   const now = new Date()
   const claimed = await Patient.findOneAndUpdate(
     { patientId, status: 'pending-discharge' },
@@ -247,21 +278,13 @@ async function completeDischargeWork(patientId, userName, session) {
 }
 
 export async function approveDischarge(patientId, { userName }) {
-  const rules = await loadResolvedSettings(HospitalSettings)
-  if (rules.allowDischargeWithOutstandingBalance === false) {
-    const patient = await Patient.findOne({ patientId })
-    if (patient?.status === 'pending-discharge') {
-      // Final day charges first, so the gate reads the same total the discharge will record.
-      await ensureAutomaticDailyCharges(patient, todayStr())
-      const { balance } = await calcPatientBalance(patientId)
-      if (balance < 0) {
-        const error = new Error(
-          `Outstanding balance of ${Math.abs(balance)} ETB must be settled before discharge. Hospital settings do not allow discharge with an outstanding balance.`
-        )
-        error.status = 400
-        throw error
-      }
-    }
+  const pendingCount = await ServiceRecord.countDocuments({ patientId, status: 'pending' })
+  const pendingError = dischargePendingRecordsError(pendingCount)
+  if (pendingError) {
+    const error = new Error(pendingError)
+    error.status = 400
+    throw error
   }
+
   return runOptionallyInTransaction((session) => completeDischargeWork(patientId, userName, session))
 }

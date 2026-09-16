@@ -15,9 +15,11 @@ import ReceptionDashboard from '@/pages/reception/ReceptionDashboard'
 import PatientsList from '@/pages/reception/PatientsList'
 import PatientBilling from '@/pages/reception/PatientBilling'
 import PendingApprovals from '@/pages/reception/PendingApprovals'
+import RecentlyApproved from '@/pages/reception/RecentlyApproved'
 import AddPatient from '@/pages/reception/AddPatient'
 import PendingDischarges from '@/pages/reception/PendingDischarges'
 import DischargedPatients from '@/pages/reception/DischargedPatients'
+import CriticalBalances from '@/pages/reception/CriticalBalances'
 
 import NurseDashboard from '@/pages/nurse/NurseDashboard'
 import NursePatientsList from '@/pages/nurse/NursePatientsList'
@@ -33,7 +35,13 @@ import UsersPage from '@/pages/admin/UsersPage'
 import SettingsPage from '@/pages/admin/SettingsPage'
 
 import ManagerDashboard from '@/pages/manager/ManagerDashboard'
+import ManagerDeposits from '@/pages/manager/ManagerDeposits'
+import ManagerCharges from '@/pages/manager/ManagerCharges'
+import ManagerOutstanding from '@/pages/manager/ManagerOutstanding'
+import ManagerCreditPatients from '@/pages/manager/ManagerCreditPatients'
+import ManagerDischarged from '@/pages/manager/ManagerDischarged'
 import ReportsPage from '@/pages/manager/ReportsPage'
+import PatientProfile from '@/pages/shared/PatientProfile'
 
 export default function App() {
   return (
@@ -57,6 +65,9 @@ export default function App() {
                           <Route path="discharged" element={<DischargedPatients />} />
                           <Route path="patient/:patientId" element={<PatientBilling />} />
                         </Route>
+                        <Route element={<RequirePermission allOf={['patients.view', 'payments.view']} />}>
+                          <Route path="critical-balances" element={<CriticalBalances />} />
+                        </Route>
                         <Route element={<RequirePermission permission="admissions.discharge" />}>
                           <Route path="pending-discharges" element={<PendingDischarges />} />
                         </Route>
@@ -65,6 +76,7 @@ export default function App() {
                         </Route>
                         <Route element={<RequirePermission permission="admissions.edit" />}>
                           <Route path="approvals" element={<PendingApprovals />} />
+                          <Route path="recently-approved" element={<RecentlyApproved />} />
                         </Route>
                       </Route>
                     </Route>
@@ -103,8 +115,25 @@ export default function App() {
                     <Route element={<RequireAuth role="manager" />}>
                       <Route path="/manager" element={<AppLayout role="manager" />}>
                         <Route index element={<ManagerDashboard />} />
+                        <Route element={<RequirePermission allOf={['reports.view', 'payments.view']} />}>
+                          <Route path="deposits" element={<ManagerDeposits />} />
+                          <Route path="charges" element={<ManagerCharges />} />
+                          <Route path="outstanding" element={<ManagerOutstanding />} />
+                          <Route path="discharged-patients" element={<ManagerDischarged />} />
+                        </Route>
+                        <Route element={<RequirePermission allOf={['reports.view', 'credit.view']} />}>
+                          <Route path="credit-patients" element={<ManagerCreditPatients />} />
+                        </Route>
                         <Route element={<RequirePermission permission="reports.view" />}>
                           <Route path="reports" element={<ReportsPage />} />
+                        </Route>
+                      </Route>
+                    </Route>
+
+                    <Route element={<RequireAuth />}>
+                      <Route path="/patients/:patientId" element={<AppLayout />}>
+                        <Route element={<RequirePermission permission="patients.view" />}>
+                          <Route index element={<PatientProfile />} />
                         </Route>
                       </Route>
                     </Route>

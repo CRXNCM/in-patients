@@ -15,6 +15,7 @@ import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { formatDateTime } from '@/lib/utils'
 import { useNurseDashboard } from '@/hooks/useNurseDashboard'
+import { PatientLink } from '@/components/shared/PatientLink'
 
 function formatStayDay(dateStr) {
   if (!dateStr) return '—'
@@ -108,9 +109,15 @@ function CurrentInpatientsPanel({ rows, onOpenStay, onViewAll }) {
     {
       key: 'patientId',
       header: 'Patient ID',
-      render: (row) => <span className="font-mono text-xs font-medium text-primary">{row.patientId}</span>,
+      render: (row) => (
+        <PatientLink patientId={row.patientId} className="font-mono text-xs font-medium">
+          {row.patientId}
+        </PatientLink>
+      ),
     },
-    { key: 'name', header: 'Patient', render: (row) => <span className="font-medium">{row.name}</span> },
+    { key: 'name', header: 'Patient', render: (row) => (
+      <PatientLink patientId={row.patientId} className="font-medium">{row.name}</PatientLink>
+    ) },
     { key: 'room', header: 'Room/Bed', render: (row) => locationLabel(row) },
     { key: 'admissionDate', header: 'Admission', render: (row) => formatStayDay(row.admissionDate) },
     { key: 'admissionType', header: 'Type', render: (row) => admissionTypeLabel(row.admissionType) },
