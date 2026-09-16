@@ -47,7 +47,7 @@ export const NAVIGATION = {
           label: 'Pending Approvals',
           path: '/reception/approvals',
           icon: ClipboardCheck,
-          anyOf: ['admissions.edit', 'patients.edit'],
+          permission: 'admissions.edit',
           badge: 'pendingApprovals',
         },
         {

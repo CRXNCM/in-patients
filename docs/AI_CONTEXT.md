@@ -113,8 +113,9 @@ Full list: [BUSINESS_RULES.md](./BUSINESS_RULES.md).
 1. Approved records = bill. Pending = queue.
 2. Room rate locks on `RoomAssignment`.
 3. Nurse batches a day into one record (product intent); API does not enforce uniqueness.
-4. Reception entries auto-approve when `source === 'reception'`.
+4. Reception entries auto-approve when the caller has `admissions.edit`. The client `source` field is ignored for status.
 5. Manager is read-oriented (API also allows Admin).
+6. Cross-tab updates poll existing GETs (`LiveSyncProvider`, 8s when the tab is visible, and on window focus). No Socket.IO, SSE, or React Query.
 
 ---
 
@@ -134,6 +135,7 @@ Full list: [BUSINESS_RULES.md](./BUSINESS_RULES.md).
 - `cn`, `formatCurrency`, `formatDate` — `src/lib/utils.js`
 - `StatCard`, `DataTable`, `PageHeader`, `StatusBadge` — `CommonComponents.jsx`
 - `computeRecordTotal` — `ServiceEntriesContext.jsx`
+- `LiveSyncProvider` / `LIVE_SYNC_POLL_MS` — `LiveSyncContext.jsx`
 - `toFrontendPatient` / `toFrontendRecord` / `buildRoomsFromBeds` — `mappers.js`
 - `MIN_INITIAL_DEPOSIT`, `NON_CASH_PAYMENT_METHODS` — both validation files
 - `RequireAuth` for any new role route

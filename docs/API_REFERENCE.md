@@ -378,7 +378,7 @@ Runs `ensureAutomaticDailyCharges` for every non-discharged patient.
 | Field | Required | Notes |
 |-------|----------|-------|
 | services | yes | non-empty array |
-| source | no | default `nurse`; `reception` → status `approved` |
+| source | no | ignored for status; stored source comes from the caller’s `admissions.edit` permission (`reception` if present, otherwise `nurse`) |
 | recordDate | no | default today |
 | recordName | no | default patient name |
 
@@ -393,7 +393,7 @@ Each service line: `id?`, `category`, `serviceName`, `quantity`, `unitPrice`, `t
 
 ### `POST /api/patients/:id/returns`
 
-Same auth and source/auto-approve behavior as daily records.
+Same auth as daily records. Auto-approve follows the caller’s `admissions.edit` permission; body `source` is ignored.
 
 **Body:** `returnItems` (required non-empty), `source?`, `recordDate?`.  
 Each item: `serviceName`, `quantity`, `unitPrice`, `total?`, `reason?`.
@@ -560,16 +560,29 @@ Mapped record shape:
 
 ---
 
+### `PATCH /api/records/:id`
+
+`:id` is Mongo `_id`. Pending, non-automatic records only.
+
+| | |
+|-|-|
+| **Auth** | `patients.edit` or `doctors.assign` |
+| **Body** | `{ "services": [...] }` for daily records, or `{ "returnItems": [...] }` for pharmacy returns. Optional `recordName`. |
+
+**Errors:** `404` `Record not found`; `400` `Only pending records can be edited.` / `Automatic charges cannot be edited.` / `Services required` / `Return items required`; `500`.
+
+---
+
 ### `POST /api/records/:id/approve`
 
 `:id` is Mongo `_id`.
 
 | | |
 |-|-|
-| **Auth** | Required (any role) |
+| **Auth** | `admissions.edit` |
 | **Body** | `{ "note": "optional" }` default `Approved by reception` |
 
-**Errors:** `404` `Record not found`; `400` `Record is not pending`; `500`.
+**Errors:** `403`; `404` `Record not found`; `400` `Record is not pending`; `500`.
 
 ---
 
@@ -577,7 +590,7 @@ Mapped record shape:
 
 | | |
 |-|-|
-| **Auth** | Required |
+| **Auth** | `admissions.edit` |
 | **Body** | `{ "reason": "optional" }` default `Rejected by reception` |
 
 Frontend requires a reason; API does not. Sets `rejectionReason` and audit action `rejected`.
@@ -660,7 +673,7 @@ Details: [admin-dashboard-implementation-spec.md](./admin-dashboard-implementati
 | **Permission** | `patients.view`. Super Admin bypass applies. |
 | **Notes** | Front-desk counts and the current inpatient list. Today’s deposits come from `Deposit` on the local calendar day (`todayStr()`). Not Manager reports. |
 
-Today’s deposits require `payments.view`. Balance columns and the low-balance count require `payments.view` or `credit.view`. Low balance uses the existing rule: remaining (`deposit − approved charges`) below **2 ×** `lowBalanceThreshold`. `canReview` is true when the caller has `admissions.edit` or `patients.edit`.
+Today’s deposits require `payments.view`. Balance columns and the low-balance count require `payments.view` or `credit.view`. Low balance uses the existing rule: remaining (`deposit − approved charges`) below **2 ×** `lowBalanceThreshold`. `canReview` is true when the caller has `admissions.edit`.
 
 **Success `200`:** `{ generatedAt, census, workQueue, pendingRecords, currentInpatients, canReview, finance?, watchlist? }`
 

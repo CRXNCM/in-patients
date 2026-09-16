@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, User, Phone, Calendar, Bed } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ export default function PatientServiceEntry() {
   const navigate = useNavigate()
   const { getPatient, applyPatientUpdate } = usePatients()
   const { getPatientRecords, CURRENT_NURSE } = useServiceEntries()
+  const [historyEdit, setHistoryEdit] = useState(null)
 
   const patient = getPatient(patientId)
 
@@ -88,6 +90,8 @@ export default function PatientServiceEntry() {
             source="nurse"
             recordedBy={CURRENT_NURSE}
             hideMoney
+            editRecord={historyEdit}
+            onDone={() => setHistoryEdit(null)}
           />
         </div>
       ) : (
@@ -106,15 +110,15 @@ export default function PatientServiceEntry() {
             <>
               <div>
                 <h4 className="text-sm font-semibold mb-3">Mother records</h4>
-                <RecordTimeline records={motherRecords} hideMoney showSubject />
+                <RecordTimeline records={motherRecords} hideMoney showSubject onEdit={setHistoryEdit} />
               </div>
               <div>
                 <h4 className="text-sm font-semibold mb-3">Baby records</h4>
-                <RecordTimeline records={babyRecords} hideMoney showSubject />
+                <RecordTimeline records={babyRecords} hideMoney showSubject onEdit={setHistoryEdit} />
               </div>
             </>
           ) : (
-            <RecordTimeline records={records} hideMoney />
+            <RecordTimeline records={records} hideMoney onEdit={setHistoryEdit} />
           )}
         </CardContent>
       </Card>

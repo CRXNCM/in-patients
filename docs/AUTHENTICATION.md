@@ -108,9 +108,9 @@ UI conventions (not enforced by the API):
 | Settings write | No | No | Yes | No |
 | Reports | No | No | API allowed | Yes |
 
-A nurse JWT can still call admit/approve/deposit endpoints directly.
+A nurse JWT cannot approve or reject service records (`admissions.edit` required). Other write endpoints still depend on the caller’s assigned permissions, not the UI role page.
 
-Record `source` is a **client-supplied** field. Sending `source: "reception"` auto-approves the record regardless of the caller’s role.
+Record `source` is derived from the caller’s `admissions.edit` permission. Sending `source: "reception"` does not auto-approve.
 
 ---
 
@@ -131,6 +131,7 @@ Search in `TopNav` is a visual input only — it does not query patients.
 | Logout | `user` null, token removed, `medbill_user` removed, navigate `/login` |
 | Token invalid on boot | Cleared; user sees login |
 | Inactive user | Login rejected; already-issued JWT still works until expiry (`/me` does not re-check `status`) |
+| Live sync | While logged in, the SPA polls `GET /api/records` and `GET /api/patients?view=full` every 8s when the tab is visible, and on window focus. `/me` stays on its own 15s interval for permissions. |
 
 Theme preference is separate (`localStorage.theme`) and is not part of the auth session.
 

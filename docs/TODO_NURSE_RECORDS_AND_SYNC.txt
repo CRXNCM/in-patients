@@ -1,0 +1,625 @@
+Nurse Records & Real-Time Synchronization — Engineering TODO
+Generated from codebase audit. Do not treat items as implemented until checked off.
+
+CONFIRMED ROOT CAUSES
+1. Current Record stays filled because after save, a useEffect reloads the new pending record back into cart.
+2. Live API ignores existingRecordId; POST always creates. Mock mode updates in place.
+3. No real-time layer: no Socket.IO, SSE, React Query, or record polling. Each tab loads once.
+
+DEPENDENCY ORDER
+TODO-001 → TODO-011 → TODO-012 → TODO-013
+TODO-002 → TODO-021 → TODO-023 → TODO-024
+TODO-022 after TODO-011 + TODO-021
+TODO-004 → TODO-032, TODO-033, TODO-031
+TODO-041 with TODO-021
+TODO-051 as regression around PATCH
+TODO-003 → TODO-040 → TODO-061 → TODO-071/072 → TODO-081–084
+TODO-091 after API changes
+TODO-092 after builder + PATCH + sync
+
+RECOMMENDED IMPLEMENTATION SEQUENCE
+1. Builder reset (TODO-011/012/013)
+2. PATCH pending + frontend uses it (TODO-021/023/022/024)
+3. Locks (TODO-031/032/033/034)
+4. Billing regression tests (TODO-051/091)
+5. Sync (TODO-040/061 then 071–084) — poll existing GETs first
+6. Two-session matrix (TODO-092)
+
+================================================================================
+PHASE 1 — INVESTIGATION
+================================================================================
+
+[x] TODO-001 — Confirm Current Record refill after save (already traced)
+Area: Frontend
+Priority: Critical
+Location:
+  frontend/src/components/shared/ServiceRecordBuilder.jsx (cart, returnCart, useEffects ~67–79, handleDoneServices ~175–228)
+  frontend/src/context/ServiceEntriesContext.jsx (submitDailyRecord, getPendingEditableRecord)
+Problem:
+  Current Record is local React state `cart`. handleDoneServices does setCart([]) after successful await.
+  Then getPendingEditableRecord finds the just-created pending nurse record for today, and the useEffect
+  on pendingDaily?.id copies services back into cart and sets editingRecordId. Same for pharmacy returns.
+  Not React Query. Not a failed reset.
+Expected:
+  After successful save, Current Record is empty. History shows the pending record. Cart refill only on explicit Edit.
+Implementation:
+  Accept this cause. Implementation is TODO-011 / TODO-012.
+Dependencies: None
+Verification:
+  Nurse submits; Current Record empty; Record History shows pending record; cart not in edit mode.
+
+[x] TODO-002 — Confirm live API ignores existingRecordId (already traced)
+Area: Frontend / API
+Priority: Critical
+Location:
+  frontend/src/context/ServiceEntriesContext.jsx submitDailyRecord USE_API branch ~159–179
+  frontend/src/api/client.js submitRecord → POST /api/patients/:id/records
+  server/routes/patients.routes.js POST /:id/records (ServiceRecord.create only)
+  server/routes/records.routes.js (approve/reject/GET only; no PATCH)
+Problem:
+  Builder passes existingRecordId. Mock path updates that id. API path always POSTs a new document.
+Expected:
+  While pending, save updates the same document; status stays pending.
+Implementation:
+  See Phase 3. No update route exists to reuse.
+Dependencies: TODO-001
+Verification:
+  Network tab: edit save is PATCH/PUT to existing id, not a second POST. DB has one pending row.
+
+[x] TODO-003 — Confirm there is no live-update transport (already traced)
+Area: Real-Time / Frontend / Backend
+Priority: Critical
+Location:
+  frontend/package.json — no socket.io-client, no @tanstack/react-query
+  server/package.json — express, mongoose, jwt, cors, bcrypt, dotenv only
+  ServiceEntriesContext.jsx refreshRecords on login/auth only
+  PatientsContext.jsx refreshFromApi on login/auth only
+  useReceptionDashboard.js / useNurseDashboard.js — one fetch per mount
+  AuthContext.jsx 15s interval is /api/me permissions only
+  No Notification model. No /api/notifications.
+Problem:
+  Reception records/notifications/pending count are in-memory in that tab. Nurse submit cannot reach another session.
+Expected:
+  Other role sees new/updated pending records, approvals, and counts without a full page refresh.
+Implementation:
+  Do not add Socket.IO by default. Choose mechanism in TODO-040.
+Dependencies: None
+Verification:
+  Two browsers: nurse submits; reception tab unchanged until refresh (current behavior).
+
+[x] TODO-004 — Map who may submit vs approve vs edit
+Area: Backend / API / Frontend
+Priority: High
+Location:
+  server/utils/permissions.js NURSE_PERMISSIONS includes patients.edit and doctors.assign
+  POST /api/patients/:id/records and /returns require patients.edit OR doctors.assign
+  POST /api/records/:id/approve and /reject require admissions.edit OR patients.edit
+  App.jsx nurse UI has no approvals page; /reception/approvals is role=reception
+  POST records trusts req.body.source; source==="reception" auto-approves without checking role
+Problem:
+  Nurse UI cannot open Pending Approvals, but a nurse JWT can call approve/reject.
+  A client can send source:"reception" and skip pending.
+Expected:
+  Nurse: create/update own pending records only. Reception (admissions.edit): approve/reject.
+  source derived from role, not the body.
+Implementation:
+  Phase 4. Reuse requirePermission; do not invent new permission keys unless patients.edit is too broad.
+Dependencies: TODO-002
+Verification:
+  Nurse token: POST source=reception still pending (or 403). Nurse token: approve 403. Reception: approve 200.
+
+================================================================================
+PHASE 2 — RECORD BUILDER
+================================================================================
+
+[x] TODO-011 — Stop auto-reloading Current Record after a successful create
+Area: Frontend
+Priority: Critical
+Location:
+  ServiceRecordBuilder.jsx useEffect pendingDaily → setCart / setEditingRecordId
+  handleDoneServices setCart([]) after success
+  “Current Record ({cart.length} items)” ~419
+Problem:
+  Save succeeds and clears cart, then the pending-record effect refills it.
+Expected:
+  Successful Done → empty Current Record, editingRecordId null, history lists the pending record.
+  Failed submit leaves cart intact (already true).
+Implementation:
+  Separate draft cart from load-pending-for-edit. Hydrate cart only on explicit Edit.
+Dependencies: TODO-001
+Verification:
+  Submit 2 lab items; Current Record empty; history has one pending record. Kill API and submit: cart kept.
+
+[x] TODO-012 — Same reset for pharmacy return cart
+Area: Frontend
+Priority: High
+Location:
+  ServiceRecordBuilder.jsx pendingReturn useEffect, returnCart, handleDoneReturn
+  submitPharmacyReturn USE_API branch also ignores existingRecordId
+Problem:
+  Return Items refills after submit the same way as services.
+Expected:
+  Successful return submit clears Return Items; history shows pending return.
+Implementation:
+  Mirror TODO-011 for returns.
+Dependencies: TODO-011
+Verification:
+  Submit a return; Return Items empty; history shows pending pharmacy return.
+
+[x] TODO-013 — Keep builder create vs edit modes explicit
+Area: Frontend
+Priority: High
+Location:
+  ServiceRecordBuilder.jsx editingRecordId, amber “Editing pending record…”,
+  “Edit Pending Record” button (~460)
+Problem:
+  API mode auto-enters edit after every submit. RecordTimeline has no Edit control.
+Expected:
+  Create: empty cart, Done creates. Edit: banner + loaded lines + Done updates same id.
+Implementation:
+  editingRecordId is the mode flag. Stop auto-setting it on create. Add Edit from history (TODO-022).
+Dependencies: TODO-011, TODO-021
+Verification:
+  After create, no amber edit banner. After Edit, banner + same record id on save.
+
+================================================================================
+PHASE 3 — PENDING RECORD EDITING
+================================================================================
+
+[x] TODO-021 — Add pending-record update API (daily + return)
+Area: Backend / API / Database
+Priority: Critical
+Location:
+  New handler next to POST /api/patients/:id/records and /returns
+  OR PATCH /api/records/:id in server/routes/records.routes.js
+  server/models/ServiceRecord.js
+Problem:
+  No update endpoint. Frontend cannot preserve id on the live API.
+Expected:
+  PATCH of services/returnItems on a pending, non-auto, nurse-submitted record.
+  Status stays pending. 400 if approved/rejected/autoGenerated.
+  Append auditTrail { action: 'edited', by, at, note }.
+Implementation:
+  Whitelist line fields like POST create. Do not change source/status/autoType.
+  authRequired + patients.edit AND status==='pending'.
+Dependencies: TODO-002, TODO-004
+Verification:
+  HTTP test: create pending, PATCH lines, GET same _id still pending, auditTrail recorded then edited.
+
+[x] TODO-022 — Edit from Record History, not only from the builder footer
+Area: Frontend
+Priority: High
+Location:
+  frontend/src/components/shared/RecordTimeline.jsx (no Edit button today)
+  frontend/src/pages/nurse/PatientServiceEntry.jsx
+  ServiceRecordBuilder.jsx “Edit Pending Record”
+Problem:
+  History is display-only. Footer Edit is hidden while editingRecordId is set.
+Expected:
+  Pending nurse (non-auto) rows show Edit. Click loads that record into the builder.
+  Approved/rejected/auto have no Edit.
+Implementation:
+  onEdit(record) from PatientServiceEntry into ServiceRecordBuilder.
+  Only status==='pending' && source==='nurse' && !autoGenerated.
+Dependencies: TODO-011, TODO-013, TODO-021
+Verification:
+  Two pending records: Edit on one loads that id’s lines, not find()’s first match.
+
+[x] TODO-023 — Wire submitDailyRecord / submitPharmacyReturn API path to PATCH when editing
+Area: Frontend / API
+Priority: Critical
+Location:
+  ServiceEntriesContext.jsx USE_API branches
+  frontend/src/api/client.js (no updateRecord today)
+Problem:
+  existingRecordId is dropped on the API path, so edits duplicate.
+Expected:
+  If existingRecordId set, PATCH and replace that row in records state. Do not POST.
+  Status remains pending. If 400 because already approved, toast and refreshRecords.
+Implementation:
+  api.updateRecord(id, body). setRecords map by id.
+Dependencies: TODO-021, TODO-013
+Verification:
+  Save edit: one PATCH, records.length unchanged, same id, still pending.
+
+[x] TODO-024 — Replace getPendingEditableRecord “first pending today” as the only edit target
+Area: Frontend
+Priority: Medium
+Location:
+  ServiceEntriesContext.jsx getPendingEditableRecord
+  ServiceRecordBuilder.jsx pendingDaily / pendingReturn
+Problem:
+  .find() returns the first pending for patient+day+type+subject. Duplicates make Edit target the wrong record.
+Expected:
+  Edit uses the explicit record id.
+Implementation:
+  Prefer editingRecordId; do not auto-bind all pending rows into one cart.
+Dependencies: TODO-011, TODO-022
+Verification:
+  Two pending same day: editing A does not mix B’s lines.
+
+================================================================================
+PHASE 4 — RECORD LOCKING & PERMISSIONS
+================================================================================
+
+[x] TODO-031 — Backend: refuse updates unless status is pending
+Area: Backend / API
+Priority: Critical
+Location:
+  TODO-021 update handler; ServiceRecord.status
+  Existing approve/reject already 400 if not pending
+Problem:
+  Once PATCH exists, it must not allow approved/rejected/autoGenerated.
+Expected:
+  PATCH allowed only pending && !autoGenerated. Backend is source of truth.
+Implementation:
+  if (record.status !== 'pending') 400. if (record.autoGenerated) 400.
+Dependencies: TODO-021
+Verification:
+  Approve then PATCH → 400, document unchanged. Reject then PATCH → 400.
+
+[x] TODO-032 — Do not trust req.body.source for auto-approve
+Area: Backend / API
+Priority: Critical
+Location:
+  server/routes/patients.routes.js POST /:id/records and /:id/returns
+  isReception = source === 'reception'
+Problem:
+  Any caller with patients.edit (including Nurse) can send source:'reception' and create an approved billable record.
+Expected:
+  source (and auto-approve) from req.user.role, not the client body.
+Implementation:
+  isReception from role / admissions.edit. Ignore body.source for status. Breaking for a forged client; intended.
+Dependencies: TODO-004
+Verification:
+  Nurse POST source=reception → pending, not approved, not in calcPatientBalance.
+
+[x] TODO-033 — Narrow approve/reject so Nurse cannot approve via API
+Area: Backend / API / Frontend
+Priority: High
+Location:
+  server/routes/records.routes.js requireAnyPermission('admissions.edit', 'patients.edit')
+  Nurse preset includes patients.edit
+  UI: PendingApprovals only under RequireAuth role=reception
+Problem:
+  UI hides approve from nurse; API does not.
+Expected:
+  Approve/reject requires admissions.edit (Reception/Admin), not patients.edit.
+Implementation:
+  Change requireAnyPermission on approve/reject. Tighten frontend /reception/approvals to admissions.edit.
+Dependencies: TODO-004
+Verification:
+  Nurse JWT approve → 403. Reception JWT → 200.
+
+[x] TODO-034 — Frontend: no Edit/Done mutation for approved, rejected, or auto records
+Area: Frontend
+Priority: High
+Location:
+  RecordTimeline.jsx, ServiceRecordBuilder.jsx, PatientBilling.jsx
+Problem:
+  Once Edit exists, UI must hide it for locked statuses even if onEdit is called.
+Expected:
+  Edit only pending. Direct PATCH of approved still fails (TODO-031).
+Implementation:
+  Guard onEdit and handleDone when the record is no longer pending.
+Dependencies: TODO-022, TODO-031
+Verification:
+  Approve in another tab; nurse Save edit → error, not a successful toast.
+
+================================================================================
+PHASE 5 — AUDIT & DATA INTEGRITY
+================================================================================
+
+[x] TODO-041 — Reuse ServiceRecord.auditTrail for edits (do not add a second log)
+Area: Backend / Database
+Priority: High
+Location:
+  server/models/ServiceRecord.js auditTrail [{ action, by, at, note }], timestamps: true
+  server/routes/records.routes.js audit()
+  Mock already writes action 'edited'
+Problem:
+  API create/approve/reject write auditTrail. No 'edited' on API because there is no update.
+Expected:
+  Each pending edit appends edited with req.user.name. submittedBy stays original creator.
+Implementation:
+  On PATCH: record.auditTrail = [...trail, audit('edited', req.user.name, note)].
+Dependencies: TODO-021
+Verification:
+  GET record after two edits: recorded, edited, edited. submittedBy unchanged.
+
+[ ] TODO-042 — Deduplicate pending rows created by the current POST-always-create bug — SKIPPED (user 2026-09-16)
+Area: Backend / Frontend / Testing
+Priority: Medium
+Location:
+  Existing pending ServiceRecords in Mongo; getPendingEditableRecord find()
+Problem:
+  Live API already allows many pending dailies per patient per day. Old duplicates remain after PATCH ships.
+Expected:
+  Do not silently merge two pending bills. Leave historical duplicates for reception, or a later admin script.
+Implementation:
+  Document the decision. Do not auto-delete in the PATCH handler.
+Dependencies: TODO-023
+Verification:
+  Patient with two pendings: both listed; Edit updates only the chosen id.
+
+[ ] TODO-043 — Paper-slip duplicate confirm is client-only — SKIPPED (user 2026-09-16)
+Area: Frontend
+Priority: Low
+Location:
+  ServiceRecordBuilder.jsx handleDoneServices paperSlipRef + window.confirm
+Problem:
+  Duplicate same-day service set is only warned if paper slip is filled; API still creates.
+Expected:
+  Keep as UX warning unless product wants server-side uniqueness (new rule — don’t add unless asked).
+Implementation:
+  None unless product requires it.
+Dependencies: None
+Verification:
+  N/A unless uniqueness is added.
+
+================================================================================
+PHASE 6 — BILLING INTEGRITY
+================================================================================
+
+[x] TODO-051 — Re-verify only approved records are billable (currently consistent)
+Area: Backend / Frontend
+Priority: High (guardrail, not a known billing bug)
+Location:
+  autoCharges.js calcPatientBalance: status approved
+  managerDashboard.js $match status approved
+  receptionDashboard.js remaining = deposit - approved; pendingCharges separate
+  getApprovedCharges / getApprovedLineItems / remainingBalance = deposit - approved
+  InvoicePreview uses getApprovedLineItems
+Problem:
+  No current hole: pending is not in remaining balance or invoices.
+  Risk is TODO-032 (nurse auto-approve) and duplicate pendings later both approved.
+Expected:
+  Keep this rule. PATCH pending must not change calcPatientBalance. Approve then changes it.
+Implementation:
+  No billing formula change. Tests: pending PATCH does not change balance; approve does.
+Dependencies: TODO-021, TODO-032
+Verification:
+  pending 500 → balance unchanged; approve → charges +500 (or return −).
+
+[ ] TODO-052 — Pending pharmacy returns are omitted from pendingCharges — SKIPPED (user 2026-09-16)
+Area: Frontend / Backend
+Priority: Low
+Location:
+  getPatientBalance pendingCharges filters type === 'daily_services' only
+  receptionDashboard totalsByPatient(status pending) may include returns
+Problem:
+  UI pendingCharges ignores pending returns; dashboard pending map may include them.
+  Does not affect remaining balance (approved-only).
+Expected:
+  Either document as OK or include pending returns in the pending column only — still not billable.
+Implementation:
+  Do not change remainingBalance. Optional align pendingCharges.
+Dependencies: TODO-051
+Verification:
+  Pending return does not change remaining balance.
+
+================================================================================
+PHASE 7 — REAL-TIME ARCHITECTURE
+================================================================================
+
+[x] TODO-040 — Choose the sync mechanism (nothing to extend today)
+Area: Real-Time
+Priority: Critical
+Location:
+  No socket server. No SSE. No record polling. Auth interval is permissions-only.
+Problem:
+  Cannot “fix cache invalidation” — there is no shared cache. Two sessions never share context.
+Expected:
+  Lightest approach that fits Express:
+    A) Poll GET /api/records and/or dashboard endpoints (reuse existing GET).
+    B) SSE from Express on record/patient events.
+    C) Socket.IO (new dependency) only if A/B are insufficient.
+Implementation:
+  Chose A. LiveSyncProvider polls GET /api/records and GET /api/patients?view=full every 8s (visible tabs) and on window focus. Dashboard hooks reload on the same tick without a loading flash. No Socket.IO, SSE, or React Query.
+Dependencies: TODO-003
+Verification:
+  Architecture note: docs/AI_CONTEXT.md and CHANGELOG_AI.md. Two browsers: nurse submit appears on reception within one poll/focus.
+
+[x] TODO-061 — Shared refresh entry points
+Area: Frontend
+Priority: High
+Location:
+  ServiceEntriesContext.refreshRecords
+  PatientsContext.refreshFromApi
+  useReceptionDashboard.reload, useNurseDashboard.reload, useManagerDashboard.reload
+Problem:
+  refresh exists but is not called after another user’s write.
+Expected:
+  One client helper: refreshRecords(), refreshFromApi(), dashboard.reload() on sync tick or event.
+Implementation:
+  After TODO-040. Keep contexts as source of list/balance UI.
+Dependencies: TODO-040
+Verification:
+  Focus window / poll tick: pending count matches GET /api/records/pending.
+
+================================================================================
+PHASE 8 — NOTIFICATIONS
+================================================================================
+
+[x] TODO-071 — Notifications are tab-local, not a backend resource
+Area: Frontend / Real-Time
+Priority: High
+Location:
+  ServiceEntriesContext notifications, addNotification, syncNotifications
+  AppNavbar.jsx NotificationControl: only role===reception
+  No server notification model
+Problem:
+  Reception bell comes from that tab’s records. Nurse addNotification never reaches reception.
+  markNotificationsRead is local; next refresh marks all unread again.
+  Duplicate notifs possible (Date.now() ids vs notif-${record.id}).
+Expected:
+  Reception sees pending-record notice when a nurse submits/updates, without refresh.
+  Prefer deriving the bell from pending records after refresh rather than a new Notification collection.
+Implementation:
+  On poll/SSE: refreshRecords → syncNotifications. Skip addNotification on the submitting nurse tab.
+Dependencies: TODO-040, TODO-061
+Verification:
+  Session B: after nurse submit, bell and Pending Approvals update. No duplicate unread rows.
+
+[x] TODO-072 — Nurse-facing notifications for approve/reject
+Area: Frontend / Real-Time
+Priority: Medium
+Location:
+  AppNavbar: nurse gets empty list
+  approveRecord/rejectRecord do not notify nurses
+  Nurse dashboard myPendingRecords is fetch-once
+Problem:
+  Nurse only sees status change after remount/refresh.
+Expected:
+  After reception approve/reject, nurse history/status updates without manual refresh.
+Implementation:
+  Same sync tick: refreshRecords on nurse session. Dashboard.reload for pending count.
+Dependencies: TODO-061
+Verification:
+  Session A: pending → approved in history without F5.
+
+================================================================================
+PHASE 9 — REAL-TIME DATA SYNCHRONIZATION
+================================================================================
+
+[x] TODO-081 — Nurse create/update pending daily or return → Reception
+Area: Real-Time / Frontend
+Priority: Critical
+Location:
+  POST /api/patients/:id/records, POST /:id/returns, PATCH from TODO-021
+  Reception: PendingApprovals, PatientBilling pending list, Sidebar/AppNavbar getPendingCount,
+  ReceptionDashboard workQueue.pendingApprovals
+Problem:
+  Nurse setRecords is local. Reception context and dashboard are stale.
+Expected:
+  Reception pending list, badge, dashboard work queue, and billing pending panel update.
+  Invoice/balance unchanged until approve.
+Implementation:
+  Poll/SSE → refreshRecords + reception dashboard.reload.
+Dependencies: TODO-040, TODO-023, TODO-061, TODO-071
+Verification:
+  Two sessions: create then edit; B sees one pending row with new lines; remaining balance unchanged.
+
+[x] TODO-082 — Reception approve/reject → Nurse + billing surfaces
+Area: Real-Time / Frontend
+Priority: Critical
+Location:
+  POST /api/records/:id/approve, /reject
+  PatientBilling, InvoicePreview, PatientsList, Nurse RecordTimeline
+Problem:
+  Other session does not refresh.
+Expected:
+  Approve: pending −1, charges/balance/invoice update, nurse row approved.
+  Reject: not billable, history rejected, pending −1.
+Implementation:
+  refreshRecords on both roles. Dashboard reload if those pages are open.
+Dependencies: TODO-061, TODO-072, TODO-051
+Verification:
+  Approve: B remaining drops; A status approved without F5. Reject: remaining unchanged.
+
+[x] TODO-083 — Discharge request / complete / bed changes
+Area: Real-Time / Frontend
+Priority: Medium
+Location:
+  POST discharge-request / approve / reject
+  PatientsContext.refreshFromApi
+  Nurse dashboard needsAttention; Reception PendingDischarges
+Problem:
+  Same fetch-once pattern.
+Expected:
+  Nurse request → reception pending-discharge list. Complete → discharged, bed available.
+Implementation:
+  refreshFromApi + nurse/reception dashboard.reload on the same sync tick.
+Dependencies: TODO-040, TODO-061
+Verification:
+  Request discharge appears on reception; approve frees bed on both.
+
+[x] TODO-084 — Admissions, deposits, room transfer
+Area: Real-Time / Frontend
+Priority: Medium
+Location:
+  PatientsContext addPatient, addDeposit, transfers; ensureAutomaticDailyCharges
+Problem:
+  Writer’s tab updates; other roles do not.
+Expected:
+  Other sessions see new admission, deposit, room, and auto approved charges.
+Implementation:
+  Same refreshFromApi + refreshRecords tick.
+Dependencies: TODO-061, TODO-051
+Verification:
+  Reception admits; nurse patient list shows the patient without F5 (after sync interval).
+
+================================================================================
+PHASE 10 — TESTING
+================================================================================
+
+[x] TODO-091 — Backend tests for pending PATCH + lock + billing
+Area: Testing / Backend
+Priority: Critical
+Location:
+  New HTTP tests; server/package.json test script
+Problem:
+  No update-record tests exist.
+Expected:
+  Tests: create pending; PATCH pending; no duplicate; PATCH approved 400;
+  nurse cannot approve; nurse source reception still pending; balance ignores pending.
+Dependencies: TODO-021, TODO-031, TODO-032, TODO-033, TODO-051
+Verification:
+  npm test in server includes the new files, all green.
+
+[ ] TODO-092 — Two-session manual (and if possible automated) matrix — SKIPPED (user 2026-09-16)
+Area: Testing
+Priority: Critical
+Location:
+  Nurse /nurse/patient/:id vs Reception /reception/approvals and /reception/patient/:id
+Problem:
+  No existing multi-tab test.
+Expected:
+  A: create → Current Record empty; edit → same id pending.
+  B: sees pending + badge without F5; approve.
+  A: pending → approved without F5.
+  Also: reject; failed PATCH keeps cart; double Done doesn’t duplicate;
+  Edit on approved hidden + API 400; two pending records; two nurses editing same pending.
+Dependencies: TODO-011, TODO-023, TODO-081, TODO-082, TODO-071
+Verification:
+  Written checklist signed off on those paths.
+
+[x] TODO-093 — Frontend build + no React Query assumption
+Area: Testing / Frontend
+Priority: Medium
+Location:
+  frontend npm run build; ServiceRecordBuilder / RecordTimeline
+Problem:
+  No component test runner in frontend/package.json.
+Expected:
+  Build passes. Manual or later tests for cart clear / edit mode.
+Dependencies: TODO-011, TODO-022
+Verification:
+  npm run build
+
+================================================================================
+RISK AREAS
+================================================================================
+Duplicate records     — API POST always creates; existingRecordId ignored.
+Incorrect billing     — Duplicate pendings both approved; or nurse JWT source:reception auto-approves.
+                      Pending itself is NOT billed today.
+Stale balances        — Other session never calls refreshRecords; dashboards fetch once.
+Unauthorized editing  — No PATCH yet; once added must lock approved/rejected/auto.
+                      Nurse can already hit approve API via patients.edit.
+Lost nurse data       — Cart is only cleared after successful await — keep that.
+Duplicate notifications — addNotification Date.now() ids vs syncNotifications notif-${record.id}.
+Race                  — Reception approves while nurse PATCHes; two nurses PATCH same pending.
+Inconsistent multi-user — Context is per tab; sidebar badge and dashboard counts can disagree.
+
+FILES / COMPONENTS AFFECTED
+Frontend:
+  ServiceRecordBuilder.jsx, RecordTimeline.jsx, PatientServiceEntry.jsx, PatientBilling.jsx,
+  PendingApprovals.jsx, ServiceEntriesContext.jsx, PatientsContext.jsx, api/client.js,
+  AppNavbar.jsx, Sidebar.jsx, useReceptionDashboard.js, useNurseDashboard.js, App.jsx
+Backend / API:
+  patients.routes.js, records.routes.js, ServiceRecord.js (schema likely unchanged),
+  mappers.js only if PATCH response needs extra fields, permissions.js if approve key narrowed
+Database:
+  Existing servicerecords collection; auditTrail + mongoose timestamps
+Real-time:
+  Poll existing GETs (LiveSyncProvider, 8s + focus). No Socket.IO / SSE.

@@ -150,7 +150,7 @@ Details: [discharge-workflow.md](./discharge-workflow.md).
 
 | | |
 |-|-|
-| **Routes** | `GET/POST /api/patients/:id/records`, `POST /api/patients/:id/returns`, `GET /api/records`, `GET /api/records/pending`, `POST /api/records/:id/approve`, `POST /api/records/:id/reject` |
+| **Routes** | `GET/POST /api/patients/:id/records`, `POST /api/patients/:id/returns`, `GET /api/records`, `GET /api/records/pending`, `PATCH /api/records/:id`, `POST /api/records/:id/approve`, `POST /api/records/:id/reject` |
 | **Entities** | `ServiceRecord` (embedded `services`, `returnItems`, `auditTrail`) |
 | **Frontend** | `ServiceEntriesContext`, `ServiceRecordBuilder`, `PendingApprovals`, `RecordTimeline` |
 
@@ -164,11 +164,11 @@ Details: [discharge-workflow.md](./discharge-workflow.md).
 
 **Status:** `pending` | `approved` | `rejected`.
 
-**Source:** Client sends `source` (`nurse` or `reception`). Reception source auto-approves. The API does **not** verify that `source` matches `req.user.role`.
+**Source:** Stored as `reception` when the caller has `admissions.edit`, otherwise `nurse`. Body `source` is ignored for status and stored source.
 
 **Reusable functions:** `computeRecordTotal`, `toFrontendRecord`, `buildServiceLine`, `buildReturnLine`.
 
-**Communicates with:** Patient balance, reception notifications (client-side only).
+**Communicates with:** Patient balance, reception notifications (derived from pending records after live-sync poll).
 
 ---
 

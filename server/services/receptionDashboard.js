@@ -178,7 +178,7 @@ export async function buildReceptionDashboard(auth, injected = {}) {
     workQueue: { pendingApprovals, pendingDischarges: pendingDischarge },
     pendingRecords: pendingList.map((doc) => mapPendingRecord(doc, namesById[doc.patientId] || '')),
     currentInpatients,
-    canReview: can('admissions.edit') || can('patients.edit'),
+    canReview: can('admissions.edit'),
   }
 
   if (includeDeposits) payload.finance = { todayDeposits }

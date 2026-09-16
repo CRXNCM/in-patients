@@ -24,11 +24,11 @@ This is an analysis of **what the code does**, not a certification. Demo credent
 | Frontend route gates by role | Implemented |
 | Settings writes require Admin | Implemented |
 | Manager routes require Manager or Admin | Implemented |
-| Patient/record/bed writes require a specific role | **Partial** — admit and deposits: Reception or Admin; doctor catalog: Admin; assign/end doctor: Nurse, Reception, or Admin; discharge request: Nurse; discharge approve/reject: Reception or Admin. Transfer and record writes still accept any JWT |
-| `source` must match caller role | **Not implemented** |
+| Patient/record/bed writes require a specific role | **Partial** — admit and deposits: Reception or Admin; doctor catalog: Admin; assign/end doctor: Nurse, Reception, or Admin; discharge request: Nurse; discharge approve/reject: Reception or Admin. Record submit: `patients.edit` or `doctors.assign`. Record approve/reject: `admissions.edit`. Transfer still accepts any JWT with the transfer permission used by that route |
+| `source` must match caller role | **Implemented** — stored source and auto-approve follow `admissions.edit`; body `source` is ignored |
 | Object-level ownership (nurse can only edit own records) | **Not implemented** |
 
-Any valid JWT can still approve records or transfer rooms. Admit and deposit writes are role-gated.
+Any valid JWT can still transfer rooms unless that route is permission-gated. Record approve/reject requires `admissions.edit`. Admit and deposit writes are role-gated.
 
 ---
 
@@ -105,14 +105,13 @@ Hospital TIN and addresses appear on printed invoices.
 ## Potential security risks (from current implementation)
 
 1. **Broken function-level authorization** on patient and record writes.
-2. **Client-controlled auto-approve** via `source: "reception"`.
-3. **Arbitrary charge amounts** on record lines.
-4. **Settings mass assignment.**
-5. **Weak demo secret and password** if deployed with `.env.example` values.
-6. **XSS in report print HTML.**
-7. **No rate limit** on login (credential stuffing).
-8. **Long-lived JWT** with no revocation list (logout is client-only).
-9. **XSS → token theft** because the token is in sessionStorage.
-10. Login page advertises working passwords.
+2. **Arbitrary charge amounts** on record lines.
+3. **Settings mass assignment.**
+4. **Weak demo secret and password** if deployed with `.env.example` values.
+5. **XSS in report print HTML.**
+6. **No rate limit** on login (credential stuffing).
+7. **Long-lived JWT** with no revocation list (logout is client-only).
+8. **XSS → token theft** because the token is in sessionStorage.
+9. Login page advertises working passwords.
 
 Treat the system as an **internal demo** until these are addressed.

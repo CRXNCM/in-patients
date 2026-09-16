@@ -17,9 +17,8 @@ Items below are observed in the current code. There are **no `TODO` / `FIXME` co
 | Top nav search | Placeholder input, not wired |
 | Reception “Today’s Deposits” | Hardcoded `todayDeposits = 125000` from mockData, plus a fake “12% vs yesterday” trend |
 | Invoice / receipt hospital header | PatientBilling and DepositReceipt use **mock** `hospitalSettings`, not API settings |
-| Pending-record edit on API | Context passes `existingRecordId`; API always inserts a new record |
 | Auto charges on GET patient | BACKEND_TODO says this is done; `GET /api/patients/:id` does not call `ensureAutomaticDailyCharges`. API-mode billing page only refetches records |
-| Notifications | In-memory list derived from records; not persisted, no push |
+| Notifications | In-memory list derived from pending records after poll; not persisted, no server push |
 | Real PDF / Excel | PDF = browser print; Excel = CSV download |
 | Patient `notes` on admit | Sent from AddPatient, not saved |
 | `attachUser` middleware | Defined, never mounted |
@@ -48,12 +47,11 @@ Items below are observed in the current code. There are **no `TODO` / `FIXME` co
 4. **Patient mapper drops** mrn, nationalId, address, admissionReason — frontend duplicate-MRN check against API-loaded patients cannot see `p.mrn`.
 5. **`nextPatientId`** sorts `patientId` as a string (`PAT-100` vs `PAT-99` risk).
 6. **No Mongo transactions** on admit/transfer.
-7. **Record `source` trusted from the client.**
-8. **Settings PUT mass assignment.**
-9. Unused Radix packages (`dropdown-menu`, `tooltip`).
-10. `ServiceTimeline.jsx` still present alongside `RecordTimeline.jsx`.
-11. Hardcoded staff names (`CURRENT_NURSE = 'Nurse Almaz Tsegaye'`, `CURRENT_RECEPTIONIST = 'Sara Bekele'`) are still passed as `recordedBy` / `assignedBy` and used for “my pending” filters even in API mode. The API itself stores `req.user.name`; the nurse dashboard pending count will be wrong for any other nurse.
-12. `getPatientDeposits` in mock mode can fall back to **global** `depositHistory` for ids that exist there even after state updates.
+7. **Settings PUT mass assignment.**
+8. Unused Radix packages (`dropdown-menu`, `tooltip`).
+9. `ServiceTimeline.jsx` still present alongside `RecordTimeline.jsx`.
+10. Hardcoded staff names (`CURRENT_NURSE = 'Nurse Almaz Tsegaye'`, `CURRENT_RECEPTIONIST = 'Sara Bekele'`) are still passed as `recordedBy` / `assignedBy` and used for “my pending” filters even in API mode. The API itself stores `req.user.name`; the nurse dashboard pending count will be wrong for any other nurse.
+11. `getPatientDeposits` in mock mode can fall back to **global** `depositHistory` for ids that exist there even after state updates.
 
 ---
 
@@ -62,7 +60,6 @@ Items below are observed in the current code. There are **no `TODO` / `FIXME` co
 | Symptom | Likely cause |
 |---------|----------------|
 | After several days, admitted patients missing new room/doctor lines (API mode) | Auto charges not generated on read |
-| Nurse “edit pending” creates a second pending record (API mode) | No PATCH/update endpoint |
 | After admit via API, deposit list may be a synthetic local entry | PatientsContext does not use the API’s created deposit document |
 | Low-balance banner ignores Admin threshold changes | Compares to mock 3000 |
 | Printed invoice ignores saved hospital name/address | mock `hospitalSettings` |

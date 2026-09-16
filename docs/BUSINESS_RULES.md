@@ -10,7 +10,7 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 
 1. Only users with `status === 'active'` may log in.
 2. Failed login always returns the same message: `Invalid email or password`.
-3. Frontend routes are restricted by `roleKey`. Backend write APIs now enforce roles for admit, deposits, doctor catalog, doctor assignment, settings, and manager reports. Service-record submit/approve still only require a valid JWT except where a route already calls `requireRole`.
+3. Frontend routes are restricted by `roleKey` and permission gates. Backend write APIs enforce permissions for admit, deposits, doctor catalog, doctor assignment, settings, manager reports, service-record submit (`patients.edit` or `doctors.assign`), and approve/reject (`admissions.edit`).
 4. Nurse service-entry UI hides prices (`hideMoney`). Nurses cannot change a doctor’s catalog visit price (Admin-only API).
 
 ---
@@ -93,13 +93,13 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 38. A pharmacy return requires at least one return item.
 39. Automatic categories (Room Services, Doctor Visits) cannot be added from the cart (`validateServiceCart`).
 40. Quantities must be valid positive numbers on the client.
-41. If `source === 'reception'`, the record is created as `approved` with an auto-approval audit entry.
-42. If `source` is anything else (default `nurse`), the record is `pending`.
-43. Reception UI can approve only `pending` records. API rejects approve/reject when status is not `pending`.
+41. Auto-approve is decided from the caller’s `admissions.edit` permission, not from `req.body.source`. Reception (and Admin) entries are created as `approved` with an auto-approval audit entry. Nurse entries are `pending` even if the client sends `source: 'reception'`.
+42. If `source` is stored, it is `reception` when auto-approved and `nurse` otherwise.
+43. Approve and reject require `admissions.edit`. Nurse (`patients.edit` only) cannot approve or reject via API. The API rejects approve/reject when status is not `pending`.
 44. Frontend reject requires a non-empty reason. API defaults reason to `Rejected by reception` if omitted.
-45. Approved daily services add to the bill; approved returns credit the bill; rejected records stay in history and do not affect the bill.
-46. Audit actions written by the API: `recorded`, `approved`, `rejected`. Mock mode can also write `edited` when updating a pending record in place.
-47. API mode **does not update** a pending record in place; each submit creates a new document. Mock mode updates the existing pending record and appends `edited`.
+45. Approved daily services add to the bill; approved returns credit the bill; rejected records stay in history and do not affect the bill. `calcPatientBalance` sums `status: 'approved'` only. Creating or PATCHing a pending record does not change total charges or remaining balance.
+46. Audit actions written by the API: `recorded`, `edited`, `approved`, `rejected`.
+47. `POST /api/patients/:id/records` (and `/returns`) always inserts. `PATCH /api/records/:id` updates the same pending, non-automatic document and appends `edited`.
 48. Optional paper-slip field: if filled, the first line’s notes get `Paper slip #<ref>`, and the client may confirm when the same service/qty set already exists today.
 
 ---
@@ -155,5 +155,4 @@ Rules below are taken from **implemented** validation and handlers. If a rule ex
 - Payments cannot exceed outstanding balance.
 - VAT is added to the legal bill total used for balance.
 - Discharge requires zero balance (outstanding and overpayment are allowed; a snapshot is stored).
-- Nurse cannot approve via API.
 - One pending daily record per patient per day (API allows many).

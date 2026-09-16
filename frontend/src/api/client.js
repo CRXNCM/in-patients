@@ -79,6 +79,8 @@ export const api = {
     apiFetch(`/api/patients/${id}/records`, { method: 'POST', body: JSON.stringify(body) }),
   submitReturn: (id, body) =>
     apiFetch(`/api/patients/${id}/returns`, { method: 'POST', body: JSON.stringify(body) }),
+  updateRecord: (id, body) =>
+    apiFetch(`/api/records/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   approveRecord: (id, note) =>
     apiFetch(`/api/records/${id}/approve`, { method: 'POST', body: JSON.stringify({ note }) }),
   rejectRecord: (id, reason) =>

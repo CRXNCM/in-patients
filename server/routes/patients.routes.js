@@ -43,6 +43,14 @@ import {
 
 const router = Router()
 
+function submitterFromAuth(req) {
+  const autoApprove = roleHasPermission(req.auth?.role, 'admissions.edit')
+  return {
+    autoApprove,
+    source: autoApprove ? 'reception' : 'nurse',
+  }
+}
+
 function requireAdmit(req, res, next) {
   if (!roleHasPermission(req.auth?.role, 'admissions.create')) {
     return res.status(403).json({ error: 'Forbidden' })
@@ -246,7 +254,7 @@ router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 
     const recordBlock = inpatientActionError(patient, 'records')
     if (recordBlock) return res.status(400).json({ error: recordBlock })
 
-    const { services, source = 'nurse', recordDate, recordName } = req.body
+    const { services, recordDate, recordName } = req.body
     if (!services?.length) return res.status(400).json({ error: 'Services required' })
 
     const baby = await MaternityBaby.findOne({ motherPatientId: patient.patientId })
@@ -254,7 +262,7 @@ router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 
     if (subject.error) return res.status(400).json({ error: subject.error })
 
     const date = recordDate || todayStr()
-    const isReception = source === 'reception'
+    const { autoApprove, source } = submitterFromAuth(req)
     const now = new Date()
     const lines = services.map((s, i) => ({
       id: s.id || `svc-${Date.now()}-${i}`,
@@ -272,17 +280,17 @@ router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 
       babyId: subject.babyId,
       recordName: recordName || patient.name,
       date,
-      status: isReception ? 'approved' : 'pending',
+      status: autoApprove ? 'approved' : 'pending',
       recordType: 'daily',
       source,
       services: lines,
       submittedBy: req.user.name,
-      approvedBy: isReception ? req.user.name : null,
+      approvedBy: autoApprove ? req.user.name : null,
       recordedAt: now,
-      reviewedAt: isReception ? now : null,
+      reviewedAt: autoApprove ? now : null,
       auditTrail: [
         audit('recorded', req.user.name, `Daily record submitted — ${lines.length} service(s)`),
-        ...(isReception ? [audit('approved', req.user.name, 'Auto-approved reception entry')] : []),
+        ...(autoApprove ? [audit('approved', req.user.name, 'Auto-approved reception entry')] : []),
       ],
     })
 
@@ -300,7 +308,7 @@ router.post('/:id/returns', authRequired, requireAnyPermission('patients.edit', 
     const returnBlock = inpatientActionError(patient, 'returns')
     if (returnBlock) return res.status(400).json({ error: returnBlock })
 
-    const { returnItems, source = 'nurse', recordDate } = req.body
+    const { returnItems, recordDate } = req.body
     if (!returnItems?.length) return res.status(400).json({ error: 'Return items required' })
 
     const baby = await MaternityBaby.findOne({ motherPatientId: patient.patientId })
@@ -308,7 +316,7 @@ router.post('/:id/returns', authRequired, requireAnyPermission('patients.edit', 
     if (subject.error) return res.status(400).json({ error: subject.error })
 
     const date = recordDate || todayStr()
-    const isReception = source === 'reception'
+    const { autoApprove, source } = submitterFromAuth(req)
     const now = new Date()
     const items = returnItems.map((r, i) => ({
       id: r.id || `ret-${Date.now()}-${i}`,
@@ -325,18 +333,18 @@ router.post('/:id/returns', authRequired, requireAnyPermission('patients.edit', 
       babyId: subject.babyId,
       recordName: patient.name,
       date,
-      status: isReception ? 'approved' : 'pending',
+      status: autoApprove ? 'approved' : 'pending',
       recordType: 'return',
       source,
       returnItems: items,
       services: [],
       submittedBy: req.user.name,
-      approvedBy: isReception ? req.user.name : null,
+      approvedBy: autoApprove ? req.user.name : null,
       recordedAt: now,
-      reviewedAt: isReception ? now : null,
+      reviewedAt: autoApprove ? now : null,
       auditTrail: [
         audit('recorded', req.user.name, `Pharmacy return submitted — ${items.length} item(s)`),
-        ...(isReception ? [audit('approved', req.user.name, 'Auto-approved return')] : []),
+        ...(autoApprove ? [audit('approved', req.user.name, 'Auto-approved return')] : []),
       ],
     })
 

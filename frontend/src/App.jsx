@@ -5,6 +5,7 @@ import { AuthProvider } from '@/context/AuthContext'
 import { PatientsProvider } from '@/context/PatientsContext'
 import { BillingConfigProvider } from '@/context/BillingConfigContext'
 import { ServiceEntriesProvider } from '@/context/ServiceEntriesContext'
+import { LiveSyncProvider } from '@/context/LiveSyncContext'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RequireAuth } from '@/components/auth/RequireAuth'
 import { RequirePermission } from '@/components/auth/RequirePermission'
@@ -42,8 +43,9 @@ export default function App() {
           <PatientsProvider>
             <BillingConfigProvider>
               <ServiceEntriesProvider>
-                <BrowserRouter>
-                  <Routes>
+                <LiveSyncProvider>
+                  <BrowserRouter>
+                    <Routes>
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/" element={<Navigate to="/login" replace />} />
 
@@ -61,7 +63,7 @@ export default function App() {
                         <Route element={<RequirePermission permission="admissions.create" />}>
                           <Route path="add-patient" element={<AddPatient />} />
                         </Route>
-                        <Route element={<RequirePermission anyOf={['admissions.edit', 'patients.edit']} />}>
+                        <Route element={<RequirePermission permission="admissions.edit" />}>
                           <Route path="approvals" element={<PendingApprovals />} />
                         </Route>
                       </Route>
@@ -108,8 +110,9 @@ export default function App() {
                     </Route>
 
                     <Route path="*" element={<Navigate to="/login" replace />} />
-                  </Routes>
-                </BrowserRouter>
+                    </Routes>
+                  </BrowserRouter>
+                </LiveSyncProvider>
               </ServiceEntriesProvider>
             </BillingConfigProvider>
           </PatientsProvider>
