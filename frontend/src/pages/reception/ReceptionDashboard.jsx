@@ -10,6 +10,8 @@ import {
   SectionKicker,
 } from '@/components/shared/DashboardChrome'
 import { MetricTile } from '@/components/shared/MetricTile'
+import { LoadingState } from '@/components/shared/LoadingState'
+import { ErrorState } from '@/components/shared/ErrorState'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { useReceptionDashboard } from '@/hooks/useReceptionDashboard'
 import { useAuth } from '@/context/AuthContext'
@@ -51,8 +53,8 @@ export default function ReceptionDashboard() {
     return (
       <DashboardFrame busy>
         <DashboardHero {...hero} action={actions} />
-        <DashboardPanel className="px-6 py-16 text-center text-sm text-muted-foreground">
-          Synchronizing reception overview…
+        <DashboardPanel padded={false}>
+          <LoadingState message="Synchronizing reception overview…" />
         </DashboardPanel>
       </DashboardFrame>
     )
@@ -64,15 +66,15 @@ export default function ReceptionDashboard() {
       <DashboardFrame>
         <DashboardHero {...hero} />
         <DashboardPanel>
-          <p className="text-sm font-medium">
-            {forbidden
-              ? 'You do not have permission to view the Reception Dashboard.'
-              : 'The Reception Dashboard could not be loaded.'}
-          </p>
-          <p className="mb-4 mt-2 text-sm text-muted-foreground">{error || 'Failed to load dashboard'}</p>
-          <Button type="button" onClick={reload}>
-            Retry
-          </Button>
+          <ErrorState
+            title={
+              forbidden
+                ? 'You do not have permission to view the Reception Dashboard.'
+                : 'The Reception Dashboard could not be loaded.'
+            }
+            message={error || 'Failed to load dashboard'}
+            onRetry={reload}
+          />
         </DashboardPanel>
       </DashboardFrame>
     )
@@ -109,7 +111,7 @@ export default function ReceptionDashboard() {
   }
 
   const columns = [
-    { key: 'id', header: 'Patient ID', render: (row) => <span className="font-mono text-xs font-medium text-sky-600 dark:text-sky-400">{row.id}</span> },
+    { key: 'id', header: 'Patient ID', render: (row) => <span className="font-mono text-xs font-medium text-primary">{row.id}</span> },
     { key: 'name', header: 'Patient Name', render: (row) => <span className="font-medium">{row.name}</span> },
     { key: 'room', header: 'Room/Bed', render: (row) => locationLabel(row) },
     { key: 'admissionDate', header: 'Admission Date', render: (row) => formatDate(row.admissionDate) },
@@ -124,11 +126,11 @@ export default function ReceptionDashboard() {
         header: 'Remaining Balance',
         render: (row) => (
           <div>
-            <span className={row.remaining >= 0 ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
+            <span className={row.remaining >= 0 ? 'font-semibold text-success' : 'font-semibold text-destructive'}>
               {formatCurrency(row.remaining)}
             </span>
             {row.pendingCharges > 0 && (
-              <p className="text-xs text-amber-600">+{formatCurrency(row.pendingCharges)} pending</p>
+              <p className="text-xs text-warning">+{formatCurrency(row.pendingCharges)} pending</p>
             )}
           </div>
         ),
@@ -164,7 +166,7 @@ export default function ReceptionDashboard() {
         action={actions}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricTile label="Total admitted patients" value={census.admitted} subtitle="Currently in hospital" />
         <MetricTile label="Pending approvals" value={pendingApprovals} subtitle="Records to review" alert={pendingApprovals > 0} />
         {todayDeposits !== undefined && (
@@ -182,12 +184,17 @@ export default function ReceptionDashboard() {
         />
       </div>
 
-      <DashboardPanel padded={false} aria-labelledby="reception-pending-heading">
+      <DashboardPanel
+        padded={false}
+        className={pendingApprovals > 0 ? 'border-warning/25' : undefined}
+        aria-labelledby="reception-pending-heading"
+      >
         <div className="flex flex-col gap-3 border-b border-primary/10 px-6 py-5 sm:flex-row sm:items-end sm:justify-between dark:border-white/10">
           <div>
             <SectionKicker>Queue</SectionKicker>
             <h2 id="reception-pending-heading" className="mt-2 text-lg font-semibold tracking-tight">
-              Pending records ({pendingApprovals})
+              Pending records{' '}
+              <span className={pendingApprovals > 0 ? 'text-warning' : 'text-muted-foreground'}>({pendingApprovals})</span>
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">Review nurse daily records and pharmacy returns</p>
           </div>
@@ -232,11 +239,7 @@ export default function ReceptionDashboard() {
         )}
       </DashboardPanel>
 
-      <DashboardPanel
-        padded={false}
-        className="-mx-4 rounded-none md:-mx-6 md:rounded-2xl lg:-mx-8"
-        aria-labelledby="reception-admitted-heading"
-      >
+      <DashboardPanel padded={false} aria-labelledby="reception-admitted-heading">
         <div className="flex flex-col gap-3 border-b border-primary/10 px-6 py-5 sm:flex-row sm:items-end sm:justify-between dark:border-white/10">
           <div>
             <SectionKicker>Census list</SectionKicker>

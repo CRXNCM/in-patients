@@ -10,6 +10,9 @@ import {
   DashboardPanel,
   SectionKicker,
 } from '@/components/shared/DashboardChrome'
+import { MetricTile } from '@/components/shared/MetricTile'
+import { LoadingState } from '@/components/shared/LoadingState'
+import { ErrorState } from '@/components/shared/ErrorState'
 import { formatDateTime } from '@/lib/utils'
 import { useNurseDashboard } from '@/hooks/useNurseDashboard'
 
@@ -49,29 +52,15 @@ function CensusPanel({ census, myPendingRecords }) {
   return (
     <DashboardPanel glow aria-labelledby="nurse-census-heading">
       <SectionKicker>Ward census</SectionKicker>
-      <h2 id="nurse-census-heading" className="sr-only">
-        Ward census
+      <h2 id="nurse-census-heading" className="mt-2 text-lg font-semibold tracking-tight">
+        Currently admitted
       </h2>
-      <div className="mt-6 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground">Currently admitted</p>
-          <p className="mt-1 text-5xl font-semibold tracking-tighter tabular-nums text-sky-700 dark:text-sky-300">
-            {census.admitted}
-          </p>
-        </div>
-      </div>
-      <div className="mt-8 grid grid-cols-2 gap-3">
-        {[
-          ['Pending discharge', pending, pending > 0],
-          ['My pending records', myPendingRecords, myPendingRecords > 0],
-        ].map(([label, value, alert]) => (
-          <div key={label} className={`${DASHBOARD_TILE} px-3 py-3`}>
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-            <p className={`mt-1 text-2xl font-semibold tabular-nums ${alert ? 'text-amber-500' : ''}`}>
-              {value}
-            </p>
-          </div>
-        ))}
+      <p className="mt-6 text-5xl font-semibold tracking-tighter tabular-nums text-primary">
+        {census.admitted}
+      </p>
+      <div className="mt-6 grid grid-cols-2 gap-4">
+        <MetricTile label="Pending discharge" value={pending} alert={pending > 0} />
+        <MetricTile label="My pending records" value={myPendingRecords} alert={myPendingRecords > 0} />
       </div>
     </DashboardPanel>
   )
@@ -79,7 +68,10 @@ function CensusPanel({ census, myPendingRecords }) {
 
 function NeedsAttentionPanel({ rows, onOpenStay }) {
   return (
-    <DashboardPanel aria-labelledby="nurse-attention-heading">
+    <DashboardPanel
+      className={rows.length > 0 ? 'border-warning/25' : undefined}
+      aria-labelledby="nurse-attention-heading"
+    >
       <SectionKicker>Queue</SectionKicker>
       <h2 id="nurse-attention-heading" className="mt-2 text-lg font-semibold tracking-tight">
         Needs attention
@@ -235,8 +227,8 @@ export default function NurseDashboard() {
           description="Live inpatient census and your service records. No billing or payment access."
           action={actions}
         />
-        <DashboardPanel className="px-6 py-16 text-center text-sm text-muted-foreground">
-          Loading dashboard...
+        <DashboardPanel padded={false}>
+          <LoadingState message="Loading dashboard…" />
         </DashboardPanel>
       </DashboardFrame>
     )
@@ -252,15 +244,15 @@ export default function NurseDashboard() {
           description="Live inpatient census and your service records. No billing or payment access."
         />
         <DashboardPanel>
-          <p className="text-sm font-medium">
-            {forbidden
-              ? 'You do not have permission to view the Nurse Dashboard.'
-              : 'The Nurse Dashboard could not be loaded.'}
-          </p>
-          <p className="mb-4 mt-2 text-sm text-muted-foreground">{error || 'Failed to load dashboard'}</p>
-          <Button type="button" onClick={reload}>
-            Retry
-          </Button>
+          <ErrorState
+            title={
+              forbidden
+                ? 'You do not have permission to view the Nurse Dashboard.'
+                : 'The Nurse Dashboard could not be loaded.'
+            }
+            message={error || 'Failed to load dashboard'}
+            onRetry={reload}
+          />
         </DashboardPanel>
       </DashboardFrame>
     )

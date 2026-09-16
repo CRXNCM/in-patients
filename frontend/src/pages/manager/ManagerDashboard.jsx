@@ -11,6 +11,8 @@ import {
   SectionKicker,
 } from '@/components/shared/DashboardChrome'
 import { MetricTile } from '@/components/shared/MetricTile'
+import { LoadingState } from '@/components/shared/LoadingState'
+import { ErrorState } from '@/components/shared/ErrorState'
 import { formatCurrency } from '@/lib/utils'
 import { useManagerDashboard } from '@/hooks/useManagerDashboard'
 
@@ -24,7 +26,7 @@ function StatRow({ label, value, alert }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className={`text-xl font-semibold tabular-nums ${alert ? 'text-amber-500' : ''}`}>{value}</span>
+      <span className={`text-xl font-semibold tabular-nums ${alert ? 'text-warning' : ''}`}>{value}</span>
     </div>
   )
 }
@@ -36,14 +38,14 @@ function FinancePanel({ finance }) {
       <h2 id="manager-finance-heading" className="mt-2 text-lg font-semibold tracking-tight">
         Cash and approved charges
       </h2>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricTile label="Today’s deposits" value={formatCurrency(finance.deposits.today)} />
         <MetricTile label="Monthly deposits" value={formatCurrency(finance.deposits.month)} />
         <MetricTile label="Today’s charges" value={formatCurrency(finance.approvedCharges.today)} />
         <MetricTile label="Monthly charges" value={formatCurrency(finance.approvedCharges.month)} />
       </div>
       {(finance.outstandingBalance !== undefined || finance.creditAdmissions !== undefined) && (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
           {finance.outstandingBalance !== undefined && (
             <MetricTile
               label="Outstanding balance"
@@ -119,7 +121,7 @@ function CategoryMix({ rows }) {
             <span className="truncate font-medium">{row.name}</span>
             <span className="tabular-nums text-muted-foreground">{row.percent}%</span>
           </div>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full bg-primary" style={{ width: `${row.percent}%` }} />
           </div>
         </div>
@@ -153,7 +155,7 @@ const watchColumns = [
     render: (row) => (
       <div className="min-w-[8rem]">
         <p className="truncate font-medium" title={row.patientName}>{row.patientName}</p>
-        <p className="font-mono text-xs text-sky-600 dark:text-sky-400">{row.id}</p>
+        <p className="font-mono text-xs text-primary">{row.id}</p>
       </div>
     ),
   },
@@ -161,7 +163,7 @@ const watchColumns = [
     key: 'remaining',
     header: 'Balance',
     render: (row) => (
-      <span className={`tabular-nums font-medium ${row.remaining < 0 ? 'text-amber-600' : ''}`}>
+      <span className={`tabular-nums font-medium ${row.remaining < 0 ? 'text-warning' : ''}`}>
         {formatCurrency(row.remaining ?? 0)}
       </span>
     ),
@@ -175,7 +177,7 @@ const admissionColumns = [
     render: (row) => (
       <div className="min-w-[8rem]">
         <p className="truncate font-medium" title={row.patientName}>{row.patientName}</p>
-        <p className="font-mono text-xs text-sky-600 dark:text-sky-400">{row.id}</p>
+        <p className="font-mono text-xs text-primary">{row.id}</p>
       </div>
     ),
   },
@@ -222,8 +224,8 @@ export default function ManagerDashboard() {
     return (
       <DashboardFrame busy>
         <DashboardHero {...hero} action={refresh} />
-        <DashboardPanel className="px-6 py-16 text-center text-sm text-muted-foreground">
-          Synchronizing financial overview…
+        <DashboardPanel padded={false}>
+          <LoadingState message="Synchronizing financial overview…" />
         </DashboardPanel>
       </DashboardFrame>
     )
@@ -235,15 +237,15 @@ export default function ManagerDashboard() {
       <DashboardFrame>
         <DashboardHero {...hero} />
         <DashboardPanel>
-          <p className="text-sm font-medium">
-            {forbidden
-              ? 'You do not have permission to view the Manager Dashboard.'
-              : 'The Manager Dashboard could not be loaded.'}
-          </p>
-          <p className="mb-4 mt-2 text-sm text-muted-foreground">{error || 'Failed to load dashboard'}</p>
-          <Button type="button" onClick={reload}>
-            Retry
-          </Button>
+          <ErrorState
+            title={
+              forbidden
+                ? 'You do not have permission to view the Manager Dashboard.'
+                : 'The Manager Dashboard could not be loaded.'
+            }
+            message={error || 'Failed to load dashboard'}
+            onRetry={reload}
+          />
         </DashboardPanel>
       </DashboardFrame>
     )

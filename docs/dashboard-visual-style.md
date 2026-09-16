@@ -29,7 +29,7 @@ Do **not** use it for dense CRUD screens (Users, Hospital Setup, billing forms).
 | `LiveDot` | Small green pulse |
 | `DASHBOARD_PANEL` | Class string if you need a raw `div` |
 | `DASHBOARD_TILE` | Inner inset tile |
-| `DASHBOARD_OUTLINE_BUTTON` | Sky outline on `Button variant="outline"` |
+| `DASHBOARD_OUTLINE_BUTTON` | Primary outline on `Button variant="outline"` |
 | `DASHBOARD_FOLD_GRID` | `lg:grid-cols-12` + `gap-5` |
 
 ---
@@ -68,7 +68,7 @@ export default function ExampleDashboard() {
           <h2 id="example-heading" className="mt-2 text-lg font-semibold tracking-tight">
             Section title
           </h2>
-          <p className="mt-6 text-5xl font-semibold tracking-tighter tabular-nums text-sky-700 dark:text-sky-300">
+          <p className="mt-6 text-5xl font-semibold tracking-tighter tabular-nums text-primary">
             {value}
           </p>
         </DashboardPanel>
@@ -84,7 +84,7 @@ export default function ExampleDashboard() {
 
 Keep:
 
-- Inter and existing primary / sky / emerald / amber
+- Inter and existing primary / success / warning / destructive tokens
 - Tabular numbers
 - Uppercase kickers, not icon wells
 - Permission-aware omission (no fake zeros)
@@ -100,9 +100,9 @@ Avoid:
 
 ## Tokens (Tailwind)
 
-- Surface: `bg-card/80 backdrop-blur-md dark:bg-slate-950/55`
+- Surface: `bg-card/90 shadow-sm backdrop-blur-sm dark:bg-slate-950/70`
 - Edge: `border-primary/15 dark:border-white/10`
-- Accent text: `text-sky-600 dark:text-sky-400`
-- Hero metric: `text-5xl font-semibold tracking-tighter tabular-nums`
+- Accent text: `text-primary`
+- Hero metric: `text-5xl font-semibold tracking-tighter tabular-nums text-primary`
 - Secondary metric: `text-2xl font-semibold tabular-nums`
 - Caption: `text-[11px] uppercase tracking-wider text-muted-foreground`

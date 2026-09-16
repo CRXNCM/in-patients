@@ -57,7 +57,7 @@ export function DashboardHero({
   action,
 }) {
   return (
-    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <div className="mb-2 flex items-center gap-2">
           {live ? <LiveDot /> : null}
@@ -111,7 +111,7 @@ export function DashboardFrame({ children, busy, className }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] bg-[size:44px_44px] opacity-40 [mask-image:radial-gradient(ellipse_at_center,black,transparent_78%)]"
       />
-      <div className="relative mx-auto max-w-[1400px] space-y-6">{children}</div>
+      <div className="dashboard-enter relative mx-auto max-w-[1400px] space-y-6">{children}</div>
     </div>
   )
 }

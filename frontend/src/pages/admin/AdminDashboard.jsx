@@ -13,12 +13,15 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { useAdminDashboard } from '@/hooks/useAdminDashboard'
 import { useAuth } from '@/context/AuthContext'
+import { MetricTile } from '@/components/shared/MetricTile'
+import { LoadingState } from '@/components/shared/LoadingState'
+import { ErrorState } from '@/components/shared/ErrorState'
 
 const BED_SEGMENTS = [
-  { key: 'occupied', label: 'Occupied', className: 'bg-sky-500' },
-  { key: 'available', label: 'Available', className: 'bg-emerald-400' },
-  { key: 'maintenance', label: 'Maintenance', className: 'bg-amber-400' },
-  { key: 'outOfService', label: 'Out of service', className: 'bg-slate-400' },
+  { key: 'occupied', label: 'Occupied', className: 'bg-primary' },
+  { key: 'available', label: 'Available', className: 'bg-success' },
+  { key: 'maintenance', label: 'Maintenance', className: 'bg-warning' },
+  { key: 'outOfService', label: 'Out of service', className: 'bg-muted-foreground/50' },
 ]
 
 function formatStayDay(dateStr) {
@@ -42,33 +45,16 @@ function CensusPanel({ census }) {
   return (
     <DashboardPanel glow aria-labelledby="admin-census-heading">
       <SectionKicker>Hospital census</SectionKicker>
-      <h2 id="admin-census-heading" className="sr-only">
-        Hospital census
+      <h2 id="admin-census-heading" className="mt-2 text-lg font-semibold tracking-tight">
+        Currently admitted
       </h2>
-      <div className="mt-6 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground">Currently admitted</p>
-          <p className="mt-1 text-5xl font-semibold tracking-tighter tabular-nums text-sky-700 dark:text-sky-300">
-            {census.currentlyAdmitted}
-          </p>
-        </div>
-      </div>
-      <div className="mt-8 grid grid-cols-3 gap-3">
-        {[
-          ['Admitted today', census.admittedToday, false],
-          ['Pending discharge', pending, pending > 0],
-          ['Discharged today', census.dischargedToday, false],
-        ].map(([label, value, alert]) => (
-          <div
-            key={label}
-            className="rounded-xl border border-white/40 bg-background/50 px-3 py-3 dark:border-white/5 dark:bg-white/5"
-          >
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-            <p className={`mt-1 text-2xl font-semibold tabular-nums ${alert ? 'text-amber-500' : ''}`}>
-              {value}
-            </p>
-          </div>
-        ))}
+      <p className="mt-6 text-5xl font-semibold tracking-tighter tabular-nums text-primary">
+        {census.currentlyAdmitted}
+      </p>
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <MetricTile label="Admitted today" value={census.admittedToday} />
+        <MetricTile label="Pending discharge" value={pending} alert={pending > 0} />
+        <MetricTile label="Discharged today" value={census.dischargedToday} />
       </div>
     </DashboardPanel>
   )
@@ -115,7 +101,7 @@ function OccupancyPanel({ beds }) {
             <MetricRing percent={beds.occupancyPercentage} />
             <div>
               <p className="text-sm text-muted-foreground">Available now</p>
-              <p className="text-4xl font-semibold tracking-tighter tabular-nums text-emerald-600 dark:text-emerald-400">
+              <p className="text-4xl font-semibold tracking-tighter tabular-nums text-success">
                 {beds.available}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">occupied / all beds</p>
@@ -123,7 +109,7 @@ function OccupancyPanel({ beds }) {
           </div>
 
           <div
-            className="mt-6 flex h-3 overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800"
+            className="mt-6 flex h-3 overflow-hidden rounded-full bg-muted"
             role="img"
             aria-label={ariaLabel}
           >
@@ -164,7 +150,7 @@ const admissionColumns = [
     render: (row) => (
       <div className="min-w-[10rem] max-w-xs">
         <p className="font-medium truncate" title={row.name}>{row.name}</p>
-        <p className="font-mono text-xs font-medium text-sky-600 dark:text-sky-400">{row.patientId}</p>
+        <p className="font-mono text-xs font-medium text-primary">{row.patientId}</p>
       </div>
     ),
   },
@@ -310,16 +296,10 @@ function CatalogPanel({ catalog }) {
         Service catalog
       </h2>
       <p className="mt-1 text-xs text-muted-foreground">Pricing catalog size.</p>
-      <dl className="mt-6 space-y-4">
-        <div className="rounded-xl border border-primary/10 bg-background/50 px-4 py-4 dark:border-white/10 dark:bg-white/5">
-          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Service categories</dt>
-          <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">{catalog.serviceCategories}</dd>
-        </div>
-        <div className="rounded-xl border border-primary/10 bg-background/50 px-4 py-4 dark:border-white/10 dark:bg-white/5">
-          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Price lines</dt>
-          <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">{catalog.priceLines}</dd>
-        </div>
-      </dl>
+      <div className="mt-6 grid gap-4">
+        <MetricTile label="Service categories" value={catalog.serviceCategories} />
+        <MetricTile label="Price lines" value={catalog.priceLines} />
+      </div>
       {showServices && (
         <Button type="button" variant="outline" size="sm" className={`mt-5 ${DASHBOARD_OUTLINE_BUTTON}`} onClick={() => navigate('/admin/services')}>
           Services
@@ -340,20 +320,18 @@ function FinanceCreditPanel({ finance, credit }) {
       <p className="mt-1 text-xs text-muted-foreground">
         Operational totals only. Revenue reports stay on the manager dashboard.
       </p>
-      <dl className={`mt-5 grid gap-4${finance && credit ? ' sm:grid-cols-2' : ''}`}>
+      <div className={`mt-5 grid gap-4${finance && credit ? ' sm:grid-cols-2' : ''}`}>
         {finance && (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-4">
-            <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Today’s deposits</dt>
-            <dd className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{formatCurrency(finance.todayDeposits)}</dd>
-          </div>
+          <MetricTile label="Today’s deposits" value={formatCurrency(finance.todayDeposits)} />
         )}
         {credit && (
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-4">
-            <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Open credit admissions</dt>
-            <dd className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{credit.creditAdmissions}</dd>
-          </div>
+          <MetricTile
+            label="Open credit admissions"
+            value={credit.creditAdmissions}
+            alert={credit.creditAdmissions > 0}
+          />
         )}
-      </dl>
+      </div>
     </DashboardPanel>
   )
 }
@@ -374,8 +352,8 @@ export default function AdminDashboard() {
           description="Live census, bed capacity, and hospital configuration."
           action={refresh}
         />
-        <DashboardPanel className="px-6 py-16 text-center text-sm text-muted-foreground">
-          Synchronizing hospital overview…
+        <DashboardPanel padded={false}>
+          <LoadingState message="Synchronizing hospital overview…" />
         </DashboardPanel>
       </DashboardFrame>
     )
@@ -386,8 +364,7 @@ export default function AdminDashboard() {
       <DashboardFrame>
         <DashboardHero title="Command overview" description="Live census, bed capacity, and hospital configuration." />
         <DashboardPanel>
-          <p className="mb-4 text-sm text-muted-foreground">{error || 'Failed to load dashboard'}</p>
-          <Button type="button" onClick={reload}>Retry</Button>
+          <ErrorState message={error || 'Failed to load dashboard'} onRetry={reload} />
         </DashboardPanel>
       </DashboardFrame>
     )
