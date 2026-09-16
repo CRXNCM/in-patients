@@ -14,7 +14,7 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import { useManagerDashboard } from '@/hooks/useManagerDashboard'
 
-const CHART_STROKE = '#0ea5e9'
+const CHART_STROKE = 'hsl(var(--primary))'
 
 function isForbiddenError(message) {
   return /forbidden/i.test(message || '')
@@ -131,7 +131,7 @@ function CategoryMix({ rows }) {
             <span className="tabular-nums text-muted-foreground">{row.percent}%</span>
           </div>
           <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
-            <div className="h-full rounded-full bg-sky-500" style={{ width: `${row.percent}%` }} />
+            <div className="h-full rounded-full bg-primary" style={{ width: `${row.percent}%` }} />
           </div>
         </div>
       ))}

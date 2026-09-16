@@ -1,12 +1,12 @@
 import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/lib/utils'
 
-/** Shared command-overview look first used on the Admin Dashboard. */
+/** Shared command-overview look first used on the Admin Dashboard. Do not use on CRUD/workstation screens. */
 
 export const DASHBOARD_PANEL =
-  'relative overflow-hidden rounded-2xl border border-primary/15 bg-card/80 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)] backdrop-blur-md dark:border-white/10 dark:bg-slate-950/55'
+  'relative overflow-hidden rounded-2xl border border-primary/15 bg-card/90 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/70'
 
-export const DASHBOARD_OUTLINE_BUTTON = 'border-sky-500/30'
+export const DASHBOARD_OUTLINE_BUTTON = 'border-primary/30'
 
 export const DASHBOARD_TILE =
   'rounded-xl border border-primary/10 bg-background/50 dark:border-white/10 dark:bg-white/5'
@@ -24,7 +24,7 @@ export function LiveDot({ className }) {
 
 export function SectionKicker({ children, className }) {
   return (
-    <p className={cn('text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-600 dark:text-sky-400', className)}>
+    <p className={cn('text-[11px] font-semibold uppercase tracking-[0.22em] text-primary', className)}>
       {children}
     </p>
   )
@@ -34,7 +34,7 @@ export function PanelGlow() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-sky-500/10 blur-3xl dark:bg-sky-400/15"
+      className="pointer-events-none absolute -right-16 -top-16 h-32 w-32 rounded-full bg-primary/5 blur-2xl dark:bg-primary/10"
     />
   )
 }
@@ -82,7 +82,7 @@ export function MetricRing({ percent = 0, label = 'full', className }) {
     <div
       className={cn('relative h-[7.5rem] w-[7.5rem] shrink-0 rounded-full p-[7px]', className)}
       style={{
-        background: `conic-gradient(#0ea5e9 ${value}%, rgb(148 163 184 / 0.28) 0)`,
+        background: `conic-gradient(hsl(var(--primary)) ${value}%, hsl(var(--muted-foreground) / 0.28) 0)`,
       }}
       aria-hidden="true"
     >
@@ -105,7 +105,7 @@ export function DashboardFrame({ children, busy, className }) {
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_hsl(199_89%_48%/0.16),_transparent_52%)] dark:bg-[radial-gradient(ellipse_at_top,_hsl(199_89%_48%/0.22),_transparent_48%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.14),_transparent_52%)] dark:bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.18),_transparent_48%)]"
       />
       <div
         aria-hidden="true"

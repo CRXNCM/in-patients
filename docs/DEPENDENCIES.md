@@ -100,7 +100,7 @@ Signed with `JWT_SECRET`, `expiresIn: '7d'`. Bcrypt cost in seed: **10**.
 
 ### Tailwind
 
-`darkMode: ['class']` on `<html>`. Colors are CSS variables in `src/index.css`. Font: Inter (Google Fonts in `index.html`).
+`darkMode: ['class']` on `<html>`. Colors are CSS variables in `src/index.css`. Font: Inter, self-hosted from `frontend/public/fonts/` via `@font-face` in `src/index.css`.
 
 ### Path alias
 
@@ -115,7 +115,7 @@ Signed with `JWT_SECRET`, `expiresIn: '7d'`. Bcrypt cost in seed: **10**.
 | Node.js | Required; exact version **Unknown from current implementation** (no engines field) |
 | MongoDB | Required for API mode |
 | Browser `fetch`, `sessionStorage`, `localStorage`, `window.print` | Required |
-| Google Fonts (Inter) | Loaded from fonts.googleapis.com in `index.html` |
+| Self-hosted Inter | `frontend/public/fonts/*.woff2` via `@font-face` — no runtime CDN |
 
 ---
 

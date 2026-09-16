@@ -51,6 +51,26 @@ export default {
           DEFAULT: 'hsl(var(--warning))',
           foreground: 'hsl(var(--warning-foreground))',
         },
+        pending: {
+          DEFAULT: 'hsl(var(--pending))',
+          foreground: 'hsl(var(--pending-foreground))',
+        },
+        approved: {
+          DEFAULT: 'hsl(var(--approved))',
+          foreground: 'hsl(var(--approved-foreground))',
+        },
+        rejected: {
+          DEFAULT: 'hsl(var(--rejected))',
+          foreground: 'hsl(var(--rejected-foreground))',
+        },
+        admitted: {
+          DEFAULT: 'hsl(var(--admitted))',
+          foreground: 'hsl(var(--admitted-foreground))',
+        },
+        discharged: {
+          DEFAULT: 'hsl(var(--discharged))',
+          foreground: 'hsl(var(--discharged-foreground))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

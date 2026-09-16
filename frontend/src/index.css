@@ -2,6 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Self-hosted Inter (SIL OFL). Served from /fonts — no runtime CDN. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/Inter-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/Inter-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/Inter-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/Inter-Bold.woff2') format('woff2');
+}
+
 @layer base {
   :root {
     --background: 210 40% 98%;
@@ -28,6 +61,17 @@
     --input: 214 32% 91%;
     --ring: 217 91% 45%;
     --radius: 0.75rem;
+    /* Semantic status tokens — mapped to the existing palette, not a second system. */
+    --pending: 38 92% 50%;
+    --pending-foreground: 0 0% 100%;
+    --approved: 142 71% 45%;
+    --approved-foreground: 0 0% 100%;
+    --rejected: 0 84% 60%;
+    --rejected-foreground: 0 0% 100%;
+    --admitted: 217 91% 45%;
+    --admitted-foreground: 0 0% 100%;
+    --discharged: 215 14% 46%;
+    --discharged-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -54,6 +98,16 @@
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 217 91% 55%;
+    --pending: 38 92% 45%;
+    --pending-foreground: 0 0% 100%;
+    --approved: 142 71% 40%;
+    --approved-foreground: 0 0% 100%;
+    --rejected: 0 62% 50%;
+    --rejected-foreground: 0 0% 100%;
+    --admitted: 217 91% 55%;
+    --admitted-foreground: 0 0% 100%;
+    --discharged: 215 12% 60%;
+    --discharged-foreground: 222 47% 11%;
   }
 }
 
@@ -113,5 +167,29 @@
 @media screen {
   .print-only {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-ping {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+
+  .animate-pulse {
+    animation: none !important;
   }
 }
