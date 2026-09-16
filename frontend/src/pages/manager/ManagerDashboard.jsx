@@ -5,12 +5,12 @@ import { StatusBadge, DataTable } from '@/components/shared/CommonComponents'
 import {
   DASHBOARD_FOLD_GRID,
   DASHBOARD_OUTLINE_BUTTON,
-  DASHBOARD_TILE,
   DashboardFrame,
   DashboardHero,
   DashboardPanel,
   SectionKicker,
 } from '@/components/shared/DashboardChrome'
+import { MetricTile } from '@/components/shared/MetricTile'
 import { formatCurrency } from '@/lib/utils'
 import { useManagerDashboard } from '@/hooks/useManagerDashboard'
 
@@ -18,17 +18,6 @@ const CHART_STROKE = 'hsl(var(--primary))'
 
 function isForbiddenError(message) {
   return /forbidden/i.test(message || '')
-}
-
-function MetricTile({ label, value, alert }) {
-  return (
-    <div className={`${DASHBOARD_TILE} px-4 py-4`}>
-      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-2 text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl ${alert ? 'text-amber-500' : ''}`}>
-        {value}
-      </p>
-    </div>
-  )
 }
 
 function StatRow({ label, value, alert }) {

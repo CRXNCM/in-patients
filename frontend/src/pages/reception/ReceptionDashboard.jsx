@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button'
 import { StatusBadge, DataTable } from '@/components/shared/CommonComponents'
 import {
   DASHBOARD_OUTLINE_BUTTON,
-  DASHBOARD_TILE,
   DashboardFrame,
   DashboardHero,
   DashboardPanel,
   SectionKicker,
 } from '@/components/shared/DashboardChrome'
+import { MetricTile } from '@/components/shared/MetricTile'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { useReceptionDashboard } from '@/hooks/useReceptionDashboard'
 import { useAuth } from '@/context/AuthContext'
@@ -23,23 +23,6 @@ function isForbiddenError(message) {
 function locationLabel(row) {
   const parts = [row.room, row.bed].filter(Boolean)
   return parts.length ? parts.join(' / ') : '—'
-}
-
-function MetricTile({ label, value, subtitle, alert, onClick }) {
-  return (
-    <button
-      type="button"
-      disabled={!onClick}
-      onClick={onClick}
-      className={`${DASHBOARD_TILE} w-full px-4 py-4 text-left ${onClick ? 'cursor-pointer' : 'cursor-default'}`}
-    >
-      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-2 text-3xl font-semibold tabular-nums tracking-tight ${alert ? 'text-amber-500' : ''}`}>
-        {value}
-      </p>
-      {subtitle ? <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p> : null}
-    </button>
-  )
 }
 
 export default function ReceptionDashboard() {

@@ -108,15 +108,15 @@ export function StatusBadge({ status }) {
     'in-stock': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     'low-stock': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     'out-of-stock': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    admitted: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    'pending-discharge': 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-    discharged: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+    admitted: 'bg-admitted/15 text-admitted dark:bg-admitted/20',
+    'pending-discharge': 'bg-pending/15 text-pending dark:bg-pending/20',
+    discharged: 'bg-discharged/15 text-discharged dark:bg-discharged/25 dark:text-muted-foreground',
     occupied: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     maintenance: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     out_of_service: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    pending: 'bg-pending/15 text-pending dark:bg-pending/20',
+    approved: 'bg-approved/15 text-approved dark:bg-approved/20',
+    rejected: 'bg-rejected/15 text-rejected dark:bg-rejected/20',
   }
   const labels = {
     sufficient: 'Sufficient Balance',
@@ -159,11 +159,11 @@ export function EmptyState({ icon: Icon, title, description, action }) {
 
 export function TableSkeleton({ rows = 5, cols = 6 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" aria-hidden="true">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex gap-4">
           {Array.from({ length: cols }).map((_, j) => (
-            <div key={j} className="h-10 flex-1 animate-pulse rounded-md bg-muted" />
+            <div key={j} className="h-10 flex-1 animate-pulse rounded-md bg-muted motion-reduce:animate-none" />
           ))}
         </div>
       ))}
