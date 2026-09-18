@@ -22,6 +22,7 @@ import {
 } from '../utils/maternity.js'
 import { toFrontendAssignment as toDoctorAssignment } from '../utils/doctors.js'
 import { todayStr } from '../utils/dates.js'
+import { resolveCatalogServiceLines, resolveCatalogReturnLines } from '../utils/catalog.js'
 import { HospitalSettings } from '../models/HospitalSettings.js'
 import { loadResolvedSettings } from '../utils/settings.js'
 import {
@@ -262,18 +263,13 @@ router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 
     const subject = resolveRecordSubject(patient, req.body, baby)
     if (subject.error) return res.status(400).json({ error: subject.error })
 
+    const resolved = await resolveCatalogServiceLines(services)
+    if (resolved.error) return res.status(400).json({ error: resolved.error })
+    const lines = resolved.lines
+
     const date = recordDate || todayStr()
     const { autoApprove, source } = submitterFromAuth(req)
     const now = new Date()
-    const lines = services.map((s, i) => ({
-      id: s.id || `svc-${Date.now()}-${i}`,
-      category: s.category,
-      serviceName: s.serviceName,
-      quantity: Number(s.quantity),
-      unitPrice: Number(s.unitPrice),
-      total: Number(s.total ?? Number(s.quantity) * Number(s.unitPrice)),
-      notes: s.notes || '',
-    }))
 
     const record = await ServiceRecord.create({
       patientId: patient.patientId,
@@ -316,17 +312,13 @@ router.post('/:id/returns', authRequired, requireAnyPermission('patients.edit', 
     const subject = resolveRecordSubject(patient, req.body, baby)
     if (subject.error) return res.status(400).json({ error: subject.error })
 
+    const resolved = await resolveCatalogReturnLines(returnItems)
+    if (resolved.error) return res.status(400).json({ error: resolved.error })
+    const items = resolved.lines
+
     const date = recordDate || todayStr()
     const { autoApprove, source } = submitterFromAuth(req)
     const now = new Date()
-    const items = returnItems.map((r, i) => ({
-      id: r.id || `ret-${Date.now()}-${i}`,
-      serviceName: r.serviceName,
-      quantity: Number(r.quantity),
-      unitPrice: Number(r.unitPrice),
-      total: Number(r.total ?? Number(r.quantity) * Number(r.unitPrice)),
-      reason: r.reason || '',
-    }))
 
     const record = await ServiceRecord.create({
       patientId: patient.patientId,

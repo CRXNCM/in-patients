@@ -306,8 +306,8 @@ function CatalogPanel({ catalog }) {
         <MetricTile label="Price lines" value={catalog.priceLines} />
       </div>
       {showServices && (
-        <Button type="button" variant="outline" size="sm" className={`mt-5 ${DASHBOARD_OUTLINE_BUTTON}`} onClick={() => navigate('/admin/services')}>
-          Services
+        <Button type="button" variant="outline" size="sm" className={`mt-5 ${DASHBOARD_OUTLINE_BUTTON}`} onClick={() => navigate('/admin/catalog')}>
+          Catalog
         </Button>
       )}
     </DashboardPanel>

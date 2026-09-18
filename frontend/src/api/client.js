@@ -90,6 +90,18 @@ export const api = {
   getSettings: () => apiFetch('/api/settings'),
   updateSettings: (body) => apiFetch('/api/settings', { method: 'PUT', body: JSON.stringify(body) }),
   getCategories: () => apiFetch('/api/settings/categories'),
+  getCategoryServices: (slug) =>
+    apiFetch(`/api/settings/categories/${encodeURIComponent(slug)}/services`),
+  createCategoryService: (slug, body) =>
+    apiFetch(`/api/settings/categories/${encodeURIComponent(slug)}/services`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateCategoryService: (slug, serviceId, body) =>
+    apiFetch(
+      `/api/settings/categories/${encodeURIComponent(slug)}/services/${encodeURIComponent(serviceId)}`,
+      { method: 'PATCH', body: JSON.stringify(body) }
+    ),
   updateCategoryBillingType: (slug, billingType) =>
     apiFetch(`/api/settings/categories/${slug}/billing-type`, {
       method: 'PATCH',

@@ -48,13 +48,15 @@ export function computeRecordTotal(record) {
   return (record.services || []).reduce((s, i) => s + i.total, 0)
 }
 
-function buildServiceLine({ category, serviceName, quantity, unitPrice, notes = '', doctorId, specialty }) {
+function buildServiceLine({ category, serviceName, quantity, unitPrice, notes = '', doctorId, specialty, catalogItemId, unit }) {
   const qty = Number(quantity)
   const price = Number(unitPrice)
   return {
     id: doctorId ? `doc-${doctorId}` : `svc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    catalogItemId: catalogItemId || null,
     category,
     serviceName,
+    unit: unit || '',
     quantity: qty,
     unitPrice: price,
     total: qty * price,
@@ -64,12 +66,14 @@ function buildServiceLine({ category, serviceName, quantity, unitPrice, notes = 
   }
 }
 
-function buildReturnLine({ serviceName, quantity, unitPrice, reason = '' }) {
+function buildReturnLine({ serviceName, quantity, unitPrice, reason = '', catalogItemId, unit }) {
   const qty = Number(quantity)
   const price = Number(unitPrice)
   return {
     id: `ret-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    catalogItemId: catalogItemId || null,
     serviceName,
+    unit: unit || '',
     quantity: qty,
     unitPrice: price,
     total: qty * price,

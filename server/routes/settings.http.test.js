@@ -306,6 +306,12 @@ describe('/api/settings HTTP', { skip: !hasDb }, () => {
     if (res.body.length) {
       assert.ok('billingType' in res.body[0])
       assert.ok('name' in res.body[0])
+      if (res.body[0].services?.length) {
+        assert.equal(typeof res.body[0].services[0].id, 'string')
+        assert.equal(typeof res.body[0].services[0].name, 'string')
+        assert.equal(typeof res.body[0].services[0].price, 'number')
+        assert.equal(typeof res.body[0].services[0].active, 'boolean')
+      }
     }
   })
 })

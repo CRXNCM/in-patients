@@ -26,8 +26,7 @@ import NursePatientsList from '@/pages/nurse/NursePatientsList'
 import PatientServiceEntry from '@/pages/nurse/PatientServiceEntry'
 
 import AdminDashboard from '@/pages/admin/AdminDashboard'
-import ServicesPage from '@/pages/admin/ServicesPage'
-import MedicinesPage from '@/pages/admin/MedicinesPage'
+import CatalogPage from '@/pages/admin/CatalogPage'
 import DepartmentsPage from '@/pages/admin/DepartmentsPage'
 import RoomChargesPage from '@/pages/admin/RoomChargesPage'
 import DoctorsPage from '@/pages/admin/DoctorsPage'
@@ -93,8 +92,9 @@ export default function App() {
                       <Route path="/admin" element={<AppLayout role="admin" />}>
                         <Route index element={<AdminDashboard />} />
                         <Route element={<RequirePermission anyOf={['system.view_settings', 'system.modify_settings']} />}>
-                          <Route path="services" element={<ServicesPage />} />
-                          <Route path="medicines" element={<MedicinesPage />} />
+                          <Route path="catalog" element={<CatalogPage />} />
+                          <Route path="services" element={<Navigate to="/admin/catalog" replace />} />
+                          <Route path="medicines" element={<Navigate to="/admin/catalog" replace />} />
                           <Route path="settings" element={<SettingsPage />} />
                         </Route>
                         <Route element={<RequirePermission anyOf={['departments.view', 'wards.view', 'rooms.view', 'beds.view']} />}>

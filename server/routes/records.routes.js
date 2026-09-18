@@ -5,34 +5,12 @@ import { Patient } from '../models/Patient.js'
 import { authRequired, requirePermission, requireAnyPermission } from '../middleware/auth.js'
 import { toFrontendRecord } from '../utils/mappers.js'
 import { inpatientActionError } from '../utils/validation.js'
+import { resolveCatalogServiceLines, resolveCatalogReturnLines } from '../utils/catalog.js'
 
 const router = Router()
 
 function audit(action, by, note = '') {
   return { action, by, at: new Date().toISOString(), note }
-}
-
-function mapServiceLines(services = []) {
-  return services.map((s, i) => ({
-    id: s.id || `svc-${Date.now()}-${i}`,
-    category: s.category,
-    serviceName: s.serviceName,
-    quantity: Number(s.quantity),
-    unitPrice: Number(s.unitPrice),
-    total: Number(s.total ?? Number(s.quantity) * Number(s.unitPrice)),
-    notes: s.notes || '',
-  }))
-}
-
-function mapReturnLines(returnItems = []) {
-  return returnItems.map((r, i) => ({
-    id: r.id || `ret-${Date.now()}-${i}`,
-    serviceName: r.serviceName,
-    quantity: Number(r.quantity),
-    unitPrice: Number(r.unitPrice),
-    total: Number(r.total ?? Number(r.quantity) * Number(r.unitPrice)),
-    reason: r.reason || '',
-  }))
 }
 
 router.get('/pending', authRequired, requireAnyPermission('admissions.edit', 'patients.edit', 'patients.view'), async (_req, res) => {
@@ -82,7 +60,9 @@ router.patch('/:id', authRequired, requireAnyPermission('patients.edit', 'doctor
     if (record.recordType === 'return') {
       const returnItems = req.body.returnItems
       if (!returnItems?.length) return res.status(400).json({ error: 'Return items required' })
-      record.returnItems = mapReturnLines(returnItems)
+      const resolved = await resolveCatalogReturnLines(returnItems)
+      if (resolved.error) return res.status(400).json({ error: resolved.error })
+      record.returnItems = resolved.lines
       record.services = []
       record.auditTrail = [
         ...(record.auditTrail || []),
@@ -91,7 +71,9 @@ router.patch('/:id', authRequired, requireAnyPermission('patients.edit', 'doctor
     } else {
       const services = req.body.services
       if (!services?.length) return res.status(400).json({ error: 'Services required' })
-      record.services = mapServiceLines(services)
+      const resolved = await resolveCatalogServiceLines(services)
+      if (resolved.error) return res.status(400).json({ error: resolved.error })
+      record.services = resolved.lines
       record.auditTrail = [
         ...(record.auditTrail || []),
         audit('edited', req.user.name, `Record updated — ${record.services.length} service(s)`),

@@ -10,7 +10,6 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
-  Pill,
   Receipt,
   Scale,
   Settings,
@@ -122,8 +121,7 @@ export const NAVIGATION = {
       id: 'catalog',
       label: 'Catalog',
       items: [
-        { id: 'admin-services', label: 'Services', path: '/admin/services', icon: ClipboardList, anyOf: ['system.view_settings', 'system.modify_settings'] },
-        { id: 'admin-medicines', label: 'Medicines', path: '/admin/medicines', icon: Pill, anyOf: ['system.view_settings', 'system.modify_settings'] },
+        { id: 'admin-catalog', label: 'Catalog', path: '/admin/catalog', icon: ClipboardList, anyOf: ['system.view_settings', 'system.modify_settings'] },
         {
           id: 'admin-room-charges',
           label: 'Room Charges',

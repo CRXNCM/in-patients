@@ -1,5 +1,6 @@
 import { computeCreditState } from './credit.js'
 import { resolveSettings, SETTINGS_KEYS } from './settings.js'
+import { toFrontendServiceItem } from './catalog.js'
 
 const ROOM_IDS = {
   'General Ward': 'ROOM-GW',
@@ -141,10 +142,12 @@ export function toFrontendRecord(doc, patientName) {
     source: doc.source || 'nurse',
     services: (doc.services || []).map((s, i) => ({
       id: s.id || `svc-${doc._id}-${i}`,
+      catalogItemId: s.catalogItemId || null,
       category: s.category,
       serviceName: s.serviceName,
       quantity: s.quantity,
       unitPrice: s.unitPrice,
+      unit: s.unit || '',
       total: s.total,
       notes: s.notes || '',
       doctorId: s.doctorId || null,
@@ -152,9 +155,11 @@ export function toFrontendRecord(doc, patientName) {
     })),
     returnItems: (doc.returnItems || []).map((r, i) => ({
       id: r.id || `ret-${doc._id}-${i}`,
+      catalogItemId: r.catalogItemId || null,
       serviceName: r.serviceName,
       quantity: r.quantity,
       unitPrice: r.unitPrice,
+      unit: r.unit || '',
       total: r.total,
       reason: r.reason || '',
     })),
@@ -175,7 +180,7 @@ export function toFrontendCategory(doc) {
     name: doc.name,
     description: doc.description,
     billingType: doc.billingType,
-    services: doc.services || [],
+    services: (doc.services || []).map(toFrontendServiceItem),
   }
 }
 

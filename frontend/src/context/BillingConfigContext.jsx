@@ -111,6 +111,12 @@ export function BillingConfigProvider({ children }) {
     [categories]
   )
 
+  const refreshCategories = React.useCallback(async () => {
+    if (!USE_API) return
+    const next = await api.getCategories()
+    setCategories(next)
+  }, [])
+
   return (
     <BillingConfigContext.Provider
       value={{
@@ -125,6 +131,7 @@ export function BillingConfigProvider({ children }) {
         getQuantityCategories,
         getSelectionCategories,
         getAutomaticCategories,
+        refreshCategories,
       }}
     >
       {children}

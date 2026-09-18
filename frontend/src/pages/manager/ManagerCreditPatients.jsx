@@ -92,7 +92,7 @@ export default function ManagerCreditPatients() {
     <MotionPage>
       <PageHeader
         title="Credit Patients"
-        description="Stays admitted on credit that have not yet met the required deposit."
+        description="Current stays admitted on credit."
       />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">

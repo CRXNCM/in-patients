@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
+import { SearchInput } from '@/components/ui/search-input'
 import { FormField } from '@/components/ui/form-field'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -24,6 +25,13 @@ import {
 import { isMaternityAdmission } from '@/lib/maternity'
 import { AnimatePresence, motion, useReducedMotion, fadeUp, revealTransition } from '@/lib/motion'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+
+function matchesCatalogQuery(svc, query) {
+  const q = String(query || '').trim().toLowerCase()
+  if (!q) return true
+  const haystack = `${svc.name || ''} ${svc.unit || ''}`.toLowerCase()
+  return haystack.includes(q)
+}
 
 export function ServiceRecordBuilder({
   patientId,
@@ -56,6 +64,8 @@ export function ServiceRecordBuilder({
   const [returnCart, setReturnCart] = useState([])
   const [checkedItems, setCheckedItems] = useState({})
   const [form, setForm] = useState({ serviceName: '', quantity: 1, notes: '' })
+  const [catalogQuery, setCatalogQuery] = useState('')
+  const [returnQuery, setReturnQuery] = useState('')
   const [returnForm, setReturnForm] = useState({ serviceName: '', quantity: 1, reason: '' })
   const [editingRecordId, setEditingRecordId] = useState(null)
   const [editingReturnId, setEditingReturnId] = useState(null)
@@ -69,10 +79,17 @@ export function ServiceRecordBuilder({
   const pendingDaily = getPendingEditableRecord(patientId, 'daily_services', today, maternity ? subjectType : 'mother')
   const pendingReturn = getPendingEditableRecord(patientId, 'pharmacy_return', today, maternity ? subjectType : 'mother')
   const activeCat = categories.find((c) => c.name === activeCategory)
+  const selectableServices = (activeCat?.services || []).filter((svc) => svc.active !== false)
+  const selectablePharmacy = (pharmacyCategory?.services || []).filter((svc) => svc.active !== false)
+  const visibleServices = selectableServices.filter((svc) => matchesCatalogQuery(svc, catalogQuery))
+  const visiblePharmacy = selectablePharmacy.filter(
+    (svc) => matchesCatalogQuery(svc, returnQuery) || svc.name === returnForm.serviceName
+  )
 
   useEffect(() => {
     setCheckedItems({})
     setForm({ serviceName: '', quantity: 1, notes: '' })
+    setCatalogQuery('')
   }, [activeCategory])
 
   const draftServiceLines = (record) =>
@@ -173,15 +190,18 @@ export function ServiceRecordBuilder({
       }
     }
     const lines = names.map((name) => {
-      const svc = activeCat.services.find((s) => s.name === name)
+      const svc = selectableServices.find((s) => s.name === name)
+      if (!svc) return null
       return buildServiceLine({
         category: activeCategory,
+        catalogItemId: svc.id,
         serviceName: name,
         quantity: checkedItems[name],
         unitPrice: svc.price,
+        unit: svc.unit,
         notes: '',
       })
-    })
+    }).filter(Boolean)
     setCart((prev) => [...prev, ...lines])
     setCheckedItems({})
     toast({ title: 'Items added', description: `${lines.length} item(s) added to record`, variant: 'success' })
@@ -190,43 +210,67 @@ export function ServiceRecordBuilder({
   const renderChecklistPanel = (description) => (
     <div>
       <p className="text-xs text-muted-foreground mb-3">{description}</p>
-      <div className="grid gap-2 sm:grid-cols-2 mb-4">
-        {activeCat.services.map((svc) => {
-          const checked = checkedItems[svc.name] !== undefined
-          return (
-            <div
-              key={svc.name}
-              className={cn(
-                'flex items-center gap-3 rounded-lg border bg-card p-3 transition-[border-color,background-color,box-shadow] duration-140 ease-out-soft',
-                checked ? 'border-primary bg-primary/5 shadow-sm' : 'hover:border-primary/25 hover:bg-muted/40 hover:shadow-sm'
-              )}
-            >
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-input shrink-0"
-                checked={checked}
-                onChange={() => toggleCheckItem(svc.name)}
-              />
-              <span className="flex-1 text-sm font-medium min-w-0">{svc.name}</span>
-              {!hideMoney && (
-                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatCurrency(svc.price)}</span>
-              )}
-              <div className="flex items-center gap-1 shrink-0">
-                <Label className="text-xs text-muted-foreground sr-only">Qty</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  className="h-8 w-16 text-center tabular-nums"
-                  value={checked ? checkedItems[svc.name] : 1}
-                  disabled={!checked}
-                  onChange={(e) => setItemQuantity(svc.name, e.target.value)}
-                  aria-label={`${svc.name} quantity`}
-                />
-              </div>
-            </div>
-          )
-        })}
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <SearchInput
+          label={`Search ${activeCat?.name || 'catalog'} items`}
+          placeholder={`Search ${activeCat?.name?.toLowerCase() || 'items'}...`}
+          value={catalogQuery}
+          onChange={(e) => setCatalogQuery(e.target.value)}
+          className="sm:max-w-sm"
+        />
+        <p className="text-xs text-muted-foreground">
+          {catalogQuery.trim()
+            ? `${visibleServices.length} of ${selectableServices.length} items`
+            : `${selectableServices.length} items`}
+        </p>
       </div>
+      {visibleServices.length === 0 ? (
+        <p className="mb-4 rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+          {catalogQuery.trim()
+            ? `No ${activeCat?.name?.toLowerCase() || 'catalog'} items match “${catalogQuery.trim()}”.`
+            : `No active items in ${activeCat?.name || 'this category'}.`}
+        </p>
+      ) : (
+        <div className="mb-4 max-h-[22rem] overflow-y-auto pr-1">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {visibleServices.map((svc) => {
+              const checked = checkedItems[svc.name] !== undefined
+              return (
+                <div
+                  key={svc.id || svc.name}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg border bg-card p-3 transition-[border-color,background-color,box-shadow] duration-140 ease-out-soft',
+                    checked ? 'border-primary bg-primary/5 shadow-sm' : 'hover:border-primary/25 hover:bg-muted/40 hover:shadow-sm'
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-input shrink-0"
+                    checked={checked}
+                    onChange={() => toggleCheckItem(svc.name)}
+                  />
+                  <span className="flex-1 text-sm font-medium min-w-0">{svc.name}</span>
+                  {!hideMoney && (
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatCurrency(svc.price)}</span>
+                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Label className="text-xs text-muted-foreground sr-only">Qty</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      className="h-8 w-16 text-center tabular-nums"
+                      value={checked ? checkedItems[svc.name] : 1}
+                      disabled={!checked}
+                      onChange={(e) => setItemQuantity(svc.name, e.target.value)}
+                      aria-label={`${svc.name} quantity`}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <Button type="button" onClick={addCheckedToCart} disabled={Object.keys(checkedItems).length === 0}>
         <Plus className="h-4 w-4 mr-1" /> Add Selected ({Object.keys(checkedItems).length})
       </Button>
@@ -307,12 +351,14 @@ export function ServiceRecordBuilder({
       toast({ title: 'Invalid quantity', description: qtyErr, variant: 'destructive' })
       return
     }
-    const med = pharmacyCategory?.services.find((s) => s.name === returnForm.serviceName)
+    const med = selectablePharmacy.find((s) => s.name === returnForm.serviceName)
     if (!med) return
     const line = buildReturnLine({
+      catalogItemId: med.id,
       serviceName: returnForm.serviceName,
       quantity: returnForm.quantity,
       unitPrice: med.price,
+      unit: med.unit,
       reason: returnForm.reason,
     })
     setReturnCart((prev) => [...prev, line])
@@ -591,17 +637,25 @@ export function ServiceRecordBuilder({
               Record medicines returned to pharmacy. Reception will cross-check before removing from the patient record.
             </p>
             <div className="mb-4 grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <FormField label="Medicine" className="lg:col-span-2">
-                <NativeSelect
-                  value={returnForm.serviceName}
-                  onChange={(e) => setReturnForm((p) => ({ ...p, serviceName: e.target.value }))}
-                >
-                  <option value="">Select medicine...</option>
-                  {pharmacyCategory?.services.map((s) => (
-                    <option key={s.name} value={s.name}>{s.name}</option>
-                  ))}
-                </NativeSelect>
-              </FormField>
+              <div className="space-y-2 lg:col-span-2">
+                <SearchInput
+                  label="Search pharmacy medicines"
+                  placeholder="Search medicines..."
+                  value={returnQuery}
+                  onChange={(e) => setReturnQuery(e.target.value)}
+                />
+                <FormField label="Medicine">
+                  <NativeSelect
+                    value={returnForm.serviceName}
+                    onChange={(e) => setReturnForm((p) => ({ ...p, serviceName: e.target.value }))}
+                  >
+                    <option value="">Select medicine...</option>
+                    {visiblePharmacy.map((s) => (
+                      <option key={s.id || s.name} value={s.name}>{s.name}</option>
+                    ))}
+                  </NativeSelect>
+                </FormField>
+              </div>
               <FormField label="Quantity Returned">
                 <Input
                   type="number"

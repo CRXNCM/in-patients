@@ -341,7 +341,7 @@ export default function AddPatient() {
                   <div className="rounded-md border border-amber-200 bg-amber-50/70 dark:bg-amber-950/20 p-3 text-sm">
                     <p className="font-semibold">CREDIT PATIENT</p>
                     <p className="text-muted-foreground">
-                      Required deposit remains {formatCurrency(minimumInitialDeposit)}. Amount paid now can be 0. Outstanding deposit stays visible until later payments cover it.
+                      This patient is admitted on credit. Amount paid now can be 0.
                     </p>
                   </div>
                 )}

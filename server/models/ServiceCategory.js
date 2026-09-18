@@ -1,8 +1,13 @@
 import mongoose from 'mongoose'
 
 const serviceItemSchema = new mongoose.Schema(
-  { name: String, price: Number },
-  { _id: false }
+  {
+    name: { type: String, required: true, trim: true },
+    price: { type: Number, required: true, min: 0 },
+    unit: { type: String, default: '', trim: true },
+    active: { type: Boolean, default: true },
+  },
+  { _id: true }
 )
 
 const serviceCategorySchema = new mongoose.Schema(
