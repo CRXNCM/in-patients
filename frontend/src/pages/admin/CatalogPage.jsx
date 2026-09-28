@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ClipboardList, Pencil, Plus } from 'lucide-react'
+import { ClipboardList, FolderPlus, Pencil, Plus, Upload } from 'lucide-react'
 import { PageHeader, DataTable, EmptyState, StatusBadge } from '@/components/shared/CommonComponents'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
@@ -16,17 +16,11 @@ import { useToast } from '@/context/ToastContext'
 import { useAuth } from '@/context/AuthContext'
 import { useBillingConfig } from '@/context/BillingConfigContext'
 import { MotionPage } from '@/lib/motion'
+import { CATALOG_CATEGORIES, manualCatalogTabs, slugifyCategoryName } from '@/lib/catalogCategories'
+import { CatalogImportDialog } from '@/components/admin/CatalogImportDialog'
 
-const CATALOG_CATEGORIES = [
-  { slug: 'consumables', name: 'Consumables' },
-  { slug: 'laboratory', name: 'Laboratory' },
-  { slug: 'medical-supplies', name: 'Medical Supplies' },
-  { slug: 'pharmacy', name: 'Pharmacy' },
-  { slug: 'procedures', name: 'Procedures' },
-  { slug: 'radiology', name: 'Radiology' },
-]
-
-const emptyForm = { name: '', unit: '', price: '', active: true }
+const emptyForm = { name: '', subcategory: '', unit: '', price: '', active: true }
+const emptyCategoryForm = { name: '', slug: '', billingType: 'quantity', description: '' }
 const selectClass = 'h-9 rounded-md border bg-background px-3 text-sm shadow-sm'
 
 function FieldError({ message }) {
@@ -45,11 +39,28 @@ function validateForm(form) {
   return errors
 }
 
+function validateCategoryForm(form, existingTabs = []) {
+  const errors = {}
+  const name = String(form.name || '').trim()
+  const slug = slugifyCategoryName(form.slug || form.name)
+  if (!name) errors.name = 'Category name is required.'
+  if (!slug) errors.slug = 'Slug must use letters or numbers.'
+  if (existingTabs.some((tab) => tab.slug === slug)) errors.slug = 'This slug is already used.'
+  if (existingTabs.some((tab) => tab.name.toLowerCase() === name.toLowerCase())) {
+    errors.name = 'This category name already exists.'
+  }
+  return errors
+}
+
 export default function CatalogPage() {
   const { toast } = useToast()
   const { hasPermission } = useAuth()
-  const { refreshCategories } = useBillingConfig()
+  const { categories, refreshCategories } = useBillingConfig()
   const canModify = hasPermission('system.modify_settings')
+  const tabs = useMemo(() => {
+    const live = manualCatalogTabs(categories)
+    return live.length ? live : CATALOG_CATEGORIES
+  }, [categories])
 
   const [slug, setSlug] = useState(CATALOG_CATEGORIES[0].slug)
   const [items, setItems] = useState([])
@@ -58,6 +69,12 @@ export default function CatalogPage() {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
 
+  const [importOpen, setImportOpen] = useState(false)
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
+  const [categoryForm, setCategoryForm] = useState(emptyCategoryForm)
+  const [categoryErrors, setCategoryErrors] = useState({})
+  const [categorySaving, setCategorySaving] = useState(false)
+  const [slugTouched, setSlugTouched] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)
@@ -65,7 +82,12 @@ export default function CatalogPage() {
   const [saving, setSaving] = useState(false)
   const [togglingId, setTogglingId] = useState(null)
 
-  const category = CATALOG_CATEGORIES.find((c) => c.slug === slug) || CATALOG_CATEGORIES[0]
+  const category = tabs.find((c) => c.slug === slug) || tabs[0] || CATALOG_CATEGORIES[0]
+
+  useEffect(() => {
+    if (!tabs.length) return
+    if (!tabs.some((tab) => tab.slug === slug)) setSlug(tabs[0].slug)
+  }, [tabs, slug])
 
   const load = useCallback(async (nextSlug = slug) => {
     if (!USE_API) {
@@ -98,7 +120,11 @@ export default function CatalogPage() {
       if (statusFilter === 'active' && !active) return false
       if (statusFilter === 'inactive' && active) return false
       if (!q) return true
-      return String(item.name || '').toLowerCase().includes(q) || String(item.unit || '').toLowerCase().includes(q)
+      return (
+        String(item.name || '').toLowerCase().includes(q)
+        || String(item.subcategory || '').toLowerCase().includes(q)
+        || String(item.unit || '').toLowerCase().includes(q)
+      )
     })
   }, [items, query, statusFilter])
 
@@ -113,6 +139,7 @@ export default function CatalogPage() {
     setEditing(item)
     setForm({
       name: item.name || '',
+      subcategory: item.subcategory || '',
       unit: item.unit || '',
       price: item.price === 0 || item.price ? String(item.price) : '',
       active: item.active !== false,
@@ -131,6 +158,7 @@ export default function CatalogPage() {
     try {
       const payload = {
         name: form.name.trim(),
+        subcategory: String(form.subcategory || '').trim(),
         unit: String(form.unit || '').trim(),
         price: Number(form.price),
       }
@@ -176,6 +204,7 @@ export default function CatalogPage() {
 
   const columns = [
     { key: 'name', header: 'Item', render: (row) => <span className="font-medium">{row.name}</span> },
+    { key: 'subcategory', header: 'Subcategory', render: (row) => row.subcategory || '—' },
     { key: 'unit', header: 'Unit', render: (row) => row.unit || '—' },
     { key: 'price', header: 'Price', render: (row) => <span className="tabular-nums">{formatCurrency(row.price)}</span> },
     {
@@ -216,18 +245,34 @@ export default function CatalogPage() {
     <MotionPage>
       <PageHeader
         title="Catalog"
-        description="Manage live prices for consumables, laboratory, medical supplies, pharmacy, procedures, and radiology."
+        description="Manage service categories and live prices. Room and doctor fees stay on beds and doctors."
         action={
           canModify ? (
-            <Button onClick={openAdd} disabled={loading || Boolean(error)}>
-              <Plus className="h-4 w-4 mr-2" /> Add Item
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCategoryForm(emptyCategoryForm)
+                  setCategoryErrors({})
+                  setSlugTouched(false)
+                  setCategoryDialogOpen(true)
+                }}
+              >
+                <FolderPlus className="h-4 w-4 mr-2" /> Add Category
+              </Button>
+              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={Boolean(error)}>
+                <Upload className="h-4 w-4 mr-2" /> Import Excel
+              </Button>
+              <Button onClick={openAdd} disabled={loading || Boolean(error) || !category}>
+                <Plus className="h-4 w-4 mr-2" /> Add Item
+              </Button>
+            </div>
           ) : null
         }
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {CATALOG_CATEGORIES.map((cat) => (
+        {tabs.map((cat) => (
           <Button
             key={cat.slug}
             type="button"
@@ -293,6 +338,124 @@ export default function CatalogPage() {
         )}
       </Card>
 
+      <CatalogImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        categories={tabs}
+        onImported={async () => {
+          await load(slug)
+          refreshCategories?.()
+        }}
+      />
+
+      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+        <DialogContent>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const errors = validateCategoryForm(categoryForm, tabs)
+              setCategoryErrors(errors)
+              if (Object.keys(errors).length) return
+              setCategorySaving(true)
+              try {
+                const created = await api.createCategory({
+                  name: categoryForm.name.trim(),
+                  slug: categoryForm.slug.trim() || slugifyCategoryName(categoryForm.name),
+                  billingType: categoryForm.billingType,
+                  description: categoryForm.description.trim(),
+                })
+                await refreshCategories?.()
+                setSlug(created.id)
+                setQuery('')
+                setCategoryDialogOpen(false)
+                toast({
+                  title: 'Category added',
+                  description: `${created.name} is ready. Add items or import Excel into it.`,
+                  variant: 'success',
+                })
+              } catch (err) {
+                toast({ title: 'Could not add category', description: err.message, variant: 'destructive' })
+              } finally {
+                setCategorySaving(false)
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Add category</DialogTitle>
+              <DialogDescription>
+                Create a billing group first, then add items or import Excel. Room and doctor stay automatic.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="category-name">Name *</Label>
+                <Input
+                  id="category-name"
+                  className="mt-1"
+                  value={categoryForm.name}
+                  onChange={(e) => {
+                    const name = e.target.value
+                    setCategoryForm((prev) => ({
+                      ...prev,
+                      name,
+                      slug: slugTouched ? prev.slug : slugifyCategoryName(name),
+                    }))
+                  }}
+                  placeholder="Physiotherapy"
+                  autoFocus
+                />
+                <FieldError message={categoryErrors.name} />
+              </div>
+              <div>
+                <Label htmlFor="category-slug">Excel / slug</Label>
+                <Input
+                  id="category-slug"
+                  className="mt-1"
+                  value={categoryForm.slug}
+                  onChange={(e) => {
+                    setSlugTouched(true)
+                    setCategoryForm((prev) => ({ ...prev, slug: slugifyCategoryName(e.target.value) }))
+                  }}
+                  placeholder="physiotherapy"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">Used in Excel. Letters, numbers, and hyphens only.</p>
+                <FieldError message={categoryErrors.slug} />
+              </div>
+              <div>
+                <Label htmlFor="category-billing">Billing type *</Label>
+                <select
+                  id="category-billing"
+                  className={`${selectClass} mt-1 w-full`}
+                  value={categoryForm.billingType}
+                  onChange={(e) => setCategoryForm((prev) => ({ ...prev, billingType: e.target.value }))}
+                >
+                  <option value="quantity">Quantity — count × price</option>
+                  <option value="selection">Selection — pick one item</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="category-description">Description</Label>
+                <Input
+                  id="category-description"
+                  className="mt-1"
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="Optional"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCategoryDialogOpen(false)} disabled={categorySaving}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={categorySaving}>
+                {categorySaving ? 'Saving…' : 'Create category'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <form onSubmit={handleSave}>
@@ -313,6 +476,16 @@ export default function CatalogPage() {
                   autoFocus
                 />
                 <FieldError message={formErrors.name} />
+              </div>
+              <div>
+                <Label htmlFor="catalog-subcategory">Subcategory</Label>
+                <Input
+                  id="catalog-subcategory"
+                  className="mt-1"
+                  value={form.subcategory}
+                  onChange={(e) => setForm((p) => ({ ...p, subcategory: e.target.value }))}
+                  placeholder="Optional, e.g. Hematology"
+                />
               </div>
               <div>
                 <Label htmlFor="catalog-unit">Unit</Label>

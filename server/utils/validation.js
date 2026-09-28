@@ -190,6 +190,7 @@ export function inpatientActionError(patient, action) {
       transfer: 'Cannot transfer a discharged patient.',
       'doctor-visit': 'Cannot change doctor visits for a discharged patient.',
       'assign-doctor': 'Cannot assign a doctor to a discharged patient.',
+      'clinical-notes': 'This admission has been discharged. Clinical notes are now read-only.',
     }
     return messages[action] || 'This action is not allowed for a discharged patient.'
   }

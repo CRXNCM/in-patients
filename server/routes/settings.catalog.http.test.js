@@ -14,6 +14,8 @@ import settingsRoutes from './settings.routes.js'
 
 const PREFIX = 'catalog-test-'
 const TEST_ITEM_NAME = 'TEST - DELETE ME'
+const TEST_CATEGORY_SLUG = 'catalog-newcat-test'
+const TEST_CATEGORY_NAME = 'Catalog Test Physiotherapy'
 const hasDb = Boolean(process.env.MONGODB_URI && process.env.JWT_SECRET)
 
 function sign(user) {
@@ -80,6 +82,7 @@ describe('catalog item CRUD HTTP', { skip: !hasDb }, () => {
   }
 
   async function cleanupTestItems() {
+    await ServiceCategory.deleteMany({ slug: TEST_CATEGORY_SLUG })
     await ServiceCategory.updateOne(
       { slug: 'pharmacy' },
       { $pull: { services: { name: TEST_ITEM_NAME } } }
@@ -150,10 +153,11 @@ describe('catalog item CRUD HTTP', { skip: !hasDb }, () => {
     const created = await request(app, '/api/settings/categories/pharmacy/services', {
       token: sign(admin),
       method: 'POST',
-      body: { name: TEST_ITEM_NAME, price: 12, unit: 'tablet', _id: 'client-id', active: false },
+      body: { name: TEST_ITEM_NAME, subcategory: 'Analgesics', price: 12, unit: 'tablet', _id: 'client-id', active: false },
     })
     assert.equal(created.status, 201)
     assert.equal(created.body.name, TEST_ITEM_NAME)
+    assert.equal(created.body.subcategory, 'Analgesics')
     assert.equal(created.body.price, 12)
     assert.equal(created.body.unit, 'tablet')
     assert.equal(created.body.active, true)
@@ -164,6 +168,7 @@ describe('catalog item CRUD HTTP', { skip: !hasDb }, () => {
     const persisted = stored.services.find((item) => String(item._id) === created.body.id)
     assert.ok(persisted, 'item must exist in MongoDB after create')
     assert.equal(persisted.name, TEST_ITEM_NAME)
+    assert.equal(persisted.subcategory, 'Analgesics')
     assert.equal(persisted.active, true)
 
     const reloaded = await request(app, '/api/settings/categories/pharmacy/services', { token: sign(admin) })
@@ -230,6 +235,57 @@ describe('catalog item CRUD HTTP', { skip: !hasDb }, () => {
       body: { name: TEST_ITEM_NAME, price: 10 },
     })
     assert.equal(missingWrite.status, 404)
+  })
+
+  it('creates a manual category and rejects reserved or duplicate ones', async () => {
+    const created = await request(app, '/api/settings/categories', {
+      token: sign(admin),
+      method: 'POST',
+      body: { name: TEST_CATEGORY_NAME, slug: TEST_CATEGORY_SLUG, billingType: 'selection', description: 'Therapy sessions' },
+    })
+    assert.equal(created.status, 201)
+    assert.equal(created.body.id, TEST_CATEGORY_SLUG)
+    assert.equal(created.body.name, TEST_CATEGORY_NAME)
+    assert.equal(created.body.billingType, 'selection')
+    assert.deepEqual(created.body.services, [])
+
+    const listed = await request(app, '/api/settings/categories', { token: sign(admin) })
+    assert.ok(listed.body.some((category) => category.id === TEST_CATEGORY_SLUG))
+
+    const item = await request(app, `/api/settings/categories/${TEST_CATEGORY_SLUG}/services`, {
+      token: sign(admin),
+      method: 'POST',
+      body: { name: 'Session', price: 400, unit: 'session' },
+    })
+    assert.equal(item.status, 201)
+
+    const duplicate = await request(app, '/api/settings/categories', {
+      token: sign(admin),
+      method: 'POST',
+      body: { name: TEST_CATEGORY_NAME, billingType: 'quantity' },
+    })
+    assert.equal(duplicate.status, 409)
+
+    const reserved = await request(app, '/api/settings/categories', {
+      token: sign(admin),
+      method: 'POST',
+      body: { name: 'Daily Room', slug: 'room', billingType: 'quantity' },
+    })
+    assert.equal(reserved.status, 400)
+
+    const automatic = await request(app, '/api/settings/categories', {
+      token: sign(admin),
+      method: 'POST',
+      body: { name: 'Night Charge', billingType: 'automatic_daily' },
+    })
+    assert.equal(automatic.status, 400)
+
+    const viewerCreate = await request(app, '/api/settings/categories', {
+      token: sign(viewer),
+      method: 'POST',
+      body: { name: 'Should Fail', billingType: 'quantity' },
+    })
+    assert.equal(viewerCreate.status, 403)
   })
 
   it('does not modify existing patient service records', async () => {

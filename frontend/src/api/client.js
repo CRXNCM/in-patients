@@ -31,6 +31,20 @@ export const api = {
   getPatients: () => apiFetch('/api/patients'),
   getPatient: (id) => apiFetch(`/api/patients/${id}`),
   getPatientProfile: (id) => apiFetch(`/api/patients/${encodeURIComponent(id)}/profile`),
+  getClinicalNotes: (patientId, admissionId) =>
+    apiFetch(
+      `/api/patients/${encodeURIComponent(patientId)}/admissions/${encodeURIComponent(admissionId)}/clinical-notes`
+    ),
+  createClinicalNote: (patientId, admissionId, body) =>
+    apiFetch(
+      `/api/patients/${encodeURIComponent(patientId)}/admissions/${encodeURIComponent(admissionId)}/clinical-notes`,
+      { method: 'POST', body: JSON.stringify(body) }
+    ),
+  updateClinicalNote: (noteId, body) =>
+    apiFetch(`/api/clinical-notes/${encodeURIComponent(noteId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   createPatient: (body) => apiFetch('/api/patients', { method: 'POST', body: JSON.stringify(body) }),
   upsertMaternityBaby: (id, body) =>
     apiFetch(`/api/patients/${id}/baby`, { method: 'PUT', body: JSON.stringify(body) }),
@@ -90,6 +104,8 @@ export const api = {
   getSettings: () => apiFetch('/api/settings'),
   updateSettings: (body) => apiFetch('/api/settings', { method: 'PUT', body: JSON.stringify(body) }),
   getCategories: () => apiFetch('/api/settings/categories'),
+  createCategory: (body) =>
+    apiFetch('/api/settings/categories', { method: 'POST', body: JSON.stringify(body) }),
   getCategoryServices: (slug) =>
     apiFetch(`/api/settings/categories/${encodeURIComponent(slug)}/services`),
   createCategoryService: (slug, body) =>
@@ -107,6 +123,10 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ billingType }),
     }),
+  previewCatalogImport: (body) =>
+    apiFetch('/api/settings/catalog/import/preview', { method: 'POST', body: JSON.stringify(body) }),
+  applyCatalogImport: (body) =>
+    apiFetch('/api/settings/catalog/import', { method: 'POST', body: JSON.stringify(body) }),
 
   getManagerDashboard: () => apiFetch('/api/manager/dashboard'),
   getManagerReport: (type) => apiFetch(`/api/manager/reports/${type}`),

@@ -124,6 +124,17 @@ export const PERMISSION_CATALOG = [
       { key: 'wards.manage', label: 'Activate or deactivate wards' },
     ],
   },
+  {
+    module: 'clinicalNotes',
+    label: 'Clinical Notes',
+    description: 'Nurse documentation for the current admission. Notes do not create charges.',
+    permissions: [
+      { key: 'clinicalNotes.view', label: 'View clinical notes' },
+      { key: 'clinicalNotes.create', label: 'Create clinical notes' },
+      { key: 'clinicalNotes.editOwn', label: 'Edit own clinical notes' },
+      { key: 'clinicalNotes.manage', label: 'Manage clinical notes' },
+    ],
+  },
 ]
 
 export const ALL_PERMISSION_KEYS = PERMISSION_CATALOG.flatMap((group) => group.permissions.map((item) => item.key))
@@ -155,6 +166,7 @@ const RECEPTION_PERMISSIONS = [
   'credit.create_admission',
   'credit.record_payment',
   'credit.settle',
+  'clinicalNotes.view',
 ]
 
 const NURSE_PERMISSIONS = [
@@ -164,6 +176,9 @@ const NURSE_PERMISSIONS = [
   'rooms.view',
   'doctors.view',
   'doctors.assign',
+  'clinicalNotes.view',
+  'clinicalNotes.create',
+  'clinicalNotes.editOwn',
 ]
 
 const MANAGER_PERMISSIONS = [
@@ -173,6 +188,7 @@ const MANAGER_PERMISSIONS = [
   'credit.view',
   'reports.view',
   'reports.export',
+  'clinicalNotes.view',
 ]
 
 export const PREDEFINED_ROLE_PRESETS = [
@@ -215,12 +231,14 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     'admissions.create',
     'rooms.view',
     'rooms.assign_beds',
+    'clinicalNotes.view',
   ],
   nurse: NURSE_PERMISSIONS,
   doctor: [
     'patients.view',
     'admissions.view',
     'doctors.view',
+    'clinicalNotes.view',
   ],
   manager: MANAGER_PERMISSIONS,
   finance: MANAGER_PERMISSIONS,

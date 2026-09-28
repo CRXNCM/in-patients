@@ -1,6 +1,11 @@
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { StatusBadge, DataTable } from '@/components/shared/CommonComponents'
+import { StayLocationFilters } from '@/components/shared/StayLocationFilters'
+import { usePatients } from '@/context/PatientsContext'
+import { usePatientLocationLookup } from '@/hooks/usePatientLocationLookup'
+import { locationForPatient, patientMatchesStayFilters, stayFilterQuery, stayId } from '@/lib/patientLocation'
 import {
   DASHBOARD_FOLD_GRID,
   DASHBOARD_OUTLINE_BUTTON,
@@ -104,7 +109,7 @@ function NeedsAttentionPanel({ rows, onOpenStay }) {
   )
 }
 
-function CurrentInpatientsPanel({ rows, onOpenStay, onViewAll }) {
+function CurrentInpatientsPanel({ rows, bedsByLabel, filters, roomTypeOptions, wardOptions, onFilterChange, onOpenStay, onViewAll }) {
   const columns = [
     {
       key: 'patientId',
@@ -119,6 +124,8 @@ function CurrentInpatientsPanel({ rows, onOpenStay, onViewAll }) {
       <PatientLink patientId={row.patientId} className="font-medium">{row.name}</PatientLink>
     ) },
     { key: 'room', header: 'Room/Bed', render: (row) => locationLabel(row) },
+    { key: 'ward', header: 'Ward', render: (row) => locationForPatient(row, bedsByLabel).wardName || '—' },
+    { key: 'roomType', header: 'Room type', render: (row) => locationForPatient(row, bedsByLabel).roomType || row.room || '—' },
     { key: 'admissionDate', header: 'Admission', render: (row) => formatStayDay(row.admissionDate) },
     { key: 'admissionType', header: 'Type', render: (row) => admissionTypeLabel(row.admissionType) },
     { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
@@ -159,12 +166,22 @@ function CurrentInpatientsPanel({ rows, onOpenStay, onViewAll }) {
           View all
         </Button>
       </div>
+      <div className="border-b border-primary/10 px-6 py-4 dark:border-white/10">
+        <StayLocationFilters
+          roomType={filters.roomType}
+          ward={filters.ward}
+          status={filters.status}
+          roomTypeOptions={roomTypeOptions}
+          wardOptions={wardOptions}
+          onChange={onFilterChange}
+        />
+      </div>
       <div className="[&>div]:rounded-none [&>div]:border-0 [&>div]:bg-transparent">
         <DataTable
           columns={columns}
           data={tableRows}
           onRowClick={(row) => onOpenStay(row.patientId)}
-          emptyState={<p className="py-10 text-center text-sm text-muted-foreground">No current inpatients.</p>}
+          emptyState={<p className="py-10 text-center text-sm text-muted-foreground">No current inpatients match these filters.</p>}
         />
       </div>
     </DashboardPanel>
@@ -208,7 +225,22 @@ function RecentSubmissionsPanel({ rows, onOpenStay }) {
 
 export default function NurseDashboard() {
   const navigate = useNavigate()
+  const { patients } = usePatients()
   const { data, loading, error, reload } = useNurseDashboard()
+  const [filters, setFilters] = useState({ roomType: '', ward: '', status: '' })
+  const { bedsByLabel, roomTypeOptions, wardOptions } = usePatientLocationLookup(patients)
+  const dashboardRows = data?.currentInpatients || []
+  const censusRows = useMemo(() => {
+    const source = patients.length ? patients : dashboardRows
+    const doctorsById = Object.fromEntries(dashboardRows.map((row) => [row.patientId, row.assignedDoctors]))
+    return source
+      .filter((row) => patientMatchesStayFilters(row, filters, bedsByLabel))
+      .map((row) => ({
+        ...row,
+        patientId: stayId(row),
+        assignedDoctors: row.assignedDoctors || doctorsById[stayId(row)] || [],
+      }))
+  }, [bedsByLabel, dashboardRows, filters, patients])
 
   const openStay = (patientId) => {
     if (patientId) navigate(`/nurse/patient/${patientId}`)
@@ -288,9 +320,14 @@ export default function NurseDashboard() {
       </div>
 
       <CurrentInpatientsPanel
-        rows={data.currentInpatients || []}
+        rows={censusRows}
+        bedsByLabel={bedsByLabel}
+        filters={filters}
+        roomTypeOptions={roomTypeOptions}
+        wardOptions={wardOptions}
+        onFilterChange={setFilters}
         onOpenStay={openStay}
-        onViewAll={() => navigate('/nurse/patients')}
+        onViewAll={() => navigate(`/nurse/patients${stayFilterQuery(filters)}`)}
       />
 
       <RecentSubmissionsPanel rows={data.recentSubmissions || []} onOpenStay={openStay} />

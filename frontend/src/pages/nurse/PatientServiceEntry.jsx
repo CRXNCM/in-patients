@@ -10,6 +10,7 @@ import { CreditBadge } from '@/components/shared/CreditBadge'
 import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
 import { RecordTimeline } from '@/components/shared/RecordTimeline'
 import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
+import { ClinicalNotesPanel } from '@/components/shared/ClinicalNotesPanel'
 import { isMaternityAdmission } from '@/lib/maternity'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
@@ -71,6 +72,13 @@ export default function PatientServiceEntry() {
           </div>
         </CardContent>
       </Card>
+
+      <ClinicalNotesPanel
+        className="mb-6"
+        patientId={patientId}
+        admissionId={patient.admissionId}
+        discharged={patient.status === 'discharged'}
+      />
 
       <MaternityAdmissionPanel patient={patient} canEdit={patient.status !== 'discharged'} />
 

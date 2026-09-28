@@ -2,14 +2,19 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
 
-export function patientProfilePath(patientId) {
-  return patientId ? `/patients/${encodeURIComponent(patientId)}` : null
+export function patientProfilePath(patientId, roleKey) {
+  if (!patientId) return null
+  const id = encodeURIComponent(patientId)
+  const role = String(roleKey || '').toLowerCase()
+  if (role === 'reception') return `/reception/patient/${id}`
+  if (role === 'nurse') return `/nurse/patient/${id}`
+  return `/patients/${id}`
 }
 
 export function PatientLink({ patientId, children, className, title }) {
-  const { hasPermission } = useAuth()
+  const { user, hasPermission } = useAuth()
   const location = useLocation()
-  const path = patientProfilePath(patientId)
+  const path = patientProfilePath(patientId, user?.roleKey)
 
   if (!path || !hasPermission('patients.view')) {
     return <span className={className} title={title}>{children}</span>

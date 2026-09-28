@@ -10,6 +10,7 @@ export function toFrontendServiceItem(item) {
   return {
     id: item._id ? String(item._id) : item.id || null,
     name: item.name,
+    subcategory: item.subcategory || '',
     price: Number(item.price) || 0,
     unit: item.unit || '',
     active: item.active !== false,
@@ -31,12 +32,16 @@ export function validateCatalogItemCreate(body = {}) {
     errors.push('Unit must be text.')
   }
 
+  if (body.subcategory !== undefined && body.subcategory !== null && typeof body.subcategory !== 'string') {
+    errors.push('Subcategory must be text.')
+  }
+
   return errors
 }
 
 export function validateCatalogItemPatch(body = {}) {
   const errors = []
-  const known = ['name', 'price', 'unit', 'active']
+  const known = ['name', 'price', 'unit', 'subcategory', 'active']
   const hasKnown = known.some((key) => body[key] !== undefined)
   if (!hasKnown) errors.push('No catalog fields were provided.')
 
@@ -53,6 +58,10 @@ export function validateCatalogItemPatch(body = {}) {
     errors.push('Unit must be text.')
   }
 
+  if (body.subcategory !== undefined && body.subcategory !== null && typeof body.subcategory !== 'string') {
+    errors.push('Subcategory must be text.')
+  }
+
   if (body.active !== undefined && typeof body.active !== 'boolean') {
     errors.push('Active must be true or false.')
   }
@@ -63,6 +72,7 @@ export function validateCatalogItemPatch(body = {}) {
 export function sanitizeCatalogItemCreate(body = {}) {
   return {
     name: trimText(body.name),
+    subcategory: trimText(body.subcategory),
     price: Number(body.price),
     unit: trimText(body.unit),
     active: true,
@@ -71,6 +81,7 @@ export function sanitizeCatalogItemCreate(body = {}) {
 
 export function applyCatalogItemPatch(item, body = {}) {
   if (body.name !== undefined) item.name = trimText(body.name)
+  if (body.subcategory !== undefined) item.subcategory = trimText(body.subcategory)
   if (body.price !== undefined) item.price = Number(body.price)
   if (body.unit !== undefined) item.unit = trimText(body.unit)
   if (body.active !== undefined) item.active = body.active
@@ -85,6 +96,7 @@ function shapedServices(rawServices = []) {
   return rawServices.map((item) => ({
     _id: item._id || new mongoose.Types.ObjectId(),
     name: item.name,
+    subcategory: typeof item.subcategory === 'string' ? item.subcategory : '',
     price: item.price,
     unit: typeof item.unit === 'string' ? item.unit : '',
     active: item.active !== false,
@@ -122,7 +134,59 @@ export const MANUAL_CATALOG_SLUGS = [
   'radiology',
 ]
 
+export const RESERVED_CATEGORY_SLUGS = ['room', 'doctor']
+const MANUAL_BILLING_TYPES = new Set(['quantity', 'selection'])
+
 const AUTO_CATEGORY_NAMES = new Set(['Room Services', 'Doctor Visits'])
+
+export function slugifyCategoryName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+export function isManualCatalogCategory(category) {
+  if (!category) return false
+  if (RESERVED_CATEGORY_SLUGS.includes(category.slug)) return false
+  return category.billingType !== 'automatic_daily'
+}
+
+export function validateCategoryCreate(body = {}) {
+  const errors = []
+  if (!trimText(body.name)) errors.push('Category name is required.')
+
+  if (body.billingType !== undefined && body.billingType !== null && body.billingType !== '') {
+    if (!MANUAL_BILLING_TYPES.has(body.billingType)) {
+      errors.push('Billing type must be quantity or selection.')
+    }
+  }
+
+  if (body.description !== undefined && body.description !== null && typeof body.description !== 'string') {
+    errors.push('Description must be text.')
+  }
+
+  if (body.slug !== undefined && body.slug !== null && body.slug !== '') {
+    const slug = slugifyCategoryName(body.slug)
+    if (!slug) errors.push('Category slug must use letters or numbers.')
+  }
+
+  return errors
+}
+
+export function sanitizeCategoryCreate(body = {}) {
+  const name = trimText(body.name)
+  const slug = slugifyCategoryName(body.slug) || slugifyCategoryName(name)
+  return {
+    slug,
+    name,
+    description: trimText(body.description),
+    billingType: body.billingType === 'selection' ? 'selection' : 'quantity',
+    services: [],
+  }
+}
 
 export function matchServiceCategory(categories, categoryValue) {
   const raw = String(categoryValue || '').trim()
@@ -212,7 +276,7 @@ export async function resolveCatalogServiceLines(services = []) {
       continue
     }
 
-    if (!category || !MANUAL_CATALOG_SLUGS.includes(category.slug)) {
+    if (!category || !isManualCatalogCategory(category)) {
       return { error: 'Category is not valid.', lines: [] }
     }
 

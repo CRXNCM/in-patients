@@ -14,6 +14,7 @@ import { HospitalSettings } from '../models/HospitalSettings.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { Doctor } from '../models/Doctor.js'
 import { DoctorAssignment } from '../models/DoctorAssignment.js'
+import { ClinicalNote } from '../models/ClinicalNote.js'
 import { seedBaselineDepartmentsAndWards, printSeedSummary } from './seedDepartmentsWards.js'
 
 const DEMO_USERS = [
@@ -228,6 +229,7 @@ async function seed() {
     HospitalSettings.deleteMany({}),
     Doctor.deleteMany({}),
     DoctorAssignment.deleteMany({}),
+    ClinicalNote.deleteMany({}),
     Role.deleteMany({}),
   ])
 

@@ -117,6 +117,7 @@ describe('inpatient write guards', () => {
     assert.match(inpatientActionError(p, 'transfer'), /transfer/)
     assert.match(inpatientActionError(p, 'doctor-visit'), /doctor/)
     assert.match(inpatientActionError(p, 'assign-doctor'), /doctor/)
+    assert.match(inpatientActionError(p, 'clinical-notes'), /read-only/)
   })
 
   it('blocks transfer while pending discharge but allows services and deposits', () => {
@@ -124,6 +125,7 @@ describe('inpatient write guards', () => {
     assert.match(inpatientActionError(p, 'transfer'), /pending discharge/)
     assert.equal(inpatientActionError(p, 'records'), null)
     assert.equal(inpatientActionError(p, 'deposits'), null)
+    assert.equal(inpatientActionError(p, 'clinical-notes'), null)
   })
 
   it('allows admitted patients', () => {
@@ -131,6 +133,7 @@ describe('inpatient write guards', () => {
     assert.equal(inpatientActionError(p, 'records'), null)
     assert.equal(inpatientActionError(p, 'transfer'), null)
     assert.equal(inpatientActionError(p, 'deposits'), null)
+    assert.equal(inpatientActionError(p, 'clinical-notes'), null)
   })
 
   it('reports a missing patient', () => {

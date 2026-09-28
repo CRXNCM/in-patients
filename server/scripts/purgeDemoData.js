@@ -8,17 +8,19 @@ import { ServiceRecord } from '../models/ServiceRecord.js'
 import { Doctor } from '../models/Doctor.js'
 import { DoctorAssignment } from '../models/DoctorAssignment.js'
 import { Bed } from '../models/Bed.js'
+import { ClinicalNote } from '../models/ClinicalNote.js'
 
 async function purge() {
   await connectDB(process.env.MONGODB_URI)
 
-  const [patients, doctors, records, deposits, rooms, assignments] = await Promise.all([
+  const [patients, doctors, records, deposits, rooms, assignments, notes] = await Promise.all([
     Patient.countDocuments(),
     Doctor.countDocuments(),
     ServiceRecord.countDocuments(),
     Deposit.countDocuments(),
     RoomAssignment.countDocuments(),
     DoctorAssignment.countDocuments(),
+    ClinicalNote.countDocuments(),
   ])
 
   await Promise.all([
@@ -28,6 +30,7 @@ async function purge() {
     ServiceRecord.deleteMany({}),
     Doctor.deleteMany({}),
     DoctorAssignment.deleteMany({}),
+    ClinicalNote.deleteMany({}),
     Bed.updateMany({}, { $set: { status: 'available', patientId: null } }),
   ])
 
@@ -38,6 +41,7 @@ async function purge() {
   console.log(`  Deposits removed: ${deposits}`)
   console.log(`  Room assignments removed: ${rooms}`)
   console.log(`  Doctor assignments removed: ${assignments}`)
+  console.log(`  Clinical notes removed: ${notes}`)
   console.log('  All beds set to available')
   console.log('Staff users, room inventory, service catalog, and settings were kept.')
 

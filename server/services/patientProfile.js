@@ -17,8 +17,6 @@ import {
 
 export const PATIENT_PROFILE_PERMISSION = 'patients.view'
 
-const ACTIVE_STATUSES = ['admitted', 'pending-discharge']
-
 function defaultDeps() {
   return { Patient, ServiceRecord, Deposit, RoomAssignment, MaternityBaby, calcPatientBalance, listAssignments }
 }
@@ -130,11 +128,12 @@ export async function buildPatientProfile(auth, patientId, injected = {}) {
   const depositDocs = typeof deposits?.map === 'function' ? deposits : []
   const { approvedCharges, approvedReturns } = includeMoney ? splitApprovedTotals(recordDocs) : { approvedCharges: 0, approvedReturns: 0 }
 
-  const active = ACTIVE_STATUSES.includes(patient.status)
+  const stayId = patient._id != null ? String(patient._id) : null
   const profile = {
     id: patient.patientId,
     name: patient.name || '',
     patientId: patient.patientId,
+    admissionId: stayId,
     gender: patient.gender || null,
     age: patient.age ?? null,
     dateOfBirth: patient.dateOfBirth || null,
@@ -176,16 +175,15 @@ export async function buildPatientProfile(auth, patientId, injected = {}) {
       credit: includeCredit,
     },
     patient: profile,
-    admission: active
-      ? {
-          status: patient.status,
-          admissionDate: patient.admissionDate || null,
-          admissionType: profile.admissionType,
-          admissionReason: patient.admissionReason || null,
-          room: patient.room || null,
-          bed: patient.bed || null,
-        }
-      : null,
+    admission: {
+      id: stayId,
+      status: patient.status,
+      admissionDate: patient.admissionDate || null,
+      admissionType: profile.admissionType,
+      admissionReason: patient.admissionReason || null,
+      room: patient.room || null,
+      bed: patient.bed || null,
+    },
     finance,
     credit: includeCredit
       ? {

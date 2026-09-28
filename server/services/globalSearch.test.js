@@ -64,9 +64,9 @@ describe('allowedSearchScopes', () => {
 })
 
 describe('resultRoute', () => {
-  it('uses the shared patient profile route for every access role', () => {
-    assert.equal(resultRoute('Reception', 'patient', 'PAT-1'), '/patients/PAT-1')
-    assert.equal(resultRoute('Nurse', 'patient', 'PAT-1'), '/patients/PAT-1')
+  it('sends nurse and reception to their work page, and others to the shared profile', () => {
+    assert.equal(resultRoute('Reception', 'patient', 'PAT-1'), '/reception/patient/PAT-1')
+    assert.equal(resultRoute('Nurse', 'patient', 'PAT-1'), '/nurse/patient/PAT-1')
     assert.equal(resultRoute('Admin', 'patient', 'PAT-1'), '/patients/PAT-1')
     assert.equal(resultRoute('Manager', 'patient', 'PAT-1'), '/patients/PAT-1')
   })

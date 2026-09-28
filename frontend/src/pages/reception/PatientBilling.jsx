@@ -31,6 +31,7 @@ import { DischargeReviewPanel } from '@/components/shared/DischargeWorkflow'
 import { AssignedDoctorsPanel } from '@/components/shared/AssignedDoctorsPanel'
 import { CreditBadge, CreditSummary } from '@/components/shared/CreditBadge'
 import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
+import { ClinicalNotesPanel } from '@/components/shared/ClinicalNotesPanel'
 import { isMaternityAdmission, subjectLabel } from '@/lib/maternity'
 import { api, USE_API } from '@/api/client'
 import { hospitalSettings, depositTypes } from '@/data/mockData'
@@ -422,6 +423,13 @@ export default function PatientBilling() {
             </div>
           </CardContent>
         </Card>
+
+        <ClinicalNotesPanel
+          className="mb-8"
+          patientId={patientId}
+          admissionId={patient.admissionId}
+          discharged={isDischarged}
+        />
 
         <MaternityAdmissionPanel patient={patient} canEdit={canAddCharges} />
 

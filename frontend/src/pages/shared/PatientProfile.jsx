@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Baby,
@@ -44,6 +44,7 @@ import { RecordTimeline } from '@/components/shared/RecordTimeline'
 import { RequestDischargeButton, DischargeReviewPanel } from '@/components/shared/DischargeWorkflow'
 import { RoomTransferPanel } from '@/components/shared/RoomTransferPanel'
 import { AssignedDoctorsPanel } from '@/components/shared/AssignedDoctorsPanel'
+import { ClinicalNotesPanel } from '@/components/shared/ClinicalNotesPanel'
 import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
 import { isMaternityAdmission } from '@/lib/maternity'
 
@@ -88,7 +89,7 @@ function SectionHead({ icon: Icon, kicker, title, description, action }) {
   )
 }
 
-export default function PatientProfile() {
+function PatientProfile() {
   const { patientId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -238,6 +239,7 @@ export default function PatientProfile() {
 
   const { patient, finance, credit, deposits, doctors, baby, roomAssignments } = data
   const stay = data.admission || {
+    id: patient.admissionId,
     status: patient.status,
     admissionDate: patient.admissionDate,
     admissionType: patient.admissionType,
@@ -524,6 +526,14 @@ export default function PatientProfile() {
           </Card>
         )}
 
+        {hasPermission('clinicalNotes.view') ? (
+          <ClinicalNotesPanel
+            patientId={patient.patientId}
+            admissionId={stay.id || patient.admissionId}
+            discharged={discharged}
+          />
+        ) : null}
+
         <Card id="service-activity">
           <SectionHead
             icon={FileText}
@@ -661,4 +671,16 @@ export default function PatientProfile() {
       </AlertDialog>
     </MotionPage>
   )
+}
+
+export default function PatientProfileEntry() {
+  const { user } = useAuth()
+  const { patientId } = useParams()
+  if (user?.roleKey === 'nurse') {
+    return <Navigate to={`/nurse/patient/${encodeURIComponent(patientId)}`} replace />
+  }
+  if (user?.roleKey === 'reception') {
+    return <Navigate to={`/reception/patient/${encodeURIComponent(patientId)}`} replace />
+  }
+  return <PatientProfile />
 }

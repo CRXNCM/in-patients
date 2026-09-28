@@ -6,6 +6,10 @@ import {
   validateCatalogItemPatch,
   sanitizeCatalogItemCreate,
   matchServiceCategory,
+  slugifyCategoryName,
+  isManualCatalogCategory,
+  validateCategoryCreate,
+  sanitizeCategoryCreate,
 } from './catalog.js'
 
 describe('catalog item mapping', () => {
@@ -18,6 +22,7 @@ describe('catalog item mapping', () => {
     assert.deepEqual(mapped, {
       id: 'abc123',
       name: 'CBC',
+      subcategory: '',
       price: 250,
       unit: '',
       active: true,
@@ -48,12 +53,13 @@ describe('catalog item create validation', () => {
   it('forces new items active and ignores client ids', () => {
     const created = sanitizeCatalogItemCreate({
       name: '  CBC  ',
+      subcategory: ' Hematology ',
       price: '250',
       unit: ' test ',
       _id: 'client-id',
       active: false,
     })
-    assert.deepEqual(created, { name: 'CBC', price: 250, unit: 'test', active: true })
+    assert.deepEqual(created, { name: 'CBC', subcategory: 'Hematology', price: 250, unit: 'test', active: true })
   })
 })
 
@@ -68,6 +74,24 @@ describe('matchServiceCategory', () => {
     assert.equal(matchServiceCategory(categories, 'laboratory').slug, 'laboratory')
     assert.equal(matchServiceCategory(categories, 'Pharmacy').slug, 'pharmacy')
     assert.equal(matchServiceCategory(categories, 'unknown'), null)
+  })
+})
+
+describe('catalog category create', () => {
+  it('builds a slug and only allows quantity or selection', () => {
+    assert.equal(slugifyCategoryName('OR Package'), 'or-package')
+    assert.ok(validateCategoryCreate({}).some((e) => /name/i.test(e)))
+    assert.ok(validateCategoryCreate({ name: 'Physio', billingType: 'automatic_daily' }).some((e) => /quantity or selection/i.test(e)))
+    assert.deepEqual(validateCategoryCreate({ name: 'Physiotherapy', billingType: 'selection' }), [])
+    assert.deepEqual(sanitizeCategoryCreate({ name: '  Physiotherapy  ', billingType: 'selection' }), {
+      slug: 'physiotherapy',
+      name: 'Physiotherapy',
+      description: '',
+      billingType: 'selection',
+      services: [],
+    })
+    assert.equal(isManualCatalogCategory({ slug: 'physiotherapy', billingType: 'selection' }), true)
+    assert.equal(isManualCatalogCategory({ slug: 'room', billingType: 'automatic_daily' }), false)
   })
 })
 

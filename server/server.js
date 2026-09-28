@@ -20,13 +20,14 @@ import departmentRoutes from './routes/departments.routes.js'
 import wardRoutes from './routes/wards.routes.js'
 import roomRoutes from './routes/rooms.routes.js'
 import searchRoutes from './routes/search.routes.js'
+import clinicalNotesRoutes from './routes/clinicalNotes.routes.js'
 import { ensureDefaultRoles } from './services/roles.js'
 
 const app = express()
 const PORT = process.env.PORT || 5000
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173', credentials: true }))
-app.use(express.json())
+app.use(express.json({ limit: '1mb' }))
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'medbill-api', time: new Date().toISOString() })
@@ -50,6 +51,7 @@ app.use('/api/departments', departmentRoutes)
 app.use('/api/wards', wardRoutes)
 app.use('/api/rooms', roomRoutes)
 app.use('/api/search', searchRoutes)
+app.use('/api', clinicalNotesRoutes)
 
 async function start() {
   const uri = process.env.MONGODB_URI

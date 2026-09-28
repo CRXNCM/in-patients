@@ -43,6 +43,7 @@ export function toFrontendPatient(doc, balance) {
   })
   return {
     id: doc.patientId,
+    admissionId: doc._id != null ? String(doc._id) : null,
     name: doc.name,
     age: doc.age,
     gender: doc.gender,
