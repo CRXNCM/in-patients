@@ -6,6 +6,7 @@ describe('maternity admission type', () => {
   it('defaults unknown values to invalid', () => {
     assert.equal(normalizeAdmissionType('maternity'), 'maternity')
     assert.equal(normalizeAdmissionType('NORMAL'), 'normal')
+    assert.equal(normalizeAdmissionType('emergency-opd'), 'emergency-opd')
     assert.equal(normalizeAdmissionType('twin'), null)
   })
 })
