@@ -36,7 +36,7 @@ export default function ReceptionDashboard() {
 
   const actions = (
     <div className="flex flex-wrap gap-2">
-      {hasPermission('admissions.create') ? (
+      {hasPermission('admissions.create') || hasPermission('admissions.create_emergency') ? (
         <Button type="button" size="sm" onClick={() => navigate('/reception/add-patient')}>
           Add Patient
         </Button>

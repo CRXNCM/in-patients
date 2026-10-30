@@ -21,11 +21,13 @@ import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useWorkflowRequests } from '@/context/WorkflowRequestsContext'
 import { formatDate } from '@/lib/utils'
 import { MotionPage, MotionReveal } from '@/lib/motion'
+import { useAuth } from '@/context/AuthContext'
 
 export default function PatientServiceEntry() {
   const { patientId } = useParams()
   const navigate = useNavigate()
   const { getPatient, applyPatientUpdate } = usePatients()
+  const { hasPermission } = useAuth()
   const { getPatientRecords, CURRENT_NURSE } = useServiceEntries()
   const { pharmacyOrders, laboratoryOrders } = useWorkflowRequests()
   const [historyEdit, setHistoryEdit] = useState(null)
@@ -96,7 +98,7 @@ export default function PatientServiceEntry() {
 
       <AssignedDoctorsPanel
         patient={patient}
-        canAdd={patient.status !== 'discharged'}
+        canAdd={patient.status !== 'discharged' && hasPermission('doctors.assign')}
         onChanged={(res) => {
           if (res?.patient) applyPatientUpdate(res.patient)
         }}

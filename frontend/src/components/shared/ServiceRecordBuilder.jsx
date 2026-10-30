@@ -62,6 +62,8 @@ export function ServiceRecordBuilder({
   const submissionRef = useRef('')
   const submissionSigRef = useRef('')
 
+  const emergencyPricing = isEmergencyOpdAdmission(patient)
+  const displayCatalogPrice = (price) => applyEmergencyPrice(price, { emergencyPricing }).unitPrice
   const manualCategories = categories.filter((c) => c.billingType !== BILLING_TYPES.AUTOMATIC_DAILY)
   const pharmacyCategory = categories.find((c) => c.id === 'pharmacy')
 
@@ -208,7 +210,7 @@ export function ServiceRecordBuilder({
         catalogItemId: svc.id,
         serviceName: name,
         quantity: checkedItems[name],
-        unitPrice: svc.price,
+        unitPrice: displayCatalogPrice(svc.price),
         unit: svc.unit,
         notes: '',
       })
@@ -262,7 +264,10 @@ export function ServiceRecordBuilder({
                   />
                   <span className="flex-1 text-sm font-medium min-w-0">{svc.name}</span>
                   {!hideMoney && (
-                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatCurrency(svc.price)}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {formatCurrency(displayCatalogPrice(svc.price))}
+                      {emergencyPricing ? <span className="ml-1 text-[10px] uppercase">1.25×</span> : null}
+                    </span>
                   )}
                   <div className="flex items-center gap-1 shrink-0">
                     <Label className="text-xs text-muted-foreground sr-only">Qty</Label>
@@ -451,7 +456,7 @@ export function ServiceRecordBuilder({
       catalogItemId: med.id,
       serviceName: returnForm.serviceName,
       quantity: returnForm.quantity,
-      unitPrice: med.price,
+      unitPrice: displayCatalogPrice(med.price),
       unit: med.unit,
       reason: returnForm.reason,
     })

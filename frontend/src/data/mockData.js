@@ -447,6 +447,16 @@ export const users = [
     permissions: ['patients.view', 'patients.edit', 'admissions.view', 'rooms.view', 'doctors.view', 'doctors.assign', 'clinicalNotes.view', 'clinicalNotes.create', 'clinicalNotes.editOwn'],
   },
   {
+    id: 9,
+    name: 'Emergency Nurse Hanna',
+    email: 'emergency-nurse@cc',
+    role: 'Nurse',
+    roleName: 'Emergency Nurse',
+    roleSlug: 'emergency-nurse',
+    status: 'active',
+    permissions: ['patients.view', 'patients.create', 'patients.edit', 'admissions.view', 'admissions.create_emergency', 'rooms.view', 'doctors.view', 'clinicalNotes.view', 'clinicalNotes.create', 'clinicalNotes.editOwn'],
+  },
+  {
     id: 7,
     name: 'Dawit Lemma',
     email: 'pharmacist@cc',
