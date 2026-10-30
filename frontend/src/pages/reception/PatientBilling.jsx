@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, AlertTriangle, Plus, Printer, User, Phone, Calendar,
@@ -21,6 +21,7 @@ import { ErrorState } from '@/components/shared/ErrorState'
 import { StatCard, DataTable, StatusBadge, Pagination, usePagedItems } from '@/components/shared/CommonComponents'
 import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
 import { RecordTimeline } from '@/components/shared/RecordTimeline'
+import { groupReceptionHistory, requestSummary } from '@/lib/receptionHistory'
 import { RecordDetailView } from '@/components/shared/RecordTimeline'
 import { DepositReceipt } from '@/components/shared/DepositReceipt'
 import { InvoicePreview } from '@/components/shared/InvoicePreview'
@@ -33,6 +34,10 @@ import { CreditBadge, CreditSummary } from '@/components/shared/CreditBadge'
 import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
 import { ClinicalNotesPanel } from '@/components/shared/ClinicalNotesPanel'
 import { isMaternityAdmission, subjectLabel } from '@/lib/maternity'
+import { isEmergencyOpdAdmission, stayLocationLabel } from '@/lib/admissions'
+import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
+import { ConvertToInpatientDialog } from '@/components/shared/ConvertToInpatientDialog'
+import { useAuth } from '@/context/AuthContext'
 import { api, USE_API } from '@/api/client'
 import { hospitalSettings, depositTypes } from '@/data/mockData'
 import { useBillingConfig } from '@/context/BillingConfigContext'
@@ -85,6 +90,7 @@ export default function PatientBilling() {
   const { patientId } = useParams()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { hasPermission } = useAuth()
   const { getPatient, getPatientDeposits, addDeposit, setDoctorVisitDisabled, getRoomAssignments, rooms, loading, applyPatientUpdate } = usePatients()
   const {
     getPatientRecords,
@@ -118,6 +124,7 @@ export default function PatientBilling() {
   const [printDeposit, setPrintDeposit] = useState(null)
   const [pendingPrint, setPendingPrint] = useState(null)
   const [invoiceVariant, setInvoiceVariant] = useState('summary')
+  const [convertOpen, setConvertOpen] = useState(false)
 
   useEffect(() => {
     if (listedPatient || !USE_API || !patientId) {
@@ -138,10 +145,12 @@ export default function PatientBilling() {
   }, [listedPatient, patientId])
 
   const patient = listedPatient || remotePatient
+  const ensureChargesRef = useRef(ensureAutomaticDailyCharges)
+  ensureChargesRef.current = ensureAutomaticDailyCharges
 
   useEffect(() => {
-    if (patientId && patient?.status !== 'discharged') ensureAutomaticDailyCharges(patientId)
-  }, [patientId, patient?.status, ensureAutomaticDailyCharges])
+    if (patientId && patient?.status !== 'discharged') ensureChargesRef.current(patientId)
+  }, [patientId, patient?.status])
 
   useEffect(() => {
     const onAfterPrint = () => {
@@ -179,11 +188,23 @@ export default function PatientBilling() {
   const motherRecords = allRecords.filter((r) => (r.subjectType || 'mother') !== 'baby')
   const babyRecords = allRecords.filter((r) => r.subjectType === 'baby')
   const pendingRecords = allRecords.filter((r) => r.status === 'pending')
+  const pendingGroups = []
+  const pendingSeen = new Map()
+  for (const record of pendingRecords) {
+    const key = record.submissionId || record.id
+    if (!pendingSeen.has(key)) {
+      const group = { id: key, records: [record] }
+      pendingSeen.set(key, group)
+      pendingGroups.push(group)
+    } else {
+      pendingSeen.get(key).records.push(record)
+    }
+  }
   const deposits = getPatientDeposits(patientId)
-  const pendingPaged = usePagedItems(pendingRecords)
+  const pendingPaged = usePagedItems(pendingGroups)
   const depositPaged = usePagedItems(deposits)
 
-  if (loading) {
+  if (loading && !patient) {
     return <LoadingState message="Loading patient…" />
   }
 
@@ -204,7 +225,8 @@ export default function PatientBilling() {
   const approvedBillItems = getApprovedLineItems(patientId)
   const roomAssignments = getRoomAssignments(patientId)
   const isDischarged = patient.status === 'discharged'
-  const canTransfer = patient.status === 'admitted'
+  const canTransfer = patient.status === 'admitted' && !isEmergencyOpdAdmission(patient)
+  const canConvert = patient.status === 'admitted' && isEmergencyOpdAdmission(patient) && hasPermission('admissions.convert_inpatient')
   const canAddCharges = patient.status !== 'discharged'
 
   const today = new Date().toISOString().split('T')[0]
@@ -349,30 +371,39 @@ export default function PatientBilling() {
           <MotionReveal className="mb-6 rounded-lg border border-warning/40 bg-warning/5 p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-2">
               <Clock className="h-5 w-5 text-warning" />
-              <h3 className="font-semibold text-warning">Pending Records ({pendingRecords.length})</h3>
+              <h3 className="font-semibold text-warning">Pending requests ({pendingGroups.length})</h3>
             </div>
             <div className="space-y-2">
-              {pendingPaged.slice.map((record) => {
-                const total = computeRecordTotal(record)
-                const count = record.type === 'pharmacy_return' ? record.returnItems?.length : record.services?.length
+              {pendingPaged.slice.map((group) => {
+                const record = group.records[0]
+                const isReturn = group.records.every((row) => row.type === 'pharmacy_return' || row.workflowKind === 'pharmacy-return')
+                const names = group.records.flatMap((row) => (row.type === 'pharmacy_return' ? row.returnItems : row.services) || []).map((line) => line.serviceName).filter(Boolean)
+                const grouped = !isReturn && (group.records.length > 1 || (record.services?.length || 0) > 1)
+                const total = group.records.reduce((sum, row) => sum + computeRecordTotal(row), 0)
                 return (
-                  <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3 shadow-sm transition-colors duration-140 ease-out-soft hover:bg-muted/30">
+                  <div key={group.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3 shadow-sm transition-colors duration-140 ease-out-soft hover:bg-muted/30">
                     <div>
-                      <p className="font-semibold text-sm">{record.recordName}</p>
+                      <p className="font-semibold text-sm">{isReturn ? (requestSummary(names) || 'Medicine return') : grouped ? requestSummary(names) : record.recordName}</p>
                       <p className="text-xs text-muted-foreground">
                         {isMaternityAdmission(patient) ? `${subjectLabel(record.subjectType)} · ` : ''}
-                        {record.type === 'pharmacy_return' ? 'Pharmacy Return' : 'Daily Services'} · {count} item(s) · <span className="tabular-nums">{formatCurrency(Math.abs(total))}</span>
+                        {isReturn ? 'Medicine return' : grouped ? 'Service request' : (names.join(', ') || 'Service request')} · <span className="tabular-nums">{formatCurrency(Math.abs(total))}</span>{total < 0 ? ' credit' : ''}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setDetailRecord(record)}>Details</Button>
+                      {!grouped ? <Button size="sm" variant="outline" onClick={() => setDetailRecord(record)}>Details</Button> : null}
                       <StatusBadge status="pending" />
-                      <Button size="sm" variant="outline" className="text-success" onClick={() => handleApprove(record)}>
-                        <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
-                      </Button>
-                      <Button size="sm" variant="outline" className="text-destructive" onClick={() => setRejectRecordId(record.id)}>
-                        <XCircle className="h-4 w-4 mr-1" /> Reject
-                      </Button>
+                      {grouped ? (
+                        <Button size="sm" variant="outline" onClick={() => navigate('/reception/approvals')}>Review items</Button>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="outline" className="text-success" onClick={() => handleApprove(record)}>
+                            <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-destructive" onClick={() => setRejectRecordId(record.id)}>
+                            <XCircle className="h-4 w-4 mr-1" /> Reject
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 )
@@ -391,10 +422,13 @@ export default function PatientBilling() {
         <Card className="mb-6">
           <CardHeader className="flex flex-row items-start justify-between gap-4">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Inpatient stay</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                {isEmergencyOpdAdmission(patient) ? 'Emergency OPD' : 'Inpatient stay'}
+              </p>
               <CardTitle className="mt-1 flex flex-wrap items-center gap-2 text-xl">
                 <User className="h-5 w-5 text-primary" />
                 {patient.name}
+                <AdmissionTypeBadge patient={patient} />
                 <CreditBadge patient={patient} />
               </CardTitle>
               <CardDescription className="mt-2 flex flex-wrap items-center gap-2">
@@ -402,21 +436,26 @@ export default function PatientBilling() {
                 <StatusBadge status={patient.status} />
               </CardDescription>
             </div>
-            {canTransfer && (
-              <RoomTransferPanel
-                patientId={patientId}
-                assignedBy={CURRENT_RECEPTIONIST}
-                compact
-                onTransferred={() => ensureAutomaticDailyCharges(patientId)}
-              />
-            )}
+            <div className="flex flex-wrap gap-2">
+              {canConvert && (
+                <Button size="sm" onClick={() => setConvertOpen(true)}>Convert to Inpatient</Button>
+              )}
+              {canTransfer && (
+                <RoomTransferPanel
+                  patientId={patientId}
+                  assignedBy={CURRENT_RECEPTIONIST}
+                  compact
+                  onTransferred={() => ensureAutomaticDailyCharges(patientId)}
+                />
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div><p className="text-xs text-muted-foreground">Age / Gender</p><p className="font-medium">{patient.age} years · {patient.gender}</p></div>
               <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> Phone</p><p className="font-medium">{patient.phone}</p></div>
               <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> Admission</p><p className="font-medium">{formatDate(patient.admissionDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Bed className="h-3 w-3" /> Room / Bed</p><p className="font-medium">{patient.room} · {patient.bed}</p></div>
+              <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Bed className="h-3 w-3" /> Room / Bed</p><p className="font-medium">{stayLocationLabel(patient)}</p></div>
             </div>
             <div className="mt-4">
               <CreditSummary patient={patient} />
@@ -536,15 +575,15 @@ export default function PatientBilling() {
               <>
                 <div>
                   <h4 className="text-sm font-semibold mb-3">Mother records</h4>
-                  <RecordTimeline records={motherRecords} showSubject />
+                  <RecordTimeline records={groupReceptionHistory(motherRecords)} showSubject />
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold mb-3">Baby records</h4>
-                  <RecordTimeline records={babyRecords} showSubject />
+                  <RecordTimeline records={groupReceptionHistory(babyRecords)} showSubject />
                 </div>
               </>
             ) : (
-              <RecordTimeline records={allRecords} />
+              <RecordTimeline records={groupReceptionHistory(allRecords)} />
             )}
           </CardContent>
         </Card>
@@ -767,6 +806,14 @@ export default function PatientBilling() {
           <DepositReceipt patient={patient} deposit={printDeposit} />
         </PrintPortal>
       )}
+      <ConvertToInpatientDialog
+        patient={patient}
+        open={convertOpen}
+        onOpenChange={setConvertOpen}
+        onConverted={(updated) => {
+          if (updated) applyPatientUpdate(updated)
+        }}
+      />
     </>
   )
 }

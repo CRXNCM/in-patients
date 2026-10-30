@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, USE_API } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
+import { isOfflineWorkflowUser } from '@/lib/workflowAccess'
 import { usePatients } from '@/context/PatientsContext'
 import { useTheme } from '@/context/ThemeContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
@@ -83,6 +84,7 @@ function flattenSearchItems(groups = {}) {
 function GlobalSearch() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user } = useAuth()
   const [value, setValue] = useState('')
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -100,8 +102,8 @@ function GlobalSearch() {
       setLoading(false)
       return undefined
     }
-    if (!USE_API) {
-      setError('Search requires the live API.')
+    if (!USE_API || isOfflineWorkflowUser(user)) {
+      setError(isOfflineWorkflowUser(user) ? 'Search is unavailable for this demonstration account.' : 'Search requires the live API.')
       setPayload(null)
       setLoading(false)
       setOpen(true)
@@ -131,7 +133,7 @@ function GlobalSearch() {
     }, 300)
 
     return () => window.clearTimeout(timer)
-  }, [value])
+  }, [user, value])
 
   const items = flattenSearchItems(payload?.groups)
   const openResult = (row) => {
@@ -289,7 +291,7 @@ function NotificationControl({ role }) {
                     !item.read && 'bg-primary/5'
                   )}
                   onClick={() => {
-                    navigate('/reception/approvals')
+                    navigate(item.type === 'pharmacy_return' ? '/reception/medicine-returns' : '/reception/approvals')
                     setOpen(false)
                   }}
                 >

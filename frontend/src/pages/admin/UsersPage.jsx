@@ -74,7 +74,7 @@ export default function UsersPage() {
   }, [])
 
   const activeRoles = roles.filter((role) => role.active)
-  const accessRoles = ['Reception', 'Nurse', 'Admin', 'Manager']
+  const accessRoles = ['Reception', 'Nurse', 'Admin', 'Manager', 'Pharmacist', 'Laboratory']
   const presetKeys = (slug) => (presets.find((item) => item.slug === slug)?.permissions || []).map((item) => item.key)
   const predefinedRoles = roles.filter((role) => role.predefined || ['admin', 'reception', 'nurse', 'manager'].includes(role.slug))
     .sort((a, b) => accessRoles.indexOf(a.accessRole) - accessRoles.indexOf(b.accessRole) || a.name.localeCompare(b.name))

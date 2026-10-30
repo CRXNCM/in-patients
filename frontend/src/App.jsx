@@ -6,6 +6,7 @@ import { PatientsProvider } from '@/context/PatientsContext'
 import { BillingConfigProvider } from '@/context/BillingConfigContext'
 import { ServiceEntriesProvider } from '@/context/ServiceEntriesContext'
 import { LiveSyncProvider } from '@/context/LiveSyncContext'
+import { WorkflowRequestsProvider } from '@/context/WorkflowRequestsContext'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { RequireAuth } from '@/components/auth/RequireAuth'
 import { RequirePermission } from '@/components/auth/RequirePermission'
@@ -15,6 +16,7 @@ import ReceptionDashboard from '@/pages/reception/ReceptionDashboard'
 import PatientsList from '@/pages/reception/PatientsList'
 import PatientBilling from '@/pages/reception/PatientBilling'
 import PendingApprovals from '@/pages/reception/PendingApprovals'
+import ReceptionMedicineReturns from '@/pages/reception/ReceptionMedicineReturns'
 import RecentlyApproved from '@/pages/reception/RecentlyApproved'
 import AddPatient from '@/pages/reception/AddPatient'
 import PendingDischarges from '@/pages/reception/PendingDischarges'
@@ -24,6 +26,13 @@ import CriticalBalances from '@/pages/reception/CriticalBalances'
 import NurseDashboard from '@/pages/nurse/NurseDashboard'
 import NursePatientsList from '@/pages/nurse/NursePatientsList'
 import PatientServiceEntry from '@/pages/nurse/PatientServiceEntry'
+import NursePharmacyRequests from '@/pages/nurse/NursePharmacyRequests'
+import NurseLaboratoryRequests from '@/pages/nurse/NurseLaboratoryRequests'
+import NurseServiceHistory from '@/pages/nurse/NurseServiceHistory'
+import PharmacyQueuePage from '@/pages/pharmacy/PharmacyQueuePage'
+import MedicineReturnsPage from '@/pages/pharmacy/MedicineReturnsPage'
+import LaboratoryQueuePage from '@/pages/laboratory/LaboratoryQueuePage'
+import { AdminLaboratoryRequests, AdminPharmacyRequests } from '@/pages/admin/AdminWorkflowRequests'
 
 import AdminDashboard from '@/pages/admin/AdminDashboard'
 import CatalogPage from '@/pages/admin/CatalogPage'
@@ -31,6 +40,7 @@ import DepartmentsPage from '@/pages/admin/DepartmentsPage'
 import RoomChargesPage from '@/pages/admin/RoomChargesPage'
 import DoctorsPage from '@/pages/admin/DoctorsPage'
 import UsersPage from '@/pages/admin/UsersPage'
+import CreditCompaniesPage from '@/pages/admin/CreditCompaniesPage'
 import SettingsPage from '@/pages/admin/SettingsPage'
 
 import ManagerDashboard from '@/pages/manager/ManagerDashboard'
@@ -51,6 +61,7 @@ export default function App() {
             <BillingConfigProvider>
               <ServiceEntriesProvider>
                 <LiveSyncProvider>
+                <WorkflowRequestsProvider>
                   <BrowserRouter>
                     <Routes>
                     <Route path="/login" element={<LoginPage />} />
@@ -75,6 +86,7 @@ export default function App() {
                         </Route>
                         <Route element={<RequirePermission permission="admissions.edit" />}>
                           <Route path="approvals" element={<PendingApprovals />} />
+                          <Route path="medicine-returns" element={<ReceptionMedicineReturns />} />
                           <Route path="recently-approved" element={<RecentlyApproved />} />
                         </Route>
                       </Route>
@@ -83,8 +95,34 @@ export default function App() {
                     <Route element={<RequireAuth role="nurse" />}>
                       <Route path="/nurse" element={<AppLayout role="nurse" />}>
                         <Route index element={<NurseDashboard />} />
+                        <Route element={<RequirePermission anyOf={['admissions.create', 'admissions.create_emergency']} />}>
+                          <Route path="add-patient" element={<AddPatient />} />
+                        </Route>
                         <Route path="patients" element={<NursePatientsList />} />
                         <Route path="patient/:patientId" element={<PatientServiceEntry />} />
+                        <Route path="pharmacy" element={<NursePharmacyRequests />} />
+                        <Route path="laboratory" element={<NurseLaboratoryRequests />} />
+                        <Route element={<RequirePermission permission="patients.view" />}>
+                          <Route path="service-history" element={<NurseServiceHistory />} />
+                          <Route path="service-history/:patientId" element={<NurseServiceHistory />} />
+                          <Route path="service-history/:patientId/:admissionId" element={<NurseServiceHistory />} />
+                          <Route path="service-history/:patientId/:admissionId/receipt" element={<NurseServiceHistory />} />
+                        </Route>
+                      </Route>
+                    </Route>
+
+                    <Route element={<RequireAuth role="pharmacist" />}>
+                      <Route path="/pharmacist" element={<AppLayout role="pharmacist" />}>
+                        <Route index element={<PharmacyQueuePage />} />
+                        <Route path="returns" element={<MedicineReturnsPage />} />
+                        <Route path="queue" element={<Navigate to="/pharmacist" replace />} />
+                      </Route>
+                    </Route>
+
+                    <Route element={<RequireAuth role="laboratory" />}>
+                      <Route path="/laboratory" element={<AppLayout role="laboratory" />}>
+                        <Route index element={<LaboratoryQueuePage />} />
+                        <Route path="queue" element={<Navigate to="/laboratory" replace />} />
                       </Route>
                     </Route>
 
@@ -108,6 +146,13 @@ export default function App() {
                         </Route>
                         <Route element={<RequirePermission permission="users.view" />}>
                           <Route path="users" element={<UsersPage />} />
+                        </Route>
+                        <Route element={<RequirePermission permission="credit.manage_companies" />}>
+                          <Route path="credit-companies" element={<CreditCompaniesPage />} />
+                        </Route>
+                        <Route element={<RequirePermission permission="patients.view" />}>
+                          <Route path="pharmacy-requests" element={<AdminPharmacyRequests />} />
+                          <Route path="laboratory-requests" element={<AdminLaboratoryRequests />} />
                         </Route>
                       </Route>
                     </Route>
@@ -141,6 +186,7 @@ export default function App() {
                     <Route path="*" element={<Navigate to="/login" replace />} />
                     </Routes>
                   </BrowserRouter>
+                </WorkflowRequestsProvider>
                 </LiveSyncProvider>
               </ServiceEntriesProvider>
             </BillingConfigProvider>

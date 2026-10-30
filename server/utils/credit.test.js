@@ -4,35 +4,27 @@ import { computeCreditState, normalizeAdmissionPaymentMode } from './credit.js'
 import { validateAdmitBody } from './validation.js'
 
 describe('credit state', () => {
-  it('treats credit with zero paid as outstanding credit', () => {
+  it('does not treat the minimum deposit as credit outstanding', () => {
     const state = computeCreditState({
       admissionPaymentMode: 'credit',
       requiredInitialDeposit: 15000,
       depositTotal: 0,
     })
     assert.equal(state.isCreditPatient, true)
-    assert.equal(state.outstandingDeposit, 15000)
-    assert.equal(state.depositStatus, 'credit')
+    assert.equal(state.outstandingDeposit, 0)
+    assert.equal(state.requiredInitialDeposit, 0)
+    assert.equal(state.depositStatus, 'unpaid')
   })
 
-  it('keeps partial payments as credit until the required deposit is met', () => {
+  it('keeps a credit admission marked as unpaid after a deposit is paid', () => {
     const partial = computeCreditState({
       admissionPaymentMode: 'credit',
       requiredInitialDeposit: 15000,
       depositTotal: 4000,
     })
     assert.equal(partial.isCreditPatient, true)
-    assert.equal(partial.outstandingDeposit, 11000)
-    assert.equal(partial.depositStatus, 'partially-paid')
-
-    const paid = computeCreditState({
-      admissionPaymentMode: 'credit',
-      requiredInitialDeposit: 15000,
-      depositTotal: 15000,
-    })
-    assert.equal(paid.isCreditPatient, false)
-    assert.equal(paid.outstandingDeposit, 0)
-    assert.equal(paid.depositStatus, 'paid')
+    assert.equal(partial.outstandingDeposit, 0)
+    assert.equal(partial.depositStatus, 'unpaid')
   })
 
   it('does not mark a paid admission as a credit patient', () => {
@@ -56,7 +48,23 @@ describe('admit validation credit', () => {
   }
 
   it('allows zero deposit on credit', () => {
+    const errors = validateAdmitBody({ ...base, depositAmount: 0, admissionPaymentMode: 'credit', creditCompanyId: 'company-1' })
+    assert.deepEqual(errors, [])
+  })
+
+  it('requires a credit company on a credit admission', () => {
     const errors = validateAdmitBody({ ...base, depositAmount: 0, admissionPaymentMode: 'credit' })
+    assert.ok(errors.includes('Credit company is required.'))
+  })
+
+  it('allows an admission without an address', () => {
+    const errors = validateAdmitBody({
+      name: 'No Address',
+      age: 22,
+      gender: 'Female',
+      bedId: 'GW-02',
+      depositAmount: 15000,
+    })
     assert.deepEqual(errors, [])
   })
 

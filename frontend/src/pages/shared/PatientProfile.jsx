@@ -42,11 +42,15 @@ import { CreditBadge } from '@/components/shared/CreditBadge'
 import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
 import { RecordTimeline } from '@/components/shared/RecordTimeline'
 import { RequestDischargeButton, DischargeReviewPanel } from '@/components/shared/DischargeWorkflow'
+import { PatientWorkflowPanel } from '@/components/workflow/PatientWorkflowPanel'
 import { RoomTransferPanel } from '@/components/shared/RoomTransferPanel'
 import { AssignedDoctorsPanel } from '@/components/shared/AssignedDoctorsPanel'
 import { ClinicalNotesPanel } from '@/components/shared/ClinicalNotesPanel'
 import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
 import { isMaternityAdmission } from '@/lib/maternity'
+import { admissionTypeLabel, isEmergencyOpdAdmission } from '@/lib/admissions'
+import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
+import { ConvertToInpatientDialog } from '@/components/shared/ConvertToInpatientDialog'
 
 function display(value) {
   if (value === 0) return '0'
@@ -155,6 +159,7 @@ function PatientProfile() {
   const canCompleteDischarge = hasPermission('admissions.discharge')
   const canRequestDischarge = user?.roleKey === 'nurse' && canEditPatient
   const canOpenBilling = user?.roleKey === 'reception' && hasPermission('patients.view')
+  const [convertOpen, setConvertOpen] = useState(false)
 
   const liveRecords = listed ? getPatientRecords(patientId) : data?.records || []
   const pendingRecords = liveRecords.filter((row) => row.status === 'pending')
@@ -313,7 +318,7 @@ function PatientProfile() {
       render: (row) => <span className="tabular-nums">{row.dischargedAt ? formatDateTime(row.dischargedAt) : '—'}</span>,
     },
     { key: 'location', header: 'Room / Bed', render: (row) => (row.room || row.bed ? `${row.room || '—'} · ${row.bed || '—'}` : '—') },
-    { key: 'type', header: 'Admission Type', render: (row) => (row.admissionType === 'maternity' ? 'Maternity' : 'Normal') },
+    { key: 'type', header: 'Admission Type', render: (row) => admissionTypeLabel(row.admissionType) },
     { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
   ]
 
@@ -339,6 +344,7 @@ function PatientProfile() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-2xl font-semibold tracking-tight">{patient.name || 'Patient'}</h1>
                     <StatusBadge status={patient.status} />
+                    <AdmissionTypeBadge patient={listed || patient} admissionType={stay.admissionType} convertedFromEmergency={(listed || patient).convertedFromEmergency} />
                     {showCredit && listed ? <CreditBadge patient={listed} /> : null}
                     {showCredit && !listed && credit?.isCreditPatient ? (
                       <span className="inline-flex items-center rounded-md border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-semibold text-warning">
@@ -360,6 +366,9 @@ function PatientProfile() {
                   <Button variant="outline" size="sm" onClick={() => navigate(`/reception/patient/${patient.patientId}`)}>
                     <Wallet className="h-4 w-4" /> Add Deposit
                   </Button>
+                )}
+                {hasPermission('admissions.convert_inpatient') && isEmergencyOpdAdmission(stay.admissionType) && activeStay && (
+                  <Button size="sm" onClick={() => setConvertOpen(true)}>Convert to Inpatient</Button>
                 )}
                 {canRequestDischarge && listed && <RequestDischargeButton patient={listed} />}
               </div>
@@ -391,7 +400,13 @@ function PatientProfile() {
           <SectionHead
             icon={BedDouble}
             kicker="Current stay"
-            title={stay.admissionType === 'maternity' ? 'Maternity admission' : 'Inpatient stay'}
+            title={
+              stay.admissionType === 'maternity'
+                ? 'Maternity admission'
+                : isEmergencyOpdAdmission(stay.admissionType)
+                  ? 'Emergency OPD'
+                  : 'Inpatient stay'
+            }
             description={stay.admissionReason || undefined}
             action={
               canAssignBeds && listed && activeStay ? (
@@ -406,9 +421,9 @@ function PatientProfile() {
                 <div className="mt-1"><StatusBadge status={stay.status} /></div>
               </div>
               <Field label="Admission date" value={stay.admissionDate ? formatDate(stay.admissionDate) : null} />
-              <Field label="Room" value={stay.room} />
-              <Field label="Bed" value={stay.bed} />
-              <Field label="Admission type" value={stay.admissionType === 'maternity' ? 'Maternity' : 'Normal'} />
+              <Field label="Room" value={isEmergencyOpdAdmission(stay.admissionType) ? 'Not assigned' : stay.room} />
+              <Field label="Bed" value={isEmergencyOpdAdmission(stay.admissionType) ? 'Not assigned' : stay.bed} />
+              <Field label="Admission type" value={admissionTypeLabel(stay.admissionType)} />
               <Field label="Stay duration" value={stay.admissionDate ? `${stayDays} day${stayDays === 1 ? '' : 's'}` : null} />
               {patient.discharge?.completedAt ? (
                 <Field label="Discharged" value={formatDateTime(patient.discharge.completedAt)} />
@@ -437,6 +452,11 @@ function PatientProfile() {
               {showCredit ? (
                 <p className="mt-4 text-sm text-muted-foreground">
                   Credit status: {credit?.isCreditPatient || listed?.isCreditPatient ? 'Credit patient' : 'Not on credit'}
+                </p>
+              ) : null}
+              {showCredit && (credit?.admissionPaymentMode === 'credit' || listed?.admissionPaymentMode === 'credit' || credit?.isCreditPatient || listed?.isCreditPatient) ? (
+                <p className="mt-2 text-sm">
+                  Credit company: {credit?.creditCompanyName || patient.creditCompanyName || listed?.creditCompanyName || 'Company not recorded'}
                 </p>
               ) : null}
             </CardContent>
@@ -533,6 +553,8 @@ function PatientProfile() {
             discharged={discharged}
           />
         ) : null}
+
+        <PatientWorkflowPanel patient={listed || patient} />
 
         <Card id="service-activity">
           <SectionHead
@@ -669,6 +691,12 @@ function PatientProfile() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ConvertToInpatientDialog
+        patient={listed || { id: patient.patientId, name: patient.name }}
+        open={convertOpen}
+        onOpenChange={setConvertOpen}
+        onConverted={() => reload()}
+      />
     </MotionPage>
   )
 }

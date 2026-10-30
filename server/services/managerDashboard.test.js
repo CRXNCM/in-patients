@@ -5,6 +5,7 @@ import {
   lastSevenLocalDates,
   localWeekdayShort,
   monthPrefix,
+  periodWindows,
   outstandingForStay,
   isBalanceAttention,
   mapRecentAdmission,
@@ -47,6 +48,9 @@ function pipelineKind(pipeline) {
   const match = pipeline[0]?.$match || {}
   if (match.date === '2026-09-12') return 'chargesToday'
   if (match.date?.$regex === '^2026-09') return 'chargesMonth'
+  if (match.date?.$gte === '2026-09-07' && match.date?.$lte === '2026-09-12') return 'chargesWeek'
+  if (match.date?.$gte === '2026-08-31' && match.date?.$lte === '2026-09-06') return 'chargesLastWeek'
+  if (match.date?.$gte === '2026-08-01' && match.date?.$lte === '2026-08-31') return 'chargesLastMonth'
   return 'chargesOther'
 }
 
@@ -55,6 +59,9 @@ function depositKind(pipeline) {
   if (match.date === '2026-09-12') return 'today'
   if (match.date?.$regex === '^2026-09') return 'month'
   if (match.date?.$in) return 'daily'
+  if (match.date?.$gte === '2026-09-07' && match.date?.$lte === '2026-09-12') return 'week'
+  if (match.date?.$gte === '2026-08-31' && match.date?.$lte === '2026-09-06') return 'lastWeek'
+  if (match.date?.$gte === '2026-08-01' && match.date?.$lte === '2026-08-31') return 'lastMonth'
   return 'other'
 }
 
@@ -67,8 +74,14 @@ function makeDeps({
   inpatients = [],
   depositsToday = 0,
   depositsMonth = 0,
+  depositsWeek = 0,
+  depositsLastWeek = 0,
+  depositsLastMonth = 0,
   chargesToday = 0,
   chargesMonth = 0,
+  chargesWeek = 0,
+  chargesLastWeek = 0,
+  chargesLastMonth = 0,
   dailyCharges = [],
   dailyDeposits = [],
   categories = [],
@@ -120,6 +133,9 @@ function makeDeps({
         const kind = depositKind(pipeline)
         if (kind === 'today') return depositsToday ? [{ total: depositsToday }] : []
         if (kind === 'month') return depositsMonth ? [{ total: depositsMonth }] : []
+        if (kind === 'week') return depositsWeek ? [{ total: depositsWeek }] : []
+        if (kind === 'lastWeek') return depositsLastWeek ? [{ total: depositsLastWeek }] : []
+        if (kind === 'lastMonth') return depositsLastMonth ? [{ total: depositsLastMonth }] : []
         if (kind === 'daily') {
           return dailyDeposits.map((row) => ({ _id: row.date, total: row.amount }))
         }
@@ -138,6 +154,9 @@ function makeDeps({
         const kind = pipelineKind(pipeline)
         if (kind === 'chargesToday') return chargesToday ? [{ total: chargesToday }] : []
         if (kind === 'chargesMonth') return chargesMonth ? [{ total: chargesMonth }] : []
+        if (kind === 'chargesWeek') return chargesWeek ? [{ total: chargesWeek }] : []
+        if (kind === 'chargesLastWeek') return chargesLastWeek ? [{ total: chargesLastWeek }] : []
+        if (kind === 'chargesLastMonth') return chargesLastMonth ? [{ total: chargesLastMonth }] : []
         if (kind === 'dailyCharges') {
           return dailyCharges.map((row) => ({ _id: row.date, total: row.amount }))
         }
@@ -176,6 +195,14 @@ describe('manager dashboard helpers', () => {
     assert.equal(dates[0], shiftDate('2026-09-12', -6))
     assert.equal(localWeekdayShort('2026-09-12'), 'Sat')
     assert.equal(monthPrefix('2026-09-12'), '2026-09')
+  })
+
+  it('compares this Monday–today week and month-to-date with the previous full week and month', () => {
+    const windows = periodWindows('2026-09-12')
+    assert.deepEqual(windows.currentWeek, { startDate: '2026-09-07', endDate: '2026-09-12' })
+    assert.deepEqual(windows.previousWeek, { startDate: '2026-08-31', endDate: '2026-09-06' })
+    assert.deepEqual(windows.currentMonth, { startDate: '2026-09-01', endDate: '2026-09-12' })
+    assert.deepEqual(windows.previousMonth, { startDate: '2026-08-01', endDate: '2026-08-31' })
   })
 
   it('computes outstanding as max(0, charges − deposits)', () => {
@@ -268,6 +295,32 @@ describe('buildManagerDashboard', () => {
     assert.equal(data.finance.approvedCharges.month, 4500)
     assert.equal(data.finance.creditAdmissions, 17)
     assert.equal(data.finance.todayRevenue, undefined)
+  })
+
+  it('compares last week and last month with the current week and month', async () => {
+    const data = await buildManagerDashboard(
+      { role: roleWith(managerPerms) },
+      makeDeps({
+        depositsWeek: 300,
+        depositsLastWeek: 100,
+        depositsMonth: 8000,
+        depositsLastMonth: 5000,
+        chargesWeek: 220,
+        chargesLastWeek: 80,
+        chargesMonth: 4500,
+        chargesLastMonth: 2100,
+      })
+    )
+    assert.equal(data.periodComparison.week.current.deposits, 300)
+    assert.equal(data.periodComparison.week.previous.deposits, 100)
+    assert.equal(data.periodComparison.week.current.charges, 220)
+    assert.equal(data.periodComparison.week.previous.charges, 80)
+    assert.equal(data.periodComparison.month.current.deposits, 8000)
+    assert.equal(data.periodComparison.month.previous.deposits, 5000)
+    assert.equal(data.periodComparison.month.current.charges, 4500)
+    assert.equal(data.periodComparison.month.previous.charges, 2100)
+    assert.equal(data.periodComparison.week.current.startDate, '2026-09-07')
+    assert.equal(data.periodComparison.month.previous.endDate, '2026-08-31')
   })
 
   it('fills all seven local days on the approved-charges trend', async () => {

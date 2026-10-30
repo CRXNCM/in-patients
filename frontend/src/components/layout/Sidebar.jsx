@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useBillingConfig } from '@/context/BillingConfigContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { isNavItemActive, visibleNavSections } from '@/lib/navigation'
+import { useWorkflowRequests } from '@/context/WorkflowRequestsContext'
 
 const EXPANDED_WIDTH = 'w-64'
 const COLLAPSED_WIDTH = 'w-[4.5rem]'
@@ -66,12 +67,15 @@ export function Sidebar({ role, collapsed = false, onToggle, variant = 'docked',
   const { user } = useAuth()
   const { settings } = useBillingConfig()
   const { getPendingCount } = useServiceEntries()
+  const { counts } = useWorkflowRequests()
   const sections = visibleNavSections(role, user)
   const pendingApprovals = role === 'reception' ? getPendingCount() : 0
   const isDrawer = variant === 'drawer'
 
   const badgeValue = (key) => {
     if (key === 'pendingApprovals') return pendingApprovals
+    if (key === 'pharmacyPending') return counts.pharmacyPending
+    if (key === 'laboratoryPending') return counts.laboratoryPending
     return 0
   }
 

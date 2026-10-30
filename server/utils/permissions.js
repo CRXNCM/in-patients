@@ -17,6 +17,8 @@ export const PERMISSION_CATALOG = [
     permissions: [
       { key: 'admissions.view', label: 'View admissions' },
       { key: 'admissions.create', label: 'Create admissions' },
+      { key: 'admissions.create_emergency', label: 'Create Emergency OPD admissions' },
+      { key: 'admissions.convert_inpatient', label: 'Convert Emergency OPD to inpatient' },
       { key: 'admissions.edit', label: 'Edit admissions' },
       { key: 'admissions.cancel', label: 'Cancel admissions' },
       { key: 'admissions.discharge', label: 'Discharge patients' },
@@ -70,6 +72,7 @@ export const PERMISSION_CATALOG = [
       { key: 'credit.create_admission', label: 'Create credit admission' },
       { key: 'credit.record_payment', label: 'Record credit payment' },
       { key: 'credit.settle', label: 'Settle credit' },
+      { key: 'credit.manage_companies', label: 'Manage credit companies' },
     ],
   },
   {
@@ -152,6 +155,8 @@ const RECEPTION_PERMISSIONS = [
   'patients.edit',
   'admissions.view',
   'admissions.create',
+  'admissions.create_emergency',
+  'admissions.convert_inpatient',
   'admissions.edit',
   'admissions.cancel',
   'admissions.discharge',
@@ -181,6 +186,29 @@ const NURSE_PERMISSIONS = [
   'clinicalNotes.editOwn',
 ]
 
+const EMERGENCY_NURSE_PERMISSIONS = [
+  'patients.view',
+  'patients.create',
+  'patients.edit',
+  'admissions.view',
+  'admissions.create_emergency',
+  'rooms.view',
+  'doctors.view',
+  'clinicalNotes.view',
+  'clinicalNotes.create',
+  'clinicalNotes.editOwn',
+]
+
+const PHARMACIST_PERMISSIONS = [
+  'patients.view',
+  'admissions.view',
+]
+
+const LABORATORY_PERMISSIONS = [
+  'patients.view',
+  'admissions.view',
+]
+
 const MANAGER_PERMISSIONS = [
   'patients.view',
   'admissions.view',
@@ -205,6 +233,12 @@ export const PREDEFINED_ROLE_PRESETS = [
     permissions: NURSE_PERMISSIONS,
   },
   {
+    slug: 'emergency-nurse',
+    label: 'Emergency Nurse',
+    description: 'Register Emergency OPD patients and submit service requests. Cannot assign beds, collect deposits, or approve billing.',
+    permissions: EMERGENCY_NURSE_PERMISSIONS,
+  },
+  {
     slug: 'admin',
     label: 'Admin',
     description: 'Full hospital administration, users, doctors, rooms, and settings.',
@@ -215,6 +249,18 @@ export const PREDEFINED_ROLE_PRESETS = [
     label: 'Manager',
     description: 'View patients, payments, credit, and management reports.',
     permissions: MANAGER_PERMISSIONS,
+  },
+  {
+    slug: 'pharmacist',
+    label: 'Pharmacist',
+    description: 'View admitted patients and fulfill medicine requests. Fulfillment is limited to the pharmacist sign-in.',
+    permissions: PHARMACIST_PERMISSIONS,
+  },
+  {
+    slug: 'laboratory',
+    label: 'Laboratory',
+    description: 'View admitted patients and process laboratory requests. Processing is limited to the laboratory sign-in.',
+    permissions: LABORATORY_PERMISSIONS,
   },
 ]
 
@@ -234,6 +280,7 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     'clinicalNotes.view',
   ],
   nurse: NURSE_PERMISSIONS,
+  'emergency-nurse': EMERGENCY_NURSE_PERMISSIONS,
   doctor: [
     'patients.view',
     'admissions.view',
@@ -242,6 +289,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
   ],
   manager: MANAGER_PERMISSIONS,
   finance: MANAGER_PERMISSIONS,
+  pharmacist: PHARMACIST_PERMISSIONS,
+  laboratory: LABORATORY_PERMISSIONS,
 }
 
 const PERMISSION_LABELS = Object.fromEntries(

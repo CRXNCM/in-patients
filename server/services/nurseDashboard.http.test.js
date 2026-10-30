@@ -230,7 +230,7 @@ describe('GET /api/nurse/dashboard HTTP', { skip: !hasDb }, () => {
     const [expectedAdmitted, expectedPending, expectedMinePending] = await Promise.all([
       Patient.countDocuments({ status: 'admitted' }),
       Patient.countDocuments({ status: 'pending-discharge' }),
-      ServiceRecord.countDocuments({ submittedBy: nurse.name, status: 'pending' }),
+      ServiceRecord.countDocuments({ submittedBy: nurse.name, status: 'pending', recordType: { $ne: 'return' } }),
     ])
     assert.equal(res.body.census.admitted, expectedAdmitted)
     assert.equal(res.body.census.pendingDischarge, expectedPending)
@@ -245,6 +245,10 @@ describe('GET /api/nurse/dashboard HTTP', { skip: !hasDb }, () => {
     assert.ok(res.body.recentSubmissions.some((row) => row.id === minePending._id.toString()))
     assert.equal(
       res.body.recentSubmissions.some((row) => row.id === otherPending._id.toString()),
+      false
+    )
+    assert.equal(
+      res.body.recentSubmissions.some((row) => row.id === mineOlder._id.toString()),
       false
     )
     assert.ok(res.body.recentSubmissions.length <= 6)

@@ -145,7 +145,16 @@ export async function buildPatientProfile(auth, patientId, injected = {}) {
     nationalId: patient.nationalId || null,
     createdAt: iso(patient.createdAt),
     status: patient.status,
-    admissionType: patient.admissionType === 'maternity' ? 'maternity' : 'normal',
+    admissionType: patient.admissionType === 'maternity'
+      ? 'maternity'
+      : patient.admissionType === 'emergency-opd'
+        ? 'emergency-opd'
+        : 'normal',
+    originalAdmissionType: patient.originalAdmissionType || patient.admissionType || 'normal',
+    convertedFromEmergency: Boolean(patient.convertedFromEmergency),
+    convertedToInpatientAt: iso(patient.convertedToInpatientAt),
+    convertedToInpatientBy: patient.convertedToInpatientBy || null,
+    conversionEvents: patient.conversionEvents || [],
     admissionDate: patient.admissionDate || null,
     admissionReason: patient.admissionReason || null,
     room: patient.room || null,
@@ -156,6 +165,8 @@ export async function buildPatientProfile(auth, patientId, injected = {}) {
   if (includeCredit) {
     profile.isCreditPatient = Boolean(patient.isCreditPatient)
     profile.admissionPaymentMode = patient.admissionPaymentMode || 'paid'
+    profile.creditCompanyId = patient.creditCompanyId || ''
+    profile.creditCompanyName = patient.creditCompanyName || ''
   }
 
   const finance = includeMoney
@@ -189,6 +200,8 @@ export async function buildPatientProfile(auth, patientId, injected = {}) {
       ? {
           isCreditPatient: Boolean(patient.isCreditPatient),
           admissionPaymentMode: patient.admissionPaymentMode || 'paid',
+          creditCompanyId: patient.creditCompanyId || '',
+          creditCompanyName: patient.creditCompanyName || '',
         }
       : null,
     baby: patient.admissionType === 'maternity' ? toFrontendBaby(typeof baby?.toObject === 'function' ? baby : baby) : null,

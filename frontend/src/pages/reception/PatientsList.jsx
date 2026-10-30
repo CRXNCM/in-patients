@@ -6,6 +6,8 @@ import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { CreditBadge } from '@/components/shared/CreditBadge'
+import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
+import { stayLocationLabel } from '@/lib/admissions'
 import { useAuth } from '@/context/AuthContext'
 import { PatientLink } from '@/components/shared/PatientLink'
 
@@ -25,14 +27,12 @@ export default function PatientsList() {
       <div className="flex flex-col gap-1">
         <PatientLink patientId={row.id} className="font-medium">{row.name}</PatientLink>
         <div className="flex flex-wrap gap-1">
-          {row.admissionType === 'maternity' && (
-            <span className="text-[10px] uppercase tracking-wide rounded bg-rose-100 text-rose-700 px-1.5 py-0.5">Maternity</span>
-          )}
+          <AdmissionTypeBadge patient={row} />
           <CreditBadge patient={row} />
         </div>
       </div>
     ) },
-    { key: 'room', header: 'Room/Bed', render: (row) => `${row.room} / ${row.bed}` },
+    { key: 'room', header: 'Room/Bed', render: (row) => stayLocationLabel(row) },
     { key: 'admissionDate', header: 'Admission Date', render: (row) => formatDate(row.admissionDate) },
     { key: 'deposit', header: 'Deposit', render: (row) => formatCurrency(row.deposit) },
     { key: 'totalCharges', header: 'Approved Charges', render: (row) => formatCurrency(getPatientBalance(row).totalCharges) },

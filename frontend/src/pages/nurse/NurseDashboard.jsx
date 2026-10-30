@@ -35,7 +35,9 @@ function locationLabel(row) {
 }
 
 function admissionTypeLabel(type) {
-  return type === 'maternity' ? 'Maternity' : 'Normal'
+  if (type === 'maternity') return 'Maternity'
+  if (type === 'emergency-opd') return 'Emergency OPD'
+  return 'Inpatient'
 }
 
 function recordTypeLabel(type) {

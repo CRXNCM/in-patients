@@ -21,7 +21,12 @@ import wardRoutes from './routes/wards.routes.js'
 import roomRoutes from './routes/rooms.routes.js'
 import searchRoutes from './routes/search.routes.js'
 import clinicalNotesRoutes from './routes/clinicalNotes.routes.js'
-import { ensureDefaultRoles } from './services/roles.js'
+import pharmacyRoutes from './routes/pharmacy.routes.js'
+import laboratoryRoutes from './routes/laboratory.routes.js'
+import wardServicesRoutes from './routes/wardServices.routes.js'
+import serviceHistoryRoutes from './routes/serviceHistory.routes.js'
+import creditCompanyRoutes from './routes/creditCompanies.routes.js'
+import { ensureDefaultRoles, ensureWorkflowStaff } from './services/roles.js'
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -52,6 +57,11 @@ app.use('/api/wards', wardRoutes)
 app.use('/api/rooms', roomRoutes)
 app.use('/api/search', searchRoutes)
 app.use('/api', clinicalNotesRoutes)
+app.use('/api/pharmacy', pharmacyRoutes)
+app.use('/api/laboratory', laboratoryRoutes)
+app.use('/api', wardServicesRoutes)
+app.use('/api/service-history', serviceHistoryRoutes)
+app.use('/api/credit-companies', creditCompanyRoutes)
 
 async function start() {
   const uri = process.env.MONGODB_URI
@@ -61,6 +71,7 @@ async function start() {
   }
   await connectDB(uri)
   await ensureDefaultRoles()
+  await ensureWorkflowStaff()
   app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`))
 }
 

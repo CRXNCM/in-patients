@@ -3,7 +3,7 @@ import { Bed } from '../models/Bed.js'
 import { Deposit } from '../models/Deposit.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { HospitalSettings } from '../models/HospitalSettings.js'
-import { todayStr, localDayRange, localMonthRange, shiftDate } from '../utils/dates.js'
+import { todayStr, localDayRange, localMonthRange, mondayWeekRange, clampToToday, shiftDate } from '../utils/dates.js'
 import { roleHasPermission } from '../utils/permissions.js'
 import { occupancyFromStatusCounts } from './adminDashboard.js'
 
@@ -36,6 +36,46 @@ export function lastSevenLocalDates(today) {
   return dates.filter(Boolean)
 }
 
+function clampWindow(range, today) {
+  if (!range?.startDate || !range?.endDate) return null
+  return {
+    startDate: range.startDate,
+    endDate: clampToToday(range.endDate, today),
+  }
+}
+
+export function periodWindows(today) {
+  const currentWeek = mondayWeekRange(today)
+  const previousWeek = currentWeek ? mondayWeekRange(shiftDate(currentWeek.startDate, -1)) : null
+  const currentMonth = localMonthRange(today)
+  const previousMonth = currentMonth ? localMonthRange(shiftDate(currentMonth.startDate, -1)) : null
+  return {
+    currentWeek: clampWindow(currentWeek, today),
+    previousWeek: previousWeek
+      ? { startDate: previousWeek.startDate, endDate: previousWeek.endDate }
+      : null,
+    currentMonth: clampWindow(currentMonth, today),
+    previousMonth: previousMonth
+      ? { startDate: previousMonth.startDate, endDate: previousMonth.endDate }
+      : null,
+  }
+}
+
+function dateWindowMatch(window) {
+  if (!window?.startDate || !window?.endDate) return null
+  return { date: { $gte: window.startDate, $lte: window.endDate } }
+}
+
+function periodBucket(label, window, deposits, charges) {
+  return {
+    label,
+    startDate: window?.startDate || null,
+    endDate: window?.endDate || null,
+    deposits: Number(deposits) || 0,
+    charges: Number(charges) || 0,
+  }
+}
+
 export function recordTotalExpr() {
   return {
     $cond: [
@@ -64,6 +104,8 @@ export function mapRecentAdmission(doc) {
     id: doc.patientId,
     patientName: doc.name || '',
     admissionDate: doc.admissionDate || null,
+    admissionType: doc.admissionType || 'normal',
+    convertedFromEmergency: Boolean(doc.convertedFromEmergency),
     room: doc.room || null,
     bed: doc.bed || null,
     status: doc.status,
@@ -75,6 +117,8 @@ export function mapWatchlistPatient(doc) {
     id: doc.patientId,
     patientName: doc.name || '',
     admissionDate: doc.admissionDate || null,
+    admissionType: doc.admissionType || 'normal',
+    convertedFromEmergency: Boolean(doc.convertedFromEmergency),
     room: doc.room || null,
     bed: doc.bed || null,
     status: doc.status,
@@ -136,6 +180,16 @@ async function sumDischargeFinalCharges(PatientModel, range) {
       },
     },
     { $group: { _id: null, total: { $sum: { $ifNull: ['$dischargeFinalCharges', 0] } } } },
+  ])
+  return row?.total || 0
+}
+
+async function sumEmergencyApprovedCharges(ServiceRecordModel, dateMatch) {
+  const [row] = await ServiceRecordModel.aggregate([
+    { $match: { status: 'approved', ...dateMatch } },
+    { $unwind: '$services' },
+    { $match: { 'services.priceMultiplier': 1.25 } },
+    { $group: { _id: null, total: { $sum: { $ifNull: ['$services.total', 0] } } } },
   ])
   return row?.total || 0
 }
@@ -219,7 +273,7 @@ async function loadSettings(HospitalSettingsModel) {
 
 function inpatientFind(PatientModel) {
   const query = PatientModel.find({ status: { $in: INPATIENT_STATUSES } })
-    .select('patientId name room bed status admissionDate depositTotal')
+    .select('patientId name room bed status admissionDate admissionType convertedFromEmergency depositTotal')
     .sort({ admissionDate: -1, createdAt: -1 })
   if (typeof query.lean === 'function') return query.lean()
   return query
@@ -246,6 +300,7 @@ async function collectMetrics(auth, injected, { includeFinance, includeCredit, i
   const month = monthPrefix(today)
   const day = localDayRange(today)
   const weekDates = lastSevenLocalDates(today)
+  const windows = periodWindows(today)
   const settings = await loadSettings(deps.HospitalSettings)
 
   const jobs = {
@@ -263,10 +318,34 @@ async function collectMetrics(auth, injected, { includeFinance, includeCredit, i
             : Promise.resolve(0),
         ])
       : Promise.resolve(null),
+    emergencyCensus: includeCensus
+      ? Promise.all([
+          deps.Patient.countDocuments({ status: { $in: INPATIENT_STATUSES }, admissionType: 'emergency-opd' }),
+          deps.Patient.countDocuments({ convertedFromEmergency: true }),
+          deps.Patient.countDocuments({
+            $or: [{ admissionType: 'emergency-opd' }, { convertedFromEmergency: true }],
+          }),
+        ])
+      : Promise.resolve(null),
+    emergencyChargesToday: includeFinance
+      ? sumEmergencyApprovedCharges(deps.ServiceRecord, { date: today })
+      : Promise.resolve(null),
+    emergencyChargesMonth: includeFinance
+      ? sumEmergencyApprovedCharges(deps.ServiceRecord, { date: { $regex: `^${month}` } })
+      : Promise.resolve(null),
     depositsToday: includeFinance ? sumDeposits(deps.Deposit, { date: today }) : Promise.resolve(null),
     depositsMonth: includeFinance
       ? sumDeposits(deps.Deposit, { date: { $regex: `^${month}` } })
       : Promise.resolve(null),
+    depositsWeek: includeFinance && dateWindowMatch(windows.currentWeek)
+      ? sumDeposits(deps.Deposit, dateWindowMatch(windows.currentWeek))
+      : Promise.resolve(0),
+    depositsLastWeek: includeFinance && dateWindowMatch(windows.previousWeek)
+      ? sumDeposits(deps.Deposit, dateWindowMatch(windows.previousWeek))
+      : Promise.resolve(0),
+    depositsLastMonth: includeFinance && dateWindowMatch(windows.previousMonth)
+      ? sumDeposits(deps.Deposit, dateWindowMatch(windows.previousMonth))
+      : Promise.resolve(0),
     dischargeAmountToday: includeFinance ? sumDischargeFinalCharges(deps.Patient, day) : Promise.resolve(null),
     dischargeAmountMonth: includeFinance
       ? sumDischargeFinalCharges(deps.Patient, localMonthRange(today))
@@ -275,6 +354,15 @@ async function collectMetrics(auth, injected, { includeFinance, includeCredit, i
     chargesMonth: includeFinance
       ? sumApprovedCharges(deps.ServiceRecord, { date: { $regex: `^${month}` } })
       : Promise.resolve(null),
+    chargesWeek: includeFinance && dateWindowMatch(windows.currentWeek)
+      ? sumApprovedCharges(deps.ServiceRecord, dateWindowMatch(windows.currentWeek))
+      : Promise.resolve(0),
+    chargesLastWeek: includeFinance && dateWindowMatch(windows.previousWeek)
+      ? sumApprovedCharges(deps.ServiceRecord, dateWindowMatch(windows.previousWeek))
+      : Promise.resolve(0),
+    chargesLastMonth: includeFinance && dateWindowMatch(windows.previousMonth)
+      ? sumApprovedCharges(deps.ServiceRecord, dateWindowMatch(windows.previousMonth))
+      : Promise.resolve(0),
     dailyCharges: includeFinance
       ? totalsByDate(deps.ServiceRecord, {
           match: { status: 'approved', date: { $in: weekDates } },
@@ -317,7 +405,7 @@ async function collectMetrics(auth, injected, { includeFinance, includeCredit, i
     balanced = attachBalances(raw.inpatients, chargeRows)
   }
 
-  return { today, month, settings, weekDates, raw, balanced }
+  return { today, month, settings, weekDates, windows, raw, balanced }
 }
 
 function shapeDashboard({ includeFinance, includeCredit, includeCensus, includeOccupancy, collected }) {
@@ -328,7 +416,16 @@ function shapeDashboard({ includeFinance, includeCredit, includeCensus, includeO
 
   if (includeCensus && collected.raw.census) {
     const [admitted, pendingDischarge, admittedToday, dischargedToday] = collected.raw.census
-    payload.census = { admitted, pendingDischarge, admittedToday, dischargedToday }
+    const emergency = collected.raw.emergencyCensus || []
+    payload.census = {
+      admitted,
+      pendingDischarge,
+      admittedToday,
+      dischargedToday,
+      emergencyOpdActive: emergency[0] || 0,
+      emergencyOpdConverted: emergency[1] || 0,
+      emergencyOpdAdmissions: emergency[2] || 0,
+    }
   }
 
   if (includeOccupancy && collected.raw.occupancy) {
@@ -345,6 +442,10 @@ function shapeDashboard({ includeFinance, includeCredit, includeCensus, includeO
         today: collected.raw.chargesToday || 0,
         month: collected.raw.chargesMonth || 0,
       },
+      emergencyCharges: {
+        today: collected.raw.emergencyChargesToday || 0,
+        month: collected.raw.emergencyChargesMonth || 0,
+      },
       dischargeAmount: {
         today: collected.raw.dischargeAmountToday || 0,
         month: collected.raw.dischargeAmountMonth || 0,
@@ -356,6 +457,16 @@ function shapeDashboard({ includeFinance, includeCredit, includeCensus, includeO
     }
     payload.chargesByCategory = collected.raw.categories || []
     payload.dailyChargesTrend = collected.raw.dailyCharges || []
+    payload.periodComparison = {
+      week: {
+        current: periodBucket('This week', collected.windows.currentWeek, collected.raw.depositsWeek, collected.raw.chargesWeek),
+        previous: periodBucket('Last week', collected.windows.previousWeek, collected.raw.depositsLastWeek, collected.raw.chargesLastWeek),
+      },
+      month: {
+        current: periodBucket('This month', collected.windows.currentMonth, collected.raw.depositsMonth, collected.raw.chargesMonth),
+        previous: periodBucket('Last month', collected.windows.previousMonth, collected.raw.depositsLastMonth, collected.raw.chargesLastMonth),
+      },
+    }
     payload.topServices = collected.raw.topServices || []
     payload.topMedicines = collected.raw.topMedicines || []
   }

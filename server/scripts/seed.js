@@ -18,10 +18,13 @@ import { ClinicalNote } from '../models/ClinicalNote.js'
 import { seedBaselineDepartmentsAndWards, printSeedSummary } from './seedDepartmentsWards.js'
 
 const DEMO_USERS = [
-  { email: 'reception@cc', name: 'Sara Bekele', role: 'Reception' },
-  { email: 'nurse@cc', name: 'Nurse Almaz Tsegaye', role: 'Nurse' },
-  { email: 'admin@cc', name: 'Admin User', role: 'Admin' },
-  { email: 'manager@cc', name: 'Manager User', role: 'Manager' },
+  { email: 'reception@cc', name: 'Sara Bekele', role: 'Reception', slug: 'reception' },
+  { email: 'nurse@cc', name: 'Nurse Almaz Tsegaye', role: 'Nurse', slug: 'nurse' },
+  { email: 'emergency-nurse@cc', name: 'Emergency Nurse Hanna', role: 'Nurse', slug: 'emergency-nurse' },
+  { email: 'admin@cc', name: 'Admin User', role: 'Admin', slug: 'admin' },
+  { email: 'manager@cc', name: 'Manager User', role: 'Manager', slug: 'manager' },
+  { email: 'pharmacist@cc', name: 'Dawit Lemma', role: 'Pharmacist', slug: 'pharmacist' },
+  { email: 'laboratory@cc', name: 'Bethlehem Assefa', role: 'Laboratory', slug: 'laboratory' },
 ]
 
 const ROOM_CONFIG = [
@@ -235,14 +238,16 @@ async function seed() {
 
   await ensureDefaultRoles()
   const roles = await Role.find()
-  const roleByAccess = Object.fromEntries(roles.filter((r) => r.system).map((r) => [r.accessRole, r]))
+  const roleBySlug = Object.fromEntries(roles.map((r) => [r.slug, r]))
   await User.insertMany(
     DEMO_USERS.map((u) => ({
-      ...u,
+      email: u.email,
+      name: u.name,
+      role: u.role,
       username: u.email,
       password: hash,
       status: 'active',
-      roleId: roleByAccess[u.role]?._id,
+      roleId: roleBySlug[u.slug]?._id,
     }))
   )
 
@@ -264,7 +269,7 @@ async function seed() {
   const hospitalSetup = await seedBaselineDepartmentsAndWards()
 
   console.log('Seed complete (catalog and staff only — no demo patients, doctors, or charges):')
-  console.log('  Users: 4 (password: password)')
+  console.log('  Users: 7 (password: password)')
   console.log('  Beds:', await Bed.countDocuments())
   console.log('  Patients: 0')
   console.log('  Doctors: 0')

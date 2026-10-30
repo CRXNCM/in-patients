@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { Deposit } from '../models/Deposit.js'
 import { Bed } from '../models/Bed.js'
 import { authRequired, requirePermission } from '../middleware/auth.js'
+import { roleHasPermission } from '../utils/permissions.js'
 import { todayStr } from '../utils/dates.js'
 import {
   MANAGER_DASHBOARD_PERMISSION,
@@ -121,6 +122,7 @@ router.get('/reports/:type', authRequired, requirePermission(MANAGER_DASHBOARD_P
     let title = 'Hospital Report'
     let rows = []
     let summary = {}
+    let extras = {}
 
     switch (type) {
       case 'daily':
@@ -168,6 +170,32 @@ router.get('/reports/:type', authRequired, requirePermission(MANAGER_DASHBOARD_P
         title = 'Patient Billing Summary'
         rows = data.recentPatients
         break
+      case 'credit-patients':
+        title = 'Credit Patients'
+        {
+          if (!roleHasPermission(req.auth?.role, 'credit.view')) {
+            return res.status(403).json({ error: 'Forbidden' })
+          }
+          const credit = await buildManagerCreditReport(req.auth, req.query)
+          summary = {
+            patients: credit.summary.patients,
+            creditOutstanding: credit.summary.creditOutstanding,
+            billingOutstanding: credit.summary.billingOutstanding,
+          }
+          rows = credit.rows.map((row) => ({
+            patientName: row.patientName,
+            patientId: row.patientId,
+            admissionId: row.admissionId,
+            admissionDate: row.admissionDate,
+            status: row.status,
+            creditCompanyName: row.creditCompanyName,
+            creditCompanyCode: row.creditCompanyCode,
+            creditOutstanding: row.creditOutstanding,
+            depositStatus: row.depositStatus,
+          }))
+          extras = { byCompany: credit.byCompany }
+        }
+        break
       case 'occupancy':
         title = 'Room Occupancy Report'
         {
@@ -185,7 +213,7 @@ router.get('/reports/:type', authRequired, requirePermission(MANAGER_DASHBOARD_P
         return res.status(400).json({ error: 'Unknown report type' })
     }
 
-    res.json({ title, summary, rows, generatedAt: new Date().toISOString(), hospitalName: data.hospitalName })
+    res.json({ title, summary, rows, generatedAt: new Date().toISOString(), hospitalName: data.hospitalName, ...extras })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to generate report' })

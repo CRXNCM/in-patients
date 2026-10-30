@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { StatusBadge } from '@/components/shared/CommonComponents'
 import { CreditBadge, CreditSummary } from '@/components/shared/CreditBadge'
+import { PharmacyReconciliation } from '@/components/workflow/PharmacyReconciliation'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
@@ -77,8 +78,9 @@ export function RequestDischargeButton({ patient }) {
               <div><p className="text-xs text-muted-foreground">Room</p><p className="font-medium">{patient.room}</p></div>
               <div><p className="text-xs text-muted-foreground">Bed</p><p className="font-medium">{patient.bed}</p></div>
               <div><p className="text-xs text-muted-foreground">Admission date</p><p className="font-medium">{formatDate(patient.admissionDate)}</p></div>
-              <div><p className="text-xs text-muted-foreground">Stay duration</p><p className="font-medium">{stayDays} day{stayDays === 1 ? '' : 's'}</p></div>
-            </div>
+            <div><p className="text-xs text-muted-foreground">Stay duration</p><p className="font-medium">{stayDays} day{stayDays === 1 ? '' : 's'}</p></div>
+          </div>
+          <PharmacyReconciliation patientId={patient.id} />
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Current status</span>
               <StatusBadge status={patient.status} />
@@ -207,6 +209,7 @@ export function DischargeReviewPanel({ patient }) {
             <div className="flex items-center gap-2"><StatusBadge status={patient.status} /> <CreditBadge patient={patient} /></div>
           </div>
         </div>
+        <PharmacyReconciliation patientId={patient.id} />
 
         <div>
           <h3 className="text-sm font-semibold mb-3">Discharge request</h3>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Plus, Trash2, CheckCircle2, RotateCcw, Info, Bed, Stethoscope } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useBillingConfig } from '@/context/BillingConfigContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
+import { useWorkflowRequests } from '@/context/WorkflowRequestsContext'
 import { useToast } from '@/context/ToastContext'
 import { RoomTransferPanel } from '@/components/shared/RoomTransferPanel'
 import { formatCurrency } from '@/lib/utils'
@@ -23,6 +24,8 @@ import {
   trimText,
 } from '@/lib/validation'
 import { isMaternityAdmission } from '@/lib/maternity'
+import { applyEmergencyPrice, isEmergencyOpdAdmission } from '@/lib/admissions'
+import { partitionServiceLines } from '@/services/pharmacyFulfillment'
 import { AnimatePresence, motion, useReducedMotion, fadeUp, revealTransition } from '@/lib/motion'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -51,9 +54,13 @@ export function ServiceRecordBuilder({
     buildReturnLine,
     submitDailyRecord,
     submitPharmacyReturn,
+    adoptRecord,
     getPendingEditableRecord,
     getPatientRecords,
   } = useServiceEntries()
+  const { routeNurseServices } = useWorkflowRequests()
+  const submissionRef = useRef('')
+  const submissionSigRef = useRef('')
 
   const manualCategories = categories.filter((c) => c.billingType !== BILLING_TYPES.AUTOMATIC_DAILY)
   const pharmacyCategory = categories.find((c) => c.id === 'pharmacy')
@@ -76,8 +83,11 @@ export function ServiceRecordBuilder({
   const reducedMotion = useReducedMotion()
 
   const today = new Date().toISOString().split('T')[0]
+  const allowReturns = source !== 'nurse'
   const pendingDaily = getPendingEditableRecord(patientId, 'daily_services', today, maternity ? subjectType : 'mother')
-  const pendingReturn = getPendingEditableRecord(patientId, 'pharmacy_return', today, maternity ? subjectType : 'mother')
+  const pendingReturn = allowReturns
+    ? getPendingEditableRecord(patientId, 'pharmacy_return', today, maternity ? subjectType : 'mother')
+    : null
   const activeCat = categories.find((c) => c.name === activeCategory)
   const selectableServices = (activeCat?.services || []).filter((svc) => svc.active !== false)
   const selectablePharmacy = (pharmacyCategory?.services || []).filter((svc) => svc.active !== false)
@@ -114,6 +124,7 @@ export function ServiceRecordBuilder({
       setSubjectType(editRecord.subjectType)
     }
     if (editRecord.type === 'pharmacy_return') {
+      if (source === 'nurse') return
       setMode('returns')
       setReturnCart(editRecord.returnItems || [])
       setEditingReturnId(editRecord.id)
@@ -290,6 +301,10 @@ export function ServiceRecordBuilder({
         toast({ title: 'Record is locked', description: 'Approved or rejected records cannot be edited.', variant: 'destructive' })
         return
       }
+      if (existing?.departmentCleared) {
+        toast({ title: 'Record is with reception', description: 'The department already released this item. Reception approves or rejects the charge.', variant: 'destructive' })
+        return
+      }
     }
 
     const slip = trimText(paperSlipRef)
@@ -311,28 +326,107 @@ export function ServiceRecordBuilder({
 
     setSubmitting(true)
     const count = cart.length
+    const parts = partitionServiceLines(servicesPayload)
+    const departmental = [...parts.pharmacy, ...parts.laboratory]
+    const signature = servicesPayload.map((line) => `${line.catalogItemId || line.serviceName}:${line.quantity}`).join('|')
+    if (submissionSigRef.current !== signature) {
+      submissionSigRef.current = signature
+      submissionRef.current = ''
+    }
+    const routeFromRecord = source === 'nurse' && !autoApprove && departmental.length
     try {
-      await submitDailyRecord({
-        patientId,
-        services: servicesPayload,
-        source,
-        recordedBy,
-        existingRecordId: editingRecordId,
-        recordDate: today,
-        subjectType: maternity ? subjectType : 'mother',
-        babyId: maternity && subjectType === 'baby' ? patient?.baby?.id : null,
-      })
-      setCart([])
-      setEditingRecordId(null)
-      setPaperSlipRef('')
-      setCheckedItems({})
-      toast({
-        title: autoApprove ? 'Record Saved' : 'Daily Record Submitted',
-        description: autoApprove
-          ? `${patientName} — ${count} service(s) added`
-          : `${patientName} — sent to reception for approval`,
-        variant: 'success',
-      })
+      if (routeFromRecord) {
+        if (!submissionRef.current) submissionRef.current = crypto.randomUUID()
+        const routed = await routeNurseServices({
+          patientId,
+          submissionId: submissionRef.current,
+          services: editingRecordId ? departmental : servicesPayload,
+          source,
+          recordDate: today,
+          recordName: patientName,
+          subjectType: maternity ? subjectType : 'mother',
+          babyId: maternity && subjectType === 'baby' ? patient?.baby?.id : null,
+          stay: {
+            patientId,
+            patientName,
+            admissionId: patient?.admissionId || '',
+            admissionNumber: patientId,
+            ward: patient?.wardName || '',
+            room: patient?.room || '',
+            bed: patient?.bed || '',
+          },
+        })
+        if (editingRecordId) {
+          if (parts.other.length) {
+            await submitDailyRecord({
+              patientId,
+              services: parts.other,
+              source,
+              recordedBy,
+              existingRecordId: editingRecordId,
+              recordDate: today,
+              subjectType: maternity ? subjectType : 'mother',
+              babyId: maternity && subjectType === 'baby' ? patient?.baby?.id : null,
+            })
+          }
+        } else if (routed.record) adoptRecord(routed.record)
+        else if (routed.otherLines?.length && !routed.duplicate) {
+          await submitDailyRecord({
+            patientId,
+            services: routed.otherLines,
+            source,
+            recordedBy,
+            recordDate: today,
+            subjectType: maternity ? subjectType : 'mother',
+            babyId: maternity && subjectType === 'baby' ? patient?.baby?.id : null,
+          })
+        }
+        const counts = routed.counts || {}
+        const summary = []
+        if (counts.pharmacy) summary.push(`${counts.pharmacy} medicine item(s) sent to the pharmacist. They are not billed until pharmacy releases the supplied quantity and reception approves it`)
+        if (counts.laboratory) summary.push(`${counts.laboratory} laboratory item(s) sent to the laboratory. They are not billed until the laboratory releases them and reception approves`)
+        if (!editingRecordId && counts.reception) summary.push(`${counts.reception} other service(s) sent to reception for approval`)
+        if (editingRecordId && parts.other.length) summary.push(`${parts.other.length} other service(s) remain with reception`)
+        submissionRef.current = ''
+        submissionSigRef.current = ''
+        setCart([])
+        setEditingRecordId(null)
+        setPaperSlipRef('')
+        setCheckedItems({})
+        toast({
+          title: 'Record submitted',
+          description: summary.join('. ') || `${patientName} — ${count} service(s) submitted`,
+          variant: 'success',
+        })
+      } else {
+        await submitDailyRecord({
+          patientId,
+          services: servicesPayload,
+          source,
+          recordedBy,
+          existingRecordId: editingRecordId,
+          recordDate: today,
+          subjectType: maternity ? subjectType : 'mother',
+          babyId: maternity && subjectType === 'baby' ? patient?.baby?.id : null,
+        })
+        setCart([])
+        setEditingRecordId(null)
+        setPaperSlipRef('')
+        setCheckedItems({})
+        const needsDepartment = servicesPayload.some((line) => {
+          const category = String(line.category || '').trim().toLowerCase()
+          return category === 'pharmacy' || category === 'laboratory' || category === 'lab'
+        })
+        toast({
+          title: needsDepartment ? 'Waiting for departmental release' : autoApprove ? 'Record Saved' : 'Daily Record Submitted',
+          description: needsDepartment
+            ? `${patientName} — pharmacy and laboratory items stay off the bill until the department releases them and reception approves that release. A nurse submits those items from the patient record.`
+            : autoApprove
+              ? `${patientName} — ${count} service(s) added`
+              : `${patientName} — sent to reception for approval`,
+          variant: 'success',
+        })
+      }
       onDone?.()
     } catch (err) {
       toast({ title: 'Submit failed', description: err.message, variant: 'destructive' })
@@ -367,6 +461,7 @@ export function ServiceRecordBuilder({
   }
 
   const handleDoneReturn = async () => {
+    if (!allowReturns) return
     const returnErrors = validateReturnCart(returnCart)
     if (Object.keys(returnErrors).length) {
       toast({ title: 'Validation error', description: firstError(returnErrors), variant: 'destructive' })
@@ -508,16 +603,18 @@ export function ServiceRecordBuilder({
             )}
           </div>
         )}
-        <Tabs value={mode} onValueChange={setMode} className="mb-4">
-          <TabsList>
-            <TabsTrigger value="services">Services</TabsTrigger>
-            <TabsTrigger value="returns">
-              <RotateCcw className="h-4 w-4 mr-1" /> Pharmacy Returns
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {allowReturns ? (
+          <Tabs value={mode} onValueChange={setMode} className="mb-4">
+            <TabsList>
+              <TabsTrigger value="services">Services</TabsTrigger>
+              <TabsTrigger value="returns">
+                <RotateCcw className="h-4 w-4 mr-1" /> Pharmacy Returns
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        ) : null}
 
-        {mode === 'services' ? (
+        {mode === 'services' || !allowReturns ? (
           <>
             <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Service category</p>
             <Tabs value={activeCategory} onValueChange={setActiveCategory}>
@@ -553,7 +650,7 @@ export function ServiceRecordBuilder({
                       <th className="px-4 py-2 text-left font-medium text-muted-foreground">Category</th>
                       <th className="px-4 py-2 text-left font-medium text-muted-foreground">Service</th>
                       <th className="w-24 px-4 py-2 text-left font-medium text-muted-foreground">Qty</th>
-                      <th className="px-4 py-2 text-left font-medium text-muted-foreground">Notes</th>
+                      <th className="px-4 py-2 text-left font-medium text-muted-foreground">Notes / instructions</th>
                       {!hideMoney && <th className="px-4 py-2 text-right font-medium text-muted-foreground">Total</th>}
                       <th className="px-4 py-2"><span className="sr-only">Remove</span></th>
                     </tr>
@@ -577,8 +674,8 @@ export function ServiceRecordBuilder({
                         <td className="px-4 py-2">
                           <Input
                             className="h-8"
-                            placeholder="Optional"
                             value={item.notes || ''}
+                            placeholder={String(item.category || '').toLowerCase() === 'pharmacy' ? 'Dosage / instructions' : 'Notes'}
                             disabled={submitting}
                             onChange={(e) => updateCartLine(idx, { notes: e.target.value })}
                             aria-label={`${item.serviceName} notes`}

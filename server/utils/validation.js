@@ -1,4 +1,5 @@
 import { todayStr } from './dates.js'
+import { ADMISSION_TYPES, isEmergencyOpdAdmission } from './admissions.js'
 
 export const MIN_INITIAL_DEPOSIT = 15000
 export const NON_CASH_PAYMENT_METHODS = ['Bank Transfer', 'Ebirr', 'Other']
@@ -30,7 +31,7 @@ export function resolveAdmissionDate(value) {
  */
 export function validateAdmitBody(body, rules = {}) {
   const errors = []
-  const { name, age, dateOfBirth, gender, admissionDate, bedId, depositAmount, address } = body
+  const { name, age, dateOfBirth, gender, admissionDate, bedId, depositAmount } = body
   const paymentMode = String(body.admissionPaymentMode || 'paid').trim().toLowerCase()
   const minimumDeposit = Number.isFinite(Number(rules.minimumInitialDeposit))
     ? Number(rules.minimumInitialDeposit)
@@ -53,34 +54,46 @@ export function validateAdmitBody(body, rules = {}) {
   if (finalAge == null || Number.isNaN(finalAge)) errors.push('Age or date of birth is required.')
   else if (finalAge < 0 || finalAge > 120) errors.push('Age must be between 0 and 120.')
 
-  if (!trimText(address)) errors.push('Address is required.')
-  if (!bedId) errors.push('Bed is required.')
-
-  const deposit = Number(depositAmount)
-  if (paymentMode === 'credit') {
-    if (!creditAllowed) {
-      errors.push('Credit admissions are disabled in hospital settings.')
-    }
-    if (Number.isNaN(deposit) || deposit < 0) {
-      errors.push('Credit admission amount must be zero or greater.')
-    }
-    if (deposit > 0 && !trimText(body.depositMethod)) {
-      errors.push('Payment method is required when a credit patient pays a partial deposit.')
-    }
-  } else if (paymentMode && paymentMode !== 'paid') {
-    errors.push('Admission payment mode must be paid or credit.')
-  } else if (Number.isNaN(deposit) || deposit < minimumDeposit) {
-    errors.push(`Initial deposit must be at least ${minimumDeposit} ETB.`)
-  }
-
-  const admitMethod = trimText(body.depositMethod)
-  if (admitMethod && enabledMethods && !enabledMethods.includes(admitMethod)) {
-    errors.push(`${admitMethod} is not an enabled payment method.`)
-  }
-
   const admissionType = String(body.admissionType || 'normal').trim().toLowerCase()
-  if (admissionType && admissionType !== 'normal' && admissionType !== 'maternity') {
-    errors.push('Admission type must be normal or maternity.')
+  if (admissionType && !ADMISSION_TYPES.includes(admissionType)) {
+    errors.push('Admission type must be normal, maternity, or Emergency OPD.')
+  }
+  const emergencyOpd = admissionType === 'emergency-opd'
+
+  if (!emergencyOpd && !bedId) errors.push('Bed is required.')
+
+  if (emergencyOpd) {
+    if (paymentMode === 'credit') {
+      errors.push('Emergency OPD admissions cannot be opened as credit. Convert to inpatient to collect a deposit.')
+    }
+    const rawDeposit = body.depositAmount
+    if (rawDeposit !== undefined && rawDeposit !== null && rawDeposit !== '' && Number(rawDeposit) > 0) {
+      errors.push('Emergency OPD admissions do not collect an admission deposit.')
+    }
+  } else {
+    const deposit = Number(depositAmount)
+    if (paymentMode === 'credit') {
+      if (!creditAllowed) {
+        errors.push('Credit admissions are disabled in hospital settings.')
+      } else {
+        if (Number.isNaN(deposit) || deposit < 0) {
+          errors.push('Credit admission amount must be zero or greater.')
+        }
+        if (deposit > 0 && !trimText(body.depositMethod)) {
+          errors.push('Payment method is required when a credit patient pays a partial deposit.')
+        }
+        if (!trimText(body.creditCompanyId)) errors.push('Credit company is required.')
+      }
+    } else if (paymentMode && paymentMode !== 'paid') {
+      errors.push('Admission payment mode must be paid or credit.')
+    } else if (Number.isNaN(deposit) || deposit < minimumDeposit) {
+      errors.push(`Initial deposit must be at least ${minimumDeposit} ETB.`)
+    }
+
+    const admitMethod = trimText(body.depositMethod)
+    if (admitMethod && enabledMethods && !enabledMethods.includes(admitMethod)) {
+      errors.push(`${admitMethod} is not an enabled payment method.`)
+    }
   }
 
   if (Array.isArray(body.doctorIds)) {
@@ -180,8 +193,57 @@ export function validateDischargeRejectBody(body) {
   return errors
 }
 
+export function validateConvertToInpatientBody(body, rules = {}) {
+  const errors = []
+  if (!trimText(body?.bedId)) errors.push('Bed is required.')
+  const doctorIds = Array.isArray(body?.doctorIds) ? body.doctorIds.map((id) => trimText(id)).filter(Boolean) : []
+  if (!doctorIds.length) errors.push('Doctor assignment is required.')
+  else {
+    const unique = new Set(doctorIds)
+    if (unique.size !== doctorIds.length) errors.push('The same doctor cannot be assigned twice.')
+  }
+
+  const paymentMode = String(body?.admissionPaymentMode || 'paid').trim().toLowerCase()
+  const minimumDeposit = Number.isFinite(Number(rules.minimumInitialDeposit))
+    ? Number(rules.minimumInitialDeposit)
+    : MIN_INITIAL_DEPOSIT
+  const creditAllowed = rules.creditAdmissionsEnabled !== false
+  const enabledMethods = Array.isArray(rules.paymentMethods) && rules.paymentMethods.length
+    ? rules.paymentMethods
+    : null
+  const deposit = Number(body?.depositAmount)
+
+  if (paymentMode === 'credit') {
+    if (!creditAllowed) {
+      errors.push('Credit admissions are disabled in hospital settings.')
+    } else {
+      if (Number.isNaN(deposit) || deposit < 0) {
+        errors.push('Credit admission amount must be zero or greater.')
+      }
+      if (deposit > 0 && !trimText(body.depositMethod)) {
+        errors.push('Payment method is required when a credit patient pays a partial deposit.')
+      }
+      if (!trimText(body.creditCompanyId)) errors.push('Credit company is required.')
+    }
+  } else if (paymentMode && paymentMode !== 'paid') {
+    errors.push('Admission payment mode must be paid or credit.')
+  } else if (Number.isNaN(deposit) || deposit < minimumDeposit) {
+    errors.push(`Initial deposit must be at least ${minimumDeposit} ETB.`)
+  }
+
+  const method = trimText(body?.depositMethod)
+  if (method && enabledMethods && !enabledMethods.includes(method)) {
+    errors.push(`${method} is not an enabled payment method.`)
+  }
+
+  return errors
+}
+
 export function inpatientActionError(patient, action) {
   if (!patient) return 'Patient not found.'
+  if (isEmergencyOpdAdmission(patient) && action === 'transfer') {
+    return 'Convert this Emergency OPD admission to inpatient before assigning a bed.'
+  }
   if (patient.status === 'discharged') {
     const messages = {
       records: 'Cannot add inpatient services for a discharged patient.',

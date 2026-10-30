@@ -1,6 +1,6 @@
 import { effectivePermissions, PREDEFINED_ROLE_SLUGS } from './permissions.js'
 
-export const ACCESS_ROLES = ['Reception', 'Nurse', 'Admin', 'Manager']
+export const ACCESS_ROLES = ['Reception', 'Nurse', 'Admin', 'Manager', 'Pharmacist', 'Laboratory']
 
 export const DEFAULT_ROLES = [
   { name: 'Super Admin', slug: 'super-admin', accessRole: 'Admin', system: true, description: 'Full hospital administration access.' },
@@ -8,7 +8,10 @@ export const DEFAULT_ROLES = [
   { name: 'Reception', slug: 'reception', accessRole: 'Reception', system: true, description: 'Admissions, deposits, and reception billing.' },
   { name: 'Night Reception', slug: 'night-reception', accessRole: 'Reception', system: false, description: 'Reception access for night-shift staff.' },
   { name: 'Nurse', slug: 'nurse', accessRole: 'Nurse', system: true, description: 'Inpatient nursing documentation.' },
+  { name: 'Emergency Nurse', slug: 'emergency-nurse', accessRole: 'Nurse', system: true, description: 'Emergency OPD registration and service requests without inpatient bed, doctor, or deposit assignment.' },
   { name: 'Manager', slug: 'manager', accessRole: 'Manager', system: true, description: 'Reports and financial oversight.' },
+  { name: 'Pharmacist', slug: 'pharmacist', accessRole: 'Pharmacist', system: true, description: 'Dispense ward medicines handed over from the patient record and record returns.' },
+  { name: 'Laboratory', slug: 'laboratory', accessRole: 'Laboratory', system: true, description: 'Process laboratory requests routed from the patient record.' },
   { name: 'Doctor', slug: 'doctor', accessRole: 'Nurse', system: false, description: 'Clinical role. Detailed permissions come in a later step.' },
   { name: 'Finance', slug: 'finance', accessRole: 'Manager', system: false, description: 'Financial reporting access.' },
 ]
@@ -43,7 +46,7 @@ export function validateRoleBody(body, { partial = false } = {}) {
   }
   if (!partial || body.accessRole !== undefined) {
     if (!ACCESS_ROLES.includes(body?.accessRole)) {
-      errors.push('Application access must be Reception, Nurse, Admin, or Manager.')
+      errors.push('Application access must be Reception, Nurse, Admin, Manager, Pharmacist, or Laboratory.')
     }
   }
   if (body?.active !== undefined && typeof body.active !== 'boolean') {

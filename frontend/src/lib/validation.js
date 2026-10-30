@@ -127,8 +127,6 @@ export function validatePatientRegistration(form) {
   const phoneErr = validatePhone(form.phone, { optional: true })
   if (phoneErr) errors.phone = phoneErr
 
-  if (!trimText(form.address)) errors.address = 'Address is required.'
-
   return errors
 }
 
@@ -149,10 +147,14 @@ export function validateAdmission(form, { rooms = [], existingPatients = [], rul
     if (admissionErr) errors.admissionDate = admissionErr
   }
 
-  if (!trimText(form.bedType)) errors.bedType = 'Room type is required.'
+  const emergencyOpd = String(form.admissionType || '').toLowerCase() === 'emergency-opd'
+
+  if (!emergencyOpd && !trimText(form.bedType)) errors.bedType = 'Room type is required.'
 
   const paymentMode = String(form.admissionPaymentMode || 'paid').toLowerCase()
-  if (paymentMode === 'credit') {
+  if (emergencyOpd) {
+    /* Emergency OPD skips bed, doctor, and deposit collection. */
+  } else if (paymentMode === 'credit') {
     const raw = trimText(form.initialDeposit)
     if (raw === '') {
       /* credit with blank amount is treated as 0 */
@@ -160,6 +162,7 @@ export function validateAdmission(form, { rooms = [], existingPatients = [], rul
       const depositErr = validatePositiveNumber(form.initialDeposit, 'Amount paid', { min: 0, allowZero: true })
       if (depositErr) errors.initialDeposit = depositErr
     }
+    if (!trimText(form.creditCompanyId)) errors.creditCompanyId = 'Credit company is required.'
     if (Number(form.initialDeposit) > 0) {
       if (!trimText(form.depositType)) errors.depositType = 'Payment method is required for a partial deposit.'
       else if (enabledMethods && !enabledMethods.includes(form.depositType)) {
@@ -181,16 +184,18 @@ export function validateAdmission(form, { rooms = [], existingPatients = [], rul
     }
   }
 
-  const room = rooms.find((r) => r.roomType === form.bedType)
-  if (!room) {
-    errors.bedType = 'Selected room type does not exist.'
-  } else if (form.bedNumber) {
-    const bed = room.beds.find((b) => b.label === trimText(form.bedNumber) || b.id === `BED-${trimText(form.bedNumber)}`)
-    if (!bed) errors.bedNumber = 'Selected bed does not belong to this room type.'
-    else if (bed.status !== 'available') errors.bedNumber = 'Selected bed is not available.'
-  } else {
-    const hasAvailable = room.beds.some((b) => b.status === 'available')
-    if (!hasAvailable) errors.bedNumber = 'No available beds in the selected room type.'
+  if (!emergencyOpd) {
+    const room = rooms.find((r) => r.roomType === form.bedType)
+    if (!room) {
+      errors.bedType = 'Selected room type does not exist.'
+    } else if (form.bedNumber) {
+      const bed = room.beds.find((b) => b.label === trimText(form.bedNumber) || b.id === `BED-${trimText(form.bedNumber)}`)
+      if (!bed) errors.bedNumber = 'Selected bed does not belong to this room type.'
+      else if (bed.status !== 'available') errors.bedNumber = 'Selected bed is not available.'
+    } else {
+      const hasAvailable = room.beds.some((b) => b.status === 'available')
+      if (!hasAvailable) errors.bedNumber = 'No available beds in the selected room type.'
+    }
   }
 
   const mrn = trimText(form.mrn)

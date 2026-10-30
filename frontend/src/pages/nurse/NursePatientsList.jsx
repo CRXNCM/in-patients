@@ -10,10 +10,14 @@ import { usePatientLocationLookup } from '@/hooks/usePatientLocationLookup'
 import { locationForPatient, patientMatchesStayFilters } from '@/lib/patientLocation'
 import { formatDate } from '@/lib/utils'
 import { CreditBadge } from '@/components/shared/CreditBadge'
+import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
+import { stayLocationLabel } from '@/lib/admissions'
+import { useAuth } from '@/context/AuthContext'
 import { PatientLink } from '@/components/shared/PatientLink'
 
 export default function NursePatientsList() {
   const navigate = useNavigate()
+  const { hasAnyPermission } = useAuth()
   const [params, setParams] = useSearchParams()
   const { patients } = usePatients()
   const { getPatientRecords } = useServiceEntries()
@@ -47,14 +51,12 @@ export default function NursePatientsList() {
       <div className="flex flex-col gap-1">
         <PatientLink patientId={row.id} className="font-medium">{row.name}</PatientLink>
         <div className="flex flex-wrap gap-1">
-          {row.admissionType === 'maternity' && (
-            <span className="text-[10px] uppercase tracking-wide rounded bg-rose-100 text-rose-700 px-1.5 py-0.5">Maternity</span>
-          )}
+          <AdmissionTypeBadge patient={row} />
           <CreditBadge patient={row} />
         </div>
       </div>
     ) },
-    { key: 'room', header: 'Room/Bed', render: (row) => `${row.room} / ${row.bed}` },
+    { key: 'room', header: 'Room/Bed', render: (row) => stayLocationLabel(row) },
     { key: 'roomType', header: 'Room type', render: (row) => locationForPatient(row, bedsByLabel).roomType || row.room || '—' },
     { key: 'ward', header: 'Ward', render: (row) => locationForPatient(row, bedsByLabel).wardName || '—' },
     { key: 'admissionDate', header: 'Admission Date', render: (row) => formatDate(row.admissionDate) },
@@ -73,7 +75,17 @@ export default function NursePatientsList() {
 
   return (
     <div>
-      <PageHeader title="Admitted Patients" description="Active inpatients only. Filter by room type, ward, or stay status." />
+      <PageHeader
+        title="Admitted Patients"
+        description="Active inpatients and Emergency OPD patients. Filter by room type, ward, or stay status."
+        action={
+          hasAnyPermission(['admissions.create', 'admissions.create_emergency']) ? (
+            <Button onClick={() => navigate('/nurse/add-patient')}>
+              <Plus className="h-4 w-4 mr-2" /> Emergency Admission
+            </Button>
+          ) : null
+        }
+      />
       <div className="mb-4">
         <StayLocationFilters
           roomType={filters.roomType}

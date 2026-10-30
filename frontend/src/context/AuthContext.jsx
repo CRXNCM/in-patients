@@ -10,7 +10,11 @@ const ROLE_ROUTES = {
   Nurse: '/nurse',
   Admin: '/admin',
   Manager: '/manager',
+  Pharmacist: '/pharmacist',
+  Laboratory: '/laboratory',
 }
+
+const FRONTEND_WORKFLOW_ROLES = ['Pharmacist', 'Laboratory']
 
 const DEMO_PASSWORD = 'password'
 
@@ -22,6 +26,23 @@ function getInitials(name) {
     .join('')
     .slice(0, 2)
     .toUpperCase()
+}
+
+function sessionSignature(user) {
+  if (!user) return ''
+  const permissions = Array.isArray(user.permissions) ? [...user.permissions].sort() : []
+  return JSON.stringify({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    roleName: user.roleName,
+    roleKey: user.roleKey,
+    roleId: user.roleId,
+    roleSlug: user.roleSlug,
+    dashboardPath: user.dashboardPath,
+    permissions,
+  })
 }
 
 function toSessionUser(user) {
@@ -47,21 +68,32 @@ function saveSession(user) {
   sessionStorage.setItem('medbill_user', JSON.stringify(user))
 }
 
+function readStoredUser() {
+  try {
+    const saved = sessionStorage.getItem('medbill_user')
+    return saved ? JSON.parse(saved) : null
+  } catch {
+    return null
+  }
+}
+
+function readOfflineWorkflowUser() {
+  if (sessionStorage.getItem('medbill_token')) return null
+  const saved = readStoredUser()
+  if (saved?.roleKey === 'pharmacist' || saved?.roleKey === 'laboratory') return saved
+  return null
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = React.useState(() => {
-    if (USE_API) return null
-    try {
-      const saved = sessionStorage.getItem('medbill_user')
-      return saved ? JSON.parse(saved) : null
-    } catch {
-      return null
-    }
+    if (USE_API) return readOfflineWorkflowUser()
+    return readStoredUser()
   })
-  const [authReady, setAuthReady] = React.useState(!USE_API)
+  const [authReady, setAuthReady] = React.useState(() => !USE_API || !sessionStorage.getItem('medbill_token'))
 
   const applySession = React.useCallback((data) => {
     const sessionUser = toSessionUser(data)
-    setUser(sessionUser)
+    setUser((current) => (sessionSignature(current) === sessionSignature(sessionUser) ? current : sessionUser))
     saveSession(sessionUser)
     return sessionUser
   }, [])
@@ -79,6 +111,12 @@ export function AuthProvider({ children }) {
     const savedUser = sessionStorage.getItem('medbill_user')
 
     if (!token) {
+      const offline = readOfflineWorkflowUser()
+      if (offline) {
+        setUser(offline)
+        setAuthReady(true)
+        return undefined
+      }
       if (savedUser) sessionStorage.removeItem('medbill_user')
       setUser(null)
       setAuthReady(true)
@@ -115,6 +153,19 @@ export function AuthProvider({ children }) {
         const sessionUser = applySession(data.user)
         return { success: true, path: sessionUser.dashboardPath }
       } catch (err) {
+        const found = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
+        if (
+          found
+          && FRONTEND_WORKFLOW_ROLES.includes(found.role)
+          && password === DEMO_PASSWORD
+          && found.status === 'active'
+        ) {
+          setToken(null)
+          const sessionUser = toSessionUser(found)
+          setUser(sessionUser)
+          saveSession(sessionUser)
+          return { success: true, path: sessionUser.dashboardPath }
+        }
         return { error: err.message || 'Invalid email or password' }
       }
     }

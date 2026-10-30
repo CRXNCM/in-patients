@@ -157,7 +157,7 @@ describe('financial rules drive real validation', () => {
   })
 
   it('blocks credit admissions when they are disabled', () => {
-    const body = { ...base, depositAmount: 0, admissionPaymentMode: 'credit' }
+    const body = { ...base, depositAmount: 0, admissionPaymentMode: 'credit', creditCompanyId: 'company-1' }
     assert.equal(validateAdmitBody(body, { creditAdmissionsEnabled: true }).length, 0)
     assert.deepEqual(validateAdmitBody(body, { creditAdmissionsEnabled: false }), [
       'Credit admissions are disabled in hospital settings.',

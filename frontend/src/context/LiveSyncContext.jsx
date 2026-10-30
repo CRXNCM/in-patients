@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { USE_API } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
+import { isOfflineWorkflowUser } from '@/lib/workflowAccess'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 
@@ -11,7 +12,7 @@ const LiveSyncContext = React.createContext({
 })
 
 export function LiveSyncProvider({ children }) {
-  const { isAuthenticated, authReady } = useAuth()
+  const { isAuthenticated, authReady, user } = useAuth()
   const { refreshFromApi } = usePatients()
   const { refreshRecords } = useServiceEntries()
   const listenersRef = React.useRef(new Set())
@@ -25,7 +26,7 @@ export function LiveSyncProvider({ children }) {
   }, [])
 
   const tick = React.useCallback(async () => {
-    if (!USE_API || inFlightRef.current) return
+    if (!USE_API || isOfflineWorkflowUser(user) || inFlightRef.current) return
     inFlightRef.current = true
     try {
       await Promise.all([refreshRecords().catch(() => {}), refreshFromApi().catch(() => {})])
@@ -39,10 +40,10 @@ export function LiveSyncProvider({ children }) {
     } finally {
       inFlightRef.current = false
     }
-  }, [refreshFromApi, refreshRecords])
+  }, [refreshFromApi, refreshRecords, user])
 
   React.useEffect(() => {
-    if (!USE_API || !authReady || !isAuthenticated) return undefined
+    if (!USE_API || !authReady || !isAuthenticated || isOfflineWorkflowUser(user)) return undefined
 
     const onFocus = () => {
       tick()
@@ -62,7 +63,7 @@ export function LiveSyncProvider({ children }) {
       document.removeEventListener('visibilitychange', onVisibility)
       window.clearInterval(timer)
     }
-  }, [authReady, isAuthenticated, tick])
+  }, [authReady, isAuthenticated, tick, user])
 
   const value = React.useMemo(() => ({ subscribe, tick }), [subscribe, tick])
 

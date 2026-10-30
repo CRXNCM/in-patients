@@ -140,12 +140,14 @@
   }
 
   body.print-invoice-mode > *:not(.print-only),
-  body.print-deposit-mode > *:not(.print-only) {
+  body.print-deposit-mode > *:not(.print-only),
+  body.print-request-mode > *:not(.print-only) {
     display: none !important;
   }
 
   body.print-invoice-mode .print-invoice,
-  body.print-deposit-mode .print-deposit {
+  body.print-deposit-mode .print-deposit,
+  body.print-request-mode .print-request {
     display: block !important;
   }
 
@@ -168,6 +170,10 @@
   tr,
   img {
     break-inside: avoid;
+  }
+
+  .receipt-sheet > tbody > tr {
+    break-inside: auto;
   }
 }
 

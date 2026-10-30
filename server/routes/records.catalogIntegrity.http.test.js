@@ -387,6 +387,20 @@ describe('catalog price integrity HTTP', { skip: !hasDb }, () => {
     assert.equal(historical.services[0].catalogItemId, undefined)
     assert.equal((await calcPatientBalance(billPatientId)).totalCharges, 111)
 
+    const blocked = await request(app, `/api/records/${pending.body.id}/approve`, {
+      token: sign(reception),
+      method: 'POST',
+      body: { note: 'Verified' },
+    })
+    assert.equal(blocked.status, 400)
+    assert.equal((await calcPatientBalance(billPatientId)).totalCharges, 111)
+
+    await ServiceRecord.updateOne({ _id: pending.body.id }, {
+      departmentGate: 'laboratory',
+      departmentCleared: true,
+      departmentClearedBy: 'Laboratory',
+      departmentClearedAt: new Date(),
+    })
     const approveRes = await request(app, `/api/records/${pending.body.id}/approve`, {
       token: sign(reception),
       method: 'POST',

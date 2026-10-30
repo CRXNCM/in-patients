@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle2, XCircle, Eye, RotateCcw } from 'lucide-react'
+import { CheckCircle2, XCircle, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,138 +12,205 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { PageHeader, StatusBadge, DataTable } from '@/components/shared/CommonComponents'
-import { RecordDetailView } from '@/components/shared/RecordTimeline'
+import { ErrorState } from '@/components/shared/ErrorState'
+import { LoadingState } from '@/components/shared/LoadingState'
 import { computeRecordTotal } from '@/context/ServiceEntriesContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
+import { api } from '@/api/client'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { PatientLink } from '@/components/shared/PatientLink'
+import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
+import { requestSummary } from '@/lib/receptionHistory'
+
+const DEPARTMENTS = ['Pharmacy', 'Laboratory']
+
+function departmentGroups(items = []) {
+  const known = DEPARTMENTS.filter((name) => items.some((item) => item.department === name))
+  const other = items.some((item) => !DEPARTMENTS.includes(item.department))
+  return [
+    ...known.map((name) => ({ name, items: items.filter((item) => item.department === name) })),
+    ...(other ? [{ name: 'Other services', items: items.filter((item) => !DEPARTMENTS.includes(item.department)) }] : []),
+  ]
+}
 
 export default function PendingApprovals() {
   const { toast } = useToast()
-  const { getPendingRecords, approveRecord, rejectRecord } = useServiceEntries()
-  const [selectedRecord, setSelectedRecord] = useState(null)
-  const [rejectRecordId, setRejectRecordId] = useState(null)
+  const { refreshRecords } = useServiceEntries()
+  const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [nonce, setNonce] = useState(0)
+  const [selected, setSelected] = useState(null)
+  const [rejectTarget, setRejectTarget] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
 
-  const pending = getPendingRecords()
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    api.getReceptionRequests()
+      .then((data) => {
+        if (!cancelled) setRequests(data.requests || [])
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || 'Could not load reception requests.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [nonce])
 
-  const handleApprove = async (record) => {
+  useEffect(() => {
+    setSelected((current) => (current ? requests.find((row) => row.id === current.id) || null : null))
+  }, [requests])
+
+  const reload = async () => {
+    setNonce((value) => value + 1)
     try {
-      await approveRecord(
-        record.id,
-        record.type === 'pharmacy_return' ? 'Pharmacy return verified' : 'Daily record verified and approved'
-      )
-      toast({ title: 'Record Approved', description: `${record.recordName} — added to billing`, variant: 'success' })
-      setSelectedRecord(null)
-    } catch (err) {
-      toast({ title: 'Approve failed', description: err.message, variant: 'destructive' })
+      await refreshRecords?.()
+    } catch {
+      // The queue reload still shows the saved decision.
     }
   }
 
-  const handleReject = async () => {
-    if (!rejectReason.trim()) {
-      toast({ title: 'Provide a rejection reason', variant: 'destructive' })
-      return
-    }
+  const decide = async (item, decision) => {
     try {
-      await rejectRecord(rejectRecordId, rejectReason)
-      toast({ title: 'Record Rejected', variant: 'success' })
-      setRejectRecordId(null)
+      if (item.approveMode === 'line') {
+        if (decision === 'approved') await api.approveReceptionItem(item.sourceRecordId, item.lineId, 'Approved by reception')
+        else await api.rejectReceptionItem(item.sourceRecordId, item.lineId, rejectReason || 'Rejected by reception')
+      } else if (decision === 'approved') {
+        await api.approveRecord(item.billingRecordId, 'Approved by reception')
+      } else {
+        await api.rejectRecord(item.billingRecordId, rejectReason || 'Rejected by reception')
+      }
+      toast({
+        title: decision === 'approved' ? 'Item charged' : 'Item rejected',
+        description: 'The other items in this request were left unchanged.',
+        variant: 'success',
+      })
+      setRejectTarget(null)
       setRejectReason('')
-      setSelectedRecord(null)
+      await reload()
     } catch (err) {
-      toast({ title: 'Reject failed', description: err.message, variant: 'destructive' })
+      toast({ title: 'Could not save the decision', description: err.message, variant: 'destructive' })
     }
   }
 
   const columns = [
+    { key: 'summary', header: 'Requested services', render: (row) => requestSummary((row.items || []).map((item) => item.description)) },
     {
-      key: 'recordName',
-      header: 'Record Name',
+      key: 'patient',
+      header: 'Patient',
       render: (row) => (
         <div>
-          <p className="font-semibold">{row.recordName}</p>
-          <p className="text-xs text-muted-foreground font-mono">
-            <PatientLink patientId={row.patientId}>{row.patientId}</PatientLink>
-          </p>
+          <p className="font-medium">{row.patientName}</p>
+          <p className="font-mono text-xs text-muted-foreground"><PatientLink patientId={row.patientId}>{row.patientId}</PatientLink></p>
+          <AdmissionTypeBadge admissionType={row.admissionType} convertedFromEmergency={row.convertedFromEmergency} />
         </div>
       ),
     },
+    { key: 'admissionId', header: 'Admission', render: (row) => row.admissionId ? <span className="font-mono text-xs">{row.admissionId}</span> : '—' },
+    { key: 'submittedAt', header: 'Submitted', render: (row) => row.submittedAt ? formatDateTime(row.submittedAt) : '—' },
+    { key: 'submittedBy', header: 'Nurse', render: (row) => row.submittedBy || '—' },
+    { key: 'eligible', header: 'Eligible', render: (row) => `${row.eligibleCount} of ${row.totalItems}` },
+    { key: 'status', header: 'Reception', render: (row) => <StatusBadge status={row.status} /> },
     {
-      key: 'type',
-      header: 'Type',
-      render: (row) => (
-        <span className="inline-flex items-center gap-1 text-sm">
-          {row.type === 'pharmacy_return' && <RotateCcw className="h-3.5 w-3.5 text-orange-600" />}
-          {row.type === 'pharmacy_return' ? 'Pharmacy Return' : 'Daily Services'}
-        </span>
-      ),
-    },
-    {
-      key: 'items',
-      header: 'Items',
-      render: (row) => row.type === 'pharmacy_return' ? `${row.returnItems?.length || 0} returns` : `${row.services?.length || 0} services`,
-    },
-    { key: 'total', header: 'Amount', render: (row) => {
-      const t = computeRecordTotal(row)
-      return <span className={t < 0 ? 'text-emerald-600 font-semibold' : 'font-semibold'}>{t < 0 ? '-' : ''}{formatCurrency(Math.abs(t))}</span>
-    }},
-    { key: 'recordedBy', header: 'Recorded By' },
-    { key: 'recordedAt', header: 'Submitted', render: (row) => formatDateTime(row.recordedAt) },
-    { key: 'status', header: 'Status', render: () => <StatusBadge status="pending" /> },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (row) => (
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => setSelectedRecord(row)}><Eye className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" className="text-emerald-600" onClick={() => handleApprove(row)}><CheckCircle2 className="h-4 w-4 mr-1" /> Approve</Button>
-          <Button variant="ghost" size="sm" className="text-red-600" onClick={() => setRejectRecordId(row.id)}><XCircle className="h-4 w-4 mr-1" /> Reject</Button>
-        </div>
-      ),
+      key: 'action',
+      header: 'Action',
+      render: (row) => {
+        const returnItem = row.wholeRecord && row.actionRecordId
+          ? (row.items || []).find((item) => item.billingRecordId === row.actionRecordId)
+          : null
+        if (returnItem) {
+          return (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="text-emerald-600" onClick={(event) => { event.stopPropagation(); decide(returnItem, 'approved') }}>
+                <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+              </Button>
+              <Button variant="outline" size="sm" className="text-red-600" onClick={(event) => { event.stopPropagation(); setRejectTarget(returnItem) }}>
+                <XCircle className="h-4 w-4 mr-1" /> Reject
+              </Button>
+            </div>
+          )
+        }
+        return (
+          <Button variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); setSelected(row) }}>
+            <Eye className="h-4 w-4 mr-1" /> Review Items
+          </Button>
+        )
+      },
     },
   ]
 
   return (
     <div>
-      <PageHeader title="Pending Approvals" description="Review daily records and pharmacy returns before they affect patient bills" />
+      <PageHeader title="Pending Approvals" description="One row for each nurse request. Charge eligible items individually." />
+      {loading ? <LoadingState message="Loading reception requests…" /> : null}
+      {error ? <ErrorState title="Reception requests could not be loaded" message={error} onRetry={() => setNonce((value) => value + 1)} /> : null}
+      {!loading && !error && requests.length === 0 ? (
+        <div className="rounded-xl border bg-card p-12 text-center text-muted-foreground">No requests are waiting for reception.</div>
+      ) : null}
+      {!loading && !error && requests.length > 0 ? (
+        <DataTable columns={columns} data={requests} onRowClick={(row) => setSelected(row)} />
+      ) : null}
 
-      {pending.length === 0 ? (
-        <div className="rounded-xl border bg-card p-12 text-center text-muted-foreground">No pending records — all caught up!</div>
-      ) : (
-        <DataTable columns={columns} data={pending} onRowClick={(row) => setSelectedRecord(row)} />
-      )}
-
-      <Dialog open={!!selectedRecord} onOpenChange={() => setSelectedRecord(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Service Entry Details — {selectedRecord?.recordName}</DialogTitle>
-            <DialogDescription>Review all services in this record before approving or rejecting</DialogDescription>
+            <DialogTitle>{requestSummary((selected?.items || []).map((item) => item.description))}</DialogTitle>
+            <DialogDescription>
+              {selected?.patientName} · {selected?.submittedBy || 'Nurse'} · {selected ? `${selected.eligibleCount} of ${selected.totalItems} items eligible` : ''}
+            </DialogDescription>
           </DialogHeader>
-          {selectedRecord && <RecordDetailView record={selectedRecord} showMoney />}
+          {selected ? departmentGroups(selected.items).map((group) => (
+            <section key={group.name} className="mt-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{group.name}</h3>
+              <div className="mt-2 divide-y rounded-lg border">
+                {group.items.map((item) => (
+                  <div key={item.key} className="flex flex-wrap items-start justify-between gap-3 px-3 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{item.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Qty {item.quantity ?? '—'}{item.unit ? ` ${item.unit}` : ''}
+                        {item.total != null ? ` · ${formatCurrency(Math.abs(item.total))}` : ''}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">Department: {item.departmentDecision} · Reception: {item.receptionDecision}</p>
+                    </div>
+                    {item.approveMode !== 'none' ? (
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="text-emerald-600" onClick={() => decide(item, 'approved')}>
+                          <CheckCircle2 className="h-4 w-4 mr-1" /> {item.department === 'Return' ? 'Approve' : 'Approve / Charge'}
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-red-600" onClick={() => setRejectTarget(item)}>
+                          <XCircle className="h-4 w-4 mr-1" /> Reject
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )) : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedRecord(null)}>Close</Button>
-            {selectedRecord?.status === 'pending' && (
-              <>
-                <Button variant="destructive" onClick={() => { setRejectRecordId(selectedRecord.id); setSelectedRecord(null) }}>Reject</Button>
-                <Button onClick={() => handleApprove(selectedRecord)}>Approve Record</Button>
-              </>
-            )}
+            <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!rejectRecordId} onOpenChange={() => setRejectRecordId(null)}>
+      <AlertDialog open={!!rejectTarget} onOpenChange={() => setRejectTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reject Record?</AlertDialogTitle>
-            <AlertDialogDescription>Provide a reason for the audit trail.</AlertDialogDescription>
+            <AlertDialogTitle>Reject this item?</AlertDialogTitle>
+            <AlertDialogDescription>Only this item is rejected. The rest of the request stays as it is.</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="py-2"><Label>Reason</Label><Input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Rejection reason..." /></div>
+          <div className="py-2"><Label>Reason</Label><Input value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} placeholder="Rejection reason..." /></div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setRejectReason('')}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleReject} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Reject</AlertDialogAction>
+            <AlertDialogAction onClick={() => decide(rejectTarget, 'rejected')} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Reject</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

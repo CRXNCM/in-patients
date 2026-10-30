@@ -5,6 +5,10 @@ function getToken() {
   return sessionStorage.getItem('medbill_token')
 }
 
+export function hasToken() {
+  return Boolean(getToken())
+}
+
 export function setToken(token) {
   if (token) sessionStorage.setItem('medbill_token', token)
   else sessionStorage.removeItem('medbill_token')
@@ -46,6 +50,8 @@ export const api = {
       body: JSON.stringify(body),
     }),
   createPatient: (body) => apiFetch('/api/patients', { method: 'POST', body: JSON.stringify(body) }),
+  convertToInpatient: (id, body) =>
+    apiFetch(`/api/patients/${id}/convert-to-inpatient`, { method: 'POST', body: JSON.stringify(body) }),
   upsertMaternityBaby: (id, body) =>
     apiFetch(`/api/patients/${id}/baby`, { method: 'PUT', body: JSON.stringify(body) }),
   addDeposit: (id, body) =>
@@ -92,6 +98,8 @@ export const api = {
   getPatientRecords: (id) => apiFetch(`/api/patients/${id}/records`),
   submitRecord: (id, body) =>
     apiFetch(`/api/patients/${id}/records`, { method: 'POST', body: JSON.stringify(body) }),
+  submitWardServices: (id, body) =>
+    apiFetch(`/api/patients/${id}/ward-services`, { method: 'POST', body: JSON.stringify(body) }),
   submitReturn: (id, body) =>
     apiFetch(`/api/patients/${id}/returns`, { method: 'POST', body: JSON.stringify(body) }),
   updateRecord: (id, body) =>
@@ -100,6 +108,44 @@ export const api = {
     apiFetch(`/api/records/${id}/approve`, { method: 'POST', body: JSON.stringify({ note }) }),
   rejectRecord: (id, reason) =>
     apiFetch(`/api/records/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getReceptionRequests: () => apiFetch('/api/records/reception-requests'),
+  approveReceptionItem: (recordId, lineId, note) =>
+    apiFetch(`/api/records/${recordId}/items/${encodeURIComponent(lineId)}/approve`, { method: 'POST', body: JSON.stringify({ note }) }),
+  rejectReceptionItem: (recordId, lineId, reason) =>
+    apiFetch(`/api/records/${recordId}/items/${encodeURIComponent(lineId)}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+
+  getPharmacyOrders: () => apiFetch('/api/pharmacy/orders'),
+  handoverPharmacyOrder: (id, body) =>
+    apiFetch(`/api/pharmacy/orders/${id}/handover`, { method: 'POST', body: JSON.stringify(body) }),
+  returnPharmacyOrder: (id, body) =>
+    apiFetch(`/api/pharmacy/orders/${id}/returns`, { method: 'POST', body: JSON.stringify(body) }),
+  verifyPharmacyReturn: (orderId, returnId, body) =>
+    apiFetch(`/api/pharmacy/orders/${orderId}/returns/${encodeURIComponent(returnId)}/verify`, { method: 'POST', body: JSON.stringify(body) }),
+  listMedicineReturns: () => apiFetch('/api/pharmacy/returns'),
+  searchServiceHistory: ({ q, page, pageSize } = {}) => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    if (page) params.set('page', String(page))
+    if (pageSize) params.set('pageSize', String(pageSize))
+    const query = params.toString()
+    return apiFetch(`/api/service-history/patients${query ? `?${query}` : ''}`)
+  },
+  getServiceHistoryPatient: (patientId) => apiFetch(`/api/service-history/patients/${encodeURIComponent(patientId)}`),
+  getServiceHistoryRequests: (patientId, admissionId) =>
+    apiFetch(`/api/service-history/patients/${encodeURIComponent(patientId)}/admissions/${encodeURIComponent(admissionId)}/requests`),
+  getServiceHistoryReceipt: (patientId, admissionId) =>
+    apiFetch(`/api/service-history/patients/${encodeURIComponent(patientId)}/admissions/${encodeURIComponent(admissionId)}/receipt`),
+  getLaboratoryOrders: () => apiFetch('/api/laboratory/orders'),
+  approveLaboratoryItem: (orderId, lineId, body) =>
+    apiFetch(`/api/laboratory/orders/${orderId}/items/${encodeURIComponent(lineId)}/approve`, { method: 'POST', body: JSON.stringify(body) }),
+  rejectLaboratoryItem: (orderId, lineId, body) =>
+    apiFetch(`/api/laboratory/orders/${orderId}/items/${encodeURIComponent(lineId)}/reject`, { method: 'POST', body: JSON.stringify(body) }),
+  processLaboratoryItem: (orderId, lineId, body) =>
+    apiFetch(`/api/laboratory/orders/${orderId}/items/${encodeURIComponent(lineId)}/process`, { method: 'POST', body: JSON.stringify(body) }),
+  completeLaboratoryItem: (orderId, lineId, body) =>
+    apiFetch(`/api/laboratory/orders/${orderId}/items/${encodeURIComponent(lineId)}/complete`, { method: 'POST', body: JSON.stringify(body) }),
+  cancelLaboratoryItem: (orderId, lineId, body) =>
+    apiFetch(`/api/laboratory/orders/${orderId}/items/${encodeURIComponent(lineId)}/cancel`, { method: 'POST', body: JSON.stringify(body) }),
 
   getSettings: () => apiFetch('/api/settings'),
   updateSettings: (body) => apiFetch('/api/settings', { method: 'PUT', body: JSON.stringify(body) }),
@@ -129,7 +175,26 @@ export const api = {
     apiFetch('/api/settings/catalog/import', { method: 'POST', body: JSON.stringify(body) }),
 
   getManagerDashboard: () => apiFetch('/api/manager/dashboard'),
-  getManagerReport: (type) => apiFetch(`/api/manager/reports/${type}`),
+  getManagerReport: (type, params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') qs.set(key, value)
+    })
+    const query = qs.toString()
+    return apiFetch(`/api/manager/reports/${type}${query ? `?${query}` : ''}`)
+  },
+  listCreditCompanies: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') qs.set(key, value)
+    })
+    const query = qs.toString()
+    return apiFetch(`/api/credit-companies${query ? `?${query}` : ''}`)
+  },
+  createCreditCompany: (body) =>
+    apiFetch('/api/credit-companies', { method: 'POST', body: JSON.stringify(body) }),
+  updateCreditCompany: (id, body) =>
+    apiFetch(`/api/credit-companies/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) }),
   getManagerDeposits: (params = {}) => {
     const qs = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {

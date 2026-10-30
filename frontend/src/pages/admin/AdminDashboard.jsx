@@ -38,7 +38,9 @@ function locationLabel(stay) {
 }
 
 function admissionTypeLabel(type) {
-  return type === 'maternity' ? 'Maternity' : 'Normal'
+  if (type === 'maternity') return 'Maternity'
+  if (type === 'emergency-opd') return 'Emergency OPD'
+  return 'Inpatient'
 }
 
 function CensusPanel({ census }) {

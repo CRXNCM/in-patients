@@ -1,14 +1,11 @@
 import { isValidDateString } from './validation.js'
+import { normalizeAdmissionType } from './admissions.js'
 
-const ADMISSION_TYPES = ['normal', 'maternity']
 const SUBJECT_TYPES = ['mother', 'baby']
 const BABY_SEX = ['Male', 'Female', 'Undetermined', '']
 const BABY_STATUSES = ['admitted', 'discharged']
 
-export function normalizeAdmissionType(value) {
-  const type = String(value || 'normal').trim().toLowerCase()
-  return ADMISSION_TYPES.includes(type) ? type : null
-}
+export { normalizeAdmissionType }
 
 export function toFrontendBaby(doc) {
   if (!doc) return null

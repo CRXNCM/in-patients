@@ -6,11 +6,15 @@ import {
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
+  History,
   CreditCard,
   FileText,
+  FlaskConical,
   LayoutDashboard,
   LogOut,
+  Pill,
   Receipt,
+  RotateCcw,
   Scale,
   Settings,
   Stethoscope,
@@ -63,6 +67,13 @@ export const NAVIGATION = {
           badge: 'pendingApprovals',
         },
         {
+          id: 'reception-medicine-returns',
+          label: 'Medicine Returns',
+          path: '/reception/medicine-returns',
+          icon: RotateCcw,
+          permission: 'admissions.edit',
+        },
+        {
           id: 'reception-recently-approved',
           label: 'Recently Approved',
           path: '/reception/recently-approved',
@@ -94,6 +105,70 @@ export const NAVIGATION = {
           permission: 'patients.view',
           match: ['/nurse/patient'],
         },
+        {
+          id: 'nurse-admit',
+          label: 'Emergency Admission',
+          path: '/nurse/add-patient',
+          icon: UserPlus,
+          anyOf: ['admissions.create', 'admissions.create_emergency'],
+        },
+        {
+          id: 'nurse-pharmacy',
+          label: 'Pharmacy Requests',
+          path: '/nurse/pharmacy',
+          icon: Pill,
+        },
+        {
+          id: 'nurse-laboratory',
+          label: 'Laboratory Requests',
+          path: '/nurse/laboratory',
+          icon: FlaskConical,
+        },
+        {
+          id: 'nurse-service-history',
+          label: 'Patient Service History',
+          path: '/nurse/service-history',
+          icon: History,
+          permission: 'patients.view',
+        },
+      ],
+    },
+  ],
+  pharmacist: [
+    {
+      id: 'main',
+      label: 'Pharmacy',
+      items: [
+        {
+          id: 'pharmacist-queue',
+          label: 'Request Queue',
+          path: '/pharmacist',
+          icon: Pill,
+          end: true,
+          badge: 'pharmacyPending',
+        },
+        {
+          id: 'pharmacist-returns',
+          label: 'Medicine Returns',
+          path: '/pharmacist/returns',
+          icon: RotateCcw,
+        },
+      ],
+    },
+  ],
+  laboratory: [
+    {
+      id: 'main',
+      label: 'Laboratory',
+      items: [
+        {
+          id: 'laboratory-queue',
+          label: 'Request Queue',
+          path: '/laboratory',
+          icon: FlaskConical,
+          end: true,
+          badge: 'laboratoryPending',
+        },
       ],
     },
   ],
@@ -108,6 +183,8 @@ export const NAVIGATION = {
       label: 'Clinical',
       items: [
         { id: 'admin-doctors', label: 'Doctors', path: '/admin/doctors', icon: Stethoscope, anyOf: ['doctors.view', 'doctors.manage'] },
+        { id: 'admin-pharmacy-requests', label: 'Pharmacy Requests', path: '/admin/pharmacy-requests', icon: Pill, permission: 'patients.view' },
+        { id: 'admin-laboratory-requests', label: 'Laboratory Requests', path: '/admin/laboratory-requests', icon: FlaskConical, permission: 'patients.view' },
         {
           id: 'admin-setup',
           label: 'Hospital Setup',
@@ -136,6 +213,7 @@ export const NAVIGATION = {
       label: 'Administration',
       items: [
         { id: 'admin-users', label: 'Users & Roles', path: '/admin/users', icon: UserCog, permission: 'users.view' },
+        { id: 'admin-credit-companies', label: 'Credit Companies', path: '/admin/credit-companies', icon: Building2, permission: 'credit.manage_companies' },
         { id: 'admin-settings', label: 'Settings', path: '/admin/settings', icon: Settings, anyOf: ['system.view_settings', 'system.modify_settings'] },
       ],
     },
@@ -213,6 +291,14 @@ export function getPageContext(pathname, roleKey, extras = {}) {
   }
 
   const stay = pathname.match(/\/patients\/([^/]+)$/) || pathname.match(/\/patient\/([^/]+)$/)
+  if (pathname.startsWith('/nurse/service-history')) {
+    const parts = pathname.split('/').filter(Boolean)
+    const crumbs = [{ label: 'Patient Service History', to: '/nurse/service-history' }]
+    if (parts[2]) crumbs.push({ label: extras.entityLabel || parts[2], to: `/nurse/service-history/${parts[2]}` })
+    if (parts[4]) crumbs.push({ label: 'Receipt' })
+    return { crumbs }
+  }
+
   if (pathname.match(/^\/patients\/[^/]+$/)) {
     const name = extras.entityLabel || stay?.[1]
     return { crumbs: [{ label: 'Patient Profile' }, { label: name }] }

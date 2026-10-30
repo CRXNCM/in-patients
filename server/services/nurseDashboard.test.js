@@ -173,7 +173,7 @@ describe('buildNurseDashboard', () => {
           _id: { toString: () => 'mine' },
           patientId: 'PAT-1',
           recordName: 'Mine',
-          recordType: 'return',
+          recordType: 'daily',
           status: 'approved',
           recordedAt: new Date('2026-09-12T10:00:00.000Z'),
           source: 'nurse',
@@ -197,9 +197,9 @@ describe('buildNurseDashboard', () => {
     assert.equal(payload.recentSubmissions.length, 1)
     assert.equal(payload.recentSubmissions[0].id, 'mine')
     assert.equal(payload.recentSubmissions[0].patientName, 'Hana')
-    assert.equal(payload.recentSubmissions[0].type, 'pharmacy_return')
+    assert.equal(payload.recentSubmissions[0].type, 'daily_services')
     const pendingQuery = deps._counts.find((q) => q.submittedBy)
-    assert.deepEqual(pendingQuery, { submittedBy: 'Nurse One', status: 'pending' })
+    assert.deepEqual(pendingQuery, { submittedBy: 'Nurse One', status: 'pending', recordType: { $ne: 'return' } })
   })
 
   it('does not query records when the user has no display name', async () => {

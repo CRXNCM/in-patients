@@ -1,5 +1,16 @@
 import { useNavigate } from 'react-router-dom'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts'
 import { Button } from '@/components/ui/button'
 import { StatusBadge, DataTable } from '@/components/shared/CommonComponents'
 import {
@@ -13,11 +24,76 @@ import {
 import { MetricTile } from '@/components/shared/MetricTile'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { ErrorState } from '@/components/shared/ErrorState'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 import { useManagerDashboard } from '@/hooks/useManagerDashboard'
 import { PatientLink } from '@/components/shared/PatientLink'
 
 const CHART_STROKE = 'hsl(var(--primary))'
+const DEPOSIT_FILL = 'hsl(var(--primary))'
+const CHARGE_FILL = 'hsl(217, 70%, 48%)'
+
+function periodRangeLabel(row) {
+  if (!row?.startDate || !row?.endDate) return ''
+  return `${formatDate(row.startDate)} – ${formatDate(row.endDate)}`
+}
+
+function periodChartRows(comparison) {
+  if (!comparison?.week || !comparison?.month) return []
+  return [
+    comparison.week.previous,
+    comparison.week.current,
+    comparison.month.previous,
+    comparison.month.current,
+  ].filter(Boolean)
+}
+
+function PeriodComparisonPanel({ comparison }) {
+  const rows = periodChartRows(comparison)
+  if (!rows.length) return null
+  return (
+    <DashboardPanel aria-labelledby="manager-period-heading">
+      <SectionKicker>Comparison</SectionKicker>
+      <h2 id="manager-period-heading" className="mt-2 text-lg font-semibold tracking-tight">
+        Last week and month vs this week and month
+      </h2>
+      <p className="mt-2 text-sm text-muted-foreground">
+        This week is Monday through today. This month is the 1st through today. Last week and last month are complete periods.
+      </p>
+      <div className="mt-6 h-[280px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} barGap={6} barCategoryGap="24%">
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`} />
+            <Tooltip
+              formatter={(value, name) => [formatCurrency(value), name]}
+              labelFormatter={(label, payload) => {
+                const row = payload?.[0]?.payload
+                const range = periodRangeLabel(row)
+                return range ? `${label} (${range})` : label
+              }}
+            />
+            <Legend />
+            <Bar dataKey="deposits" name="Deposits" fill={DEPOSIT_FILL} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="charges" name="Approved charges" fill={CHARGE_FILL} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {rows.map((row) => (
+          <div key={row.label} className="rounded-xl border border-primary/10 bg-background/50 p-3 dark:border-white/10">
+            <p className="text-sm font-medium">{row.label}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{periodRangeLabel(row)}</p>
+            <p className="mt-2 text-xs text-muted-foreground">Deposits</p>
+            <p className="text-sm font-semibold tabular-nums">{formatCurrency(row.deposits)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Approved charges</p>
+            <p className="text-sm font-semibold tabular-nums">{formatCurrency(row.charges)}</p>
+          </div>
+        ))}
+      </div>
+    </DashboardPanel>
+  )
+}
 
 function isForbiddenError(message) {
   return /forbidden/i.test(message || '')
@@ -44,6 +120,12 @@ function FinancePanel({ finance }) {
         <MetricTile label="Monthly deposits" value={formatCurrency(finance.deposits.month)} />
         <MetricTile label="Today’s charges" value={formatCurrency(finance.approvedCharges.today)} />
         <MetricTile label="Monthly charges" value={formatCurrency(finance.approvedCharges.month)} />
+        {finance.emergencyCharges && (
+          <>
+            <MetricTile label="Emergency charges today" value={formatCurrency(finance.emergencyCharges.today || 0)} />
+            <MetricTile label="Emergency charges this month" value={formatCurrency(finance.emergencyCharges.month || 0)} />
+          </>
+        )}
         <MetricTile
           label="Discharge amount"
           value={formatCurrency(finance.dischargeAmount?.today || 0)}
@@ -85,6 +167,8 @@ function CensusPanel({ census }) {
         <StatRow label="Pending" value={census.pendingDischarge} alert={census.pendingDischarge > 0} />
         <StatRow label="Admitted today" value={census.admittedToday} />
         <StatRow label="Discharged" value={census.dischargedToday} />
+        <StatRow label="Emergency OPD active" value={census.emergencyOpdActive || 0} />
+        <StatRow label="Converted from Emergency OPD" value={census.emergencyOpdConverted || 0} />
       </div>
     </DashboardPanel>
   )
@@ -297,6 +381,8 @@ export default function ManagerDashboard() {
       />
 
       {finance && <FinancePanel finance={finance} />}
+
+      {finance && data.periodComparison && <PeriodComparisonPanel comparison={data.periodComparison} />}
 
       {showUtil && (
         <div className={utilClass}>

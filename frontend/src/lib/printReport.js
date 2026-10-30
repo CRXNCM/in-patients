@@ -16,6 +16,18 @@ export function printReport(report) {
     tableHtml = `<table><thead><tr><th>Day</th><th>Date</th><th>Revenue</th></tr></thead><tbody>${rows
       .map((r) => `<tr><td>${r.day}</td><td>${r.date || ''}</td><td>${formatCurrency(r.revenue)}</td></tr>`)
       .join('')}</tbody></table>`
+  } else if (rows.length && rows[0].creditOutstanding != null && (rows[0].patientName || rows[0].patientId)) {
+    tableHtml = `<table><thead><tr><th>Patient</th><th>Patient ID</th><th>Admission ID</th><th>Admission</th><th>Status</th><th>Company</th><th>Code</th><th>Credit outstanding</th><th>Credit status</th></tr></thead><tbody>${rows
+      .map(
+        (r) =>
+          `<tr><td>${r.patientName || r.name || ''}</td><td>${r.patientId || ''}</td><td>${r.admissionId || ''}</td><td>${formatDate(r.admissionDate)}</td><td>${r.status || ''}</td><td>${r.creditCompanyName || 'Company not recorded'}</td><td>${r.creditCompanyCode || ''}</td><td>${formatCurrency(r.creditOutstanding)}</td><td>${r.depositStatus || ''}</td></tr>`
+      )
+      .join('')}</tbody></table>`
+    if (Array.isArray(report.byCompany) && report.byCompany.length) {
+      tableHtml += `<h3>By company</h3><table><thead><tr><th>Company</th><th>Admissions</th><th>Credit outstanding</th></tr></thead><tbody>${report.byCompany
+        .map((r) => `<tr><td>${r.companyName || 'Company not recorded'}</td><td>${r.admissions}</td><td>${formatCurrency(r.creditOutstanding)}</td></tr>`)
+        .join('')}</tbody></table>`
+    }
   } else if (rows.length && rows[0].deposit != null && rows[0].balance != null) {
     tableHtml = `<table><thead><tr><th>Patient</th><th>Deposit</th><th>Balance</th><th>Admission</th></tr></thead><tbody>${rows
       .map(
@@ -81,6 +93,19 @@ function rowsToCsv(report) {
   } else if (rows[0].day) {
     headers = ['Day', 'Date', 'Revenue']
     lines = rows.map((r) => [r.day, r.date || '', r.revenue])
+  } else if (rows[0].creditOutstanding != null && (rows[0].patientName || rows[0].patientId)) {
+    headers = ['Patient', 'Patient ID', 'Admission ID', 'Admission Date', 'Status', 'Company', 'Code', 'Credit outstanding', 'Credit status']
+    lines = rows.map((r) => [
+      r.patientName || r.name || '',
+      r.patientId || '',
+      r.admissionId || '',
+      r.admissionDate || '',
+      r.status || '',
+      r.creditCompanyName || 'Company not recorded',
+      r.creditCompanyCode || '',
+      r.creditOutstanding,
+      r.depositStatus || '',
+    ])
   } else if (rows[0].deposit != null && rows[0].balance != null) {
     headers = ['Patient', 'Deposit', 'Balance', 'Admission Date']
     lines = rows.map((r) => [r.name, r.deposit, r.balance, r.admissionDate])

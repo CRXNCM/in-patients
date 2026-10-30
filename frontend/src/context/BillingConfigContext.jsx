@@ -6,6 +6,7 @@ import {
 } from '@/data/mockData'
 import { api, USE_API } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
+import { isOfflineWorkflowUser } from '@/lib/workflowAccess'
 import { setDisplayPrefs } from '@/lib/displayPrefs'
 
 const BillingConfigContext = React.createContext(null)
@@ -24,21 +25,27 @@ function mergeSettings(base, incoming = {}) {
 }
 
 export function BillingConfigProvider({ children }) {
-  const { isAuthenticated, authReady } = useAuth()
+  const { isAuthenticated, authReady, user } = useAuth()
   const [categories, setCategories] = React.useState(initialCategories)
   const [settings, setSettings] = React.useState({ ...initialSettings })
   const [loading, setLoading] = React.useState(USE_API)
+  const hasLoadedRef = React.useRef(!USE_API)
 
   React.useEffect(() => {
     if (!USE_API || !authReady) return undefined
     if (!isAuthenticated) {
+      hasLoadedRef.current = false
       setSettings({ ...initialSettings })
       setCategories(initialCategories)
       setLoading(false)
       return undefined
     }
+    if (isOfflineWorkflowUser(user)) {
+      setLoading(false)
+      return undefined
+    }
     let cancelled = false
-    setLoading(true)
+    if (!hasLoadedRef.current) setLoading(true)
     Promise.all([api.getSettings(), api.getCategories()])
       .then(([s, c]) => {
         if (cancelled) return
@@ -49,12 +56,14 @@ export function BillingConfigProvider({ children }) {
       })
       .catch(console.error)
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (cancelled) return
+        hasLoadedRef.current = true
+        setLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, authReady])
+  }, [isAuthenticated, authReady, user])
 
   const updateCategoryBillingType = React.useCallback(async (categoryId, billingType) => {
     if (USE_API) {

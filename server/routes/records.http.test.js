@@ -276,7 +276,7 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
     assert.equal(after.totalCharges, before.totalCharges)
   })
 
-  it('lets reception approve and forbids nurse approve', async () => {
+  it('lets reception approve a laboratory line only after departmental clearance and forbids nurse approve', async () => {
     const createdRecord = await request(app, `/api/patients/${patientId}/records`, {
       token: sign(nurse),
       method: 'POST',
@@ -293,6 +293,21 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
     })
     assert.equal(nurseApprove.status, 403)
 
+    const blocked = await request(app, `/api/records/${id}/approve`, {
+      token: sign(reception),
+      method: 'POST',
+      body: { note: 'should stay off the bill' },
+    })
+    assert.equal(blocked.status, 400)
+    assert.equal((await calcPatientBalance(patientId)).totalCharges, before.totalCharges)
+
+    await ServiceRecord.updateOne({ _id: id }, {
+      departmentGate: 'laboratory',
+      departmentCleared: true,
+      departmentClearedBy: 'Laboratory',
+      departmentClearedAt: new Date(),
+    })
+
     const deskApprove = await request(app, `/api/records/${id}/approve`, {
       token: sign(reception),
       method: 'POST',
@@ -304,7 +319,7 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
     assert.equal(after.totalCharges, before.totalCharges + Number(labA.price))
   })
 
-  it('keeps a pending catalog line off the bill through PATCH and bills the catalog price on approve', async () => {
+  it('keeps a pending catalog line off the bill until departmental clearance and reception approval', async () => {
     const start = await calcPatientBalance(billPatientId)
     assert.equal(start.totalCharges, 0)
     assert.equal(start.balance, 20000)
@@ -336,6 +351,20 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
     assert.equal(afterPatch.balance, 20000)
     assert.equal(await ServiceRecord.countDocuments({ patientId: billPatientId }), 1)
 
+    const blocked = await request(app, `/api/records/${id}/approve`, {
+      token: sign(reception),
+      method: 'POST',
+      body: { note: 'Verified patched CBC' },
+    })
+    assert.equal(blocked.status, 400)
+    assert.equal((await calcPatientBalance(billPatientId)).totalCharges, 0)
+
+    await ServiceRecord.updateOne({ _id: id }, {
+      departmentGate: 'laboratory',
+      departmentCleared: true,
+      departmentClearedBy: 'Laboratory',
+      departmentClearedAt: new Date(),
+    })
     const approved = await request(app, `/api/records/${id}/approve`, {
       token: sign(reception),
       method: 'POST',
@@ -347,9 +376,8 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
     assert.equal(afterApprove.balance, 20000 - Number(labA.price))
   })
 
-  it('does not bill a pending pharmacy return and credits only after approve', async () => {
-    const before = await calcPatientBalance(billPatientId)
-    const createdReturn = await request(app, `/api/patients/${billPatientId}/returns`, {
+  it('rejects a nurse pharmacy return and credits when reception records it', async () => {
+    const nurseAttempt = await request(app, `/api/patients/${billPatientId}/returns`, {
       token: sign(nurse),
       method: 'POST',
       body: {
@@ -364,20 +392,29 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
         source: 'nurse',
       },
     })
-    assert.equal(createdReturn.status, 201)
-    assert.equal(createdReturn.body.status, 'pending')
-    assert.equal(createdReturn.body.returnItems[0].unitPrice, Number(pharm.price))
-    const afterPending = await calcPatientBalance(billPatientId)
-    assert.equal(afterPending.totalCharges, before.totalCharges)
+    assert.equal(nurseAttempt.status, 403)
 
-    const approved = await request(app, `/api/records/${createdReturn.body.id}/approve`, {
+    const before = await calcPatientBalance(billPatientId)
+    const createdReturn = await request(app, `/api/patients/${billPatientId}/returns`, {
       token: sign(reception),
       method: 'POST',
-      body: { note: 'Return verified' },
+      body: {
+        returnItems: [{
+          catalogItemId: String(pharm._id),
+          serviceName: 'Fake return name',
+          quantity: 1,
+          unitPrice: 200,
+          total: 200,
+          reason: 'Not given',
+        }],
+        source: 'reception',
+      },
     })
-    assert.equal(approved.status, 200)
-    const afterApprove = await calcPatientBalance(billPatientId)
-    assert.equal(afterApprove.totalCharges, before.totalCharges - Number(pharm.price))
+    assert.equal(createdReturn.status, 201)
+    assert.equal(createdReturn.body.status, 'approved')
+    assert.equal(createdReturn.body.returnItems[0].unitPrice, Number(pharm.price))
+    const after = await calcPatientBalance(billPatientId)
+    assert.equal(after.totalCharges, before.totalCharges - Number(pharm.price))
   })
 
   it('does not change the bill when a pending record is rejected', async () => {

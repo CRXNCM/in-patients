@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs'
 import { Role } from '../models/Role.js'
 import { User } from '../models/User.js'
 import { DEFAULT_ROLES } from '../utils/roles.js'
@@ -28,5 +29,29 @@ export async function ensureDefaultRoles() {
     user.roleId = match._id
     if (!user.username) user.username = user.email
     await user.save()
+  }
+}
+
+const WORKFLOW_STAFF = [
+  { email: 'pharmacist@cc', name: 'Dawit Lemma', role: 'Pharmacist', slug: 'pharmacist' },
+  { email: 'laboratory@cc', name: 'Bethlehem Assefa', role: 'Laboratory', slug: 'laboratory' },
+]
+
+export async function ensureWorkflowStaff() {
+  const hash = await bcrypt.hash('password', 10)
+  for (const spec of WORKFLOW_STAFF) {
+    const role = await Role.findOne({ slug: spec.slug })
+    if (!role) continue
+    const existing = await User.findOne({ email: spec.email })
+    if (existing) continue
+    await User.create({
+      email: spec.email,
+      username: spec.email,
+      name: spec.name,
+      role: spec.role,
+      roleId: role._id,
+      password: hash,
+      status: 'active',
+    })
   }
 }

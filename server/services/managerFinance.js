@@ -1,4 +1,5 @@
 import { Patient } from '../models/Patient.js'
+import { CreditCompany } from '../models/CreditCompany.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { HospitalSettings } from '../models/HospitalSettings.js'
 import { roleHasPermission } from '../utils/permissions.js'
@@ -23,7 +24,7 @@ const DOCTOR_KIND = 'Visiting Doctor'
 const RETURN_KIND = 'Pharmacy return'
 
 function defaultDeps() {
-  return { Patient, ServiceRecord, HospitalSettings, today: todayStr() }
+  return { Patient, ServiceRecord, HospitalSettings, CreditCompany, today: todayStr() }
 }
 
 function forbid(unless) {
@@ -246,9 +247,11 @@ export async function buildManagerChargesReport(auth, query = {}, injected = {})
 
 function inpatientFilter(query) {
   const status = String(query.status || '').trim()
-  const filter = {
-    status: INPATIENT_STATUSES.includes(status) ? status : { $in: INPATIENT_STATUSES },
-  }
+  const stay = String(query.stay || '').trim().toLowerCase()
+  const filter = {}
+  if (stay === 'discharged') filter.status = 'discharged'
+  else if (stay === 'all') filter.status = { $in: [...INPATIENT_STATUSES, 'discharged'] }
+  else filter.status = INPATIENT_STATUSES.includes(status) ? status : { $in: INPATIENT_STATUSES }
   const q = String(query.q || '').trim()
   if (q) {
     const rx = new RegExp(escapeRegex(q), 'i')
@@ -257,24 +260,44 @@ function inpatientFilter(query) {
   const credit = String(query.credit || '').trim().toLowerCase()
   if (credit === 'true') filter.isCreditPatient = true
   if (credit === 'false') filter.isCreditPatient = { $ne: true }
+  const companyId = String(query.companyId || '').trim()
+  if (companyId) filter.creditCompanyId = companyId
+  const from = String(query.from || '').trim()
+  const to = String(query.to || '').trim()
+  if (from || to) {
+    filter.admissionDate = {}
+    if (from) filter.admissionDate.$gte = from
+    if (to) filter.admissionDate.$lte = to
+  }
   return filter
 }
 
-async function attachStayFinances(PatientModel, ServiceRecordModel, filter) {
+async function loadCompanies(CreditCompanyModel, ids) {
+  if (!CreditCompanyModel?.find || !ids.length) return new Map()
+  const query = CreditCompanyModel.find({ _id: { $in: ids } })
+  const docs = typeof query.lean === 'function' ? await query.lean() : await query
+  return new Map((docs || []).map((doc) => [String(doc._id), doc]))
+}
+
+async function attachStayFinances(PatientModel, ServiceRecordModel, filter, CreditCompanyModel) {
   const query = PatientModel.find(filter)
     .select(
-      'patientId name room bed status admissionDate depositTotal isCreditPatient admissionPaymentMode requiredInitialDeposit'
+      'patientId name address room bed status admissionDate depositTotal isCreditPatient admissionPaymentMode requiredInitialDeposit creditCompanyId creditCompanyName'
     )
     .sort({ admissionDate: -1 })
   const stays = typeof query.lean === 'function' ? await query.lean() : await query
   const ids = stays.map((doc) => doc.patientId).filter(Boolean)
-  const chargeRows = ids.length
-    ? await ServiceRecordModel.aggregate([
+  const companyIds = [...new Set(stays.map((doc) => String(doc.creditCompanyId || '')).filter(Boolean))]
+  const [chargeRows, companies] = await Promise.all([
+    ids.length
+      ? ServiceRecordModel.aggregate([
         { $match: { status: 'approved', patientId: { $in: ids } } },
         { $addFields: { recordTotal: recordTotalExpr() } },
         { $group: { _id: '$patientId', totalCharges: { $sum: '$recordTotal' } } },
       ])
-    : []
+      : [],
+    loadCompanies(CreditCompanyModel, companyIds),
+  ])
   const charges = Object.fromEntries(chargeRows.map((row) => [row._id, row.totalCharges]))
   return stays.map((doc) => {
     const totalCharges = charges[doc.patientId] || 0
@@ -284,22 +307,34 @@ async function attachStayFinances(PatientModel, ServiceRecordModel, filter) {
       requiredInitialDeposit: doc.requiredInitialDeposit,
       depositTotal,
     })
+    const company = companies.get(String(doc.creditCompanyId || ''))
+    const remaining = remainingCredit(depositTotal, totalCharges)
     return {
       id: doc.patientId,
+      admissionId: doc._id != null ? String(doc._id) : doc.patientId,
       patientName: doc.name || '',
       patientId: doc.patientId,
+      address: doc.address || '',
       room: doc.room || null,
       bed: doc.bed || null,
       status: doc.status,
       admissionDate: doc.admissionDate || null,
       depositTotal,
       totalCharges,
-      remaining: remainingCredit(depositTotal, totalCharges),
+      remaining,
       outstanding: outstandingForStay(depositTotal, totalCharges),
       isCreditPatient: Boolean(doc.isCreditPatient),
       admittedOnCredit: credit.admittedOnCredit,
-      creditOutstanding: credit.outstandingDeposit,
+      creditOutstanding: remaining,
       depositStatus: credit.depositStatus,
+      creditCompanyId: doc.creditCompanyId || '',
+      creditCompanyName: company?.name || doc.creditCompanyName || '',
+      creditCompanyCode: company?.code || '',
+      creditCompanyContact: company?.contactPerson || '',
+      creditCompanyPhone: company?.phone || '',
+      creditCompanyEmail: company?.email || '',
+      creditCompanyAddress: company?.address || '',
+      creditCompanyActive: company ? company.active !== false : null,
     }
   })
 }
@@ -332,7 +367,7 @@ export async function buildManagerOutstandingReport(auth, query = {}, injected =
   const deps = { ...defaultDeps(), ...injected }
   const includeCredit = roleHasPermission(auth?.role, 'credit.view')
   const threshold = await loadThreshold(deps.HospitalSettings)
-  const rows = (await attachStayFinances(deps.Patient, deps.ServiceRecord, inpatientFilter(query)))
+  const rows = (await attachStayFinances(deps.Patient, deps.ServiceRecord, inpatientFilter(query), deps.CreditCompany))
     .filter((row) => row.outstanding > 0)
     .sort((a, b) => b.outstanding - a.outstanding)
     .map((row) => mapOutstandingRow(row, includeCredit))
@@ -354,8 +389,10 @@ export async function buildManagerOutstandingReport(auth, query = {}, injected =
 function mapCreditRow(row) {
   return {
     id: row.id,
+    admissionId: row.admissionId,
     patientName: row.patientName,
     patientId: row.patientId,
+    address: row.address,
     room: row.room,
     bed: row.bed,
     status: row.status,
@@ -368,6 +405,14 @@ function mapCreditRow(row) {
     admittedOnCredit: row.admittedOnCredit,
     creditOutstanding: row.creditOutstanding,
     depositStatus: row.depositStatus,
+    creditCompanyId: row.creditCompanyId,
+    creditCompanyName: row.creditCompanyName,
+    creditCompanyCode: row.creditCompanyCode,
+    creditCompanyContact: row.creditCompanyContact,
+    creditCompanyPhone: row.creditCompanyPhone,
+    creditCompanyEmail: row.creditCompanyEmail,
+    creditCompanyAddress: row.creditCompanyAddress,
+    creditCompanyActive: row.creditCompanyActive,
   }
 }
 
@@ -376,8 +421,27 @@ export async function buildManagerCreditReport(auth, query = {}, injected = {}) 
   const deps = { ...defaultDeps(), ...injected }
   const filter = inpatientFilter({ ...query, credit: '' })
   filter.isCreditPatient = true
-  const rows = (await attachStayFinances(deps.Patient, deps.ServiceRecord, filter)).map(mapCreditRow)
+  let rows = (await attachStayFinances(deps.Patient, deps.ServiceRecord, filter, deps.CreditCompany)).map(mapCreditRow)
+  const depositStatus = String(query.depositStatus || '').trim()
+  if (depositStatus) {
+    rows = rows.filter((row) => row.depositStatus === depositStatus)
+  }
   const creditOutstanding = rows.reduce((sum, row) => sum + (row.creditOutstanding || 0), 0)
+  const byCompany = new Map()
+  for (const row of rows) {
+    const key = row.creditCompanyId || row.creditCompanyName || 'unrecorded'
+    if (!byCompany.has(key)) {
+      byCompany.set(key, {
+        companyId: row.creditCompanyId || '',
+        companyName: row.creditCompanyName || '',
+        admissions: 0,
+        creditOutstanding: 0,
+      })
+    }
+    const group = byCompany.get(key)
+    group.admissions += 1
+    group.creditOutstanding += row.creditOutstanding || 0
+  }
   return {
     summary: {
       patients: rows.length,
@@ -385,6 +449,7 @@ export async function buildManagerCreditReport(auth, query = {}, injected = {}) 
       average: average(creditOutstanding, rows.length),
       billingOutstanding: rows.reduce((sum, row) => sum + row.outstanding, 0),
     },
+    byCompany: [...byCompany.values()].sort((a, b) => a.companyName.localeCompare(b.companyName)),
     rows,
     generatedAt: new Date().toISOString(),
   }

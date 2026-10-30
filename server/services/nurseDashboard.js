@@ -90,10 +90,10 @@ export async function buildNurseDashboard(user, injected = {}) {
     deps.Patient.countDocuments({ status: 'admitted' }),
     deps.Patient.countDocuments({ status: 'pending-discharge' }),
     submittedBy
-      ? deps.ServiceRecord.countDocuments({ submittedBy, status: 'pending' })
+      ? deps.ServiceRecord.countDocuments({ submittedBy, status: 'pending', recordType: { $ne: 'return' } })
       : Promise.resolve(0),
     submittedBy
-      ? deps.ServiceRecord.find({ submittedBy })
+      ? deps.ServiceRecord.find({ submittedBy, recordType: { $ne: 'return' } })
           .sort({ recordedAt: -1, createdAt: -1 })
           .limit(RECENT_SUBMISSIONS_LIMIT)
           .select('patientId recordName recordType status recordedAt createdAt source submittedBy')

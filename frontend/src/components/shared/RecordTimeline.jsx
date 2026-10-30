@@ -6,14 +6,37 @@ import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { CheckCircle2, XCircle, Clock, FileText, RotateCcw, Pencil } from 'lucide-react'
 
-const statusIcons = { pending: Clock, approved: CheckCircle2, rejected: XCircle }
+const statusIcons = {
+  pending: Clock,
+  approved: CheckCircle2,
+  fulfilled: CheckCircle2,
+  completed: CheckCircle2,
+  processing: Clock,
+  partially_fulfilled: Clock,
+  partially_decided: Clock,
+  partly_approved: Clock,
+  partial: Clock,
+  rejected: XCircle,
+  cancelled: XCircle,
+  not_supplied: XCircle,
+}
+
+function recordKindLabel(record) {
+  if (record.groupedRequest) return 'Service request'
+  if (record.type === 'pharmacy_return') return 'Pharmacy Return'
+  if (record.type === 'pharmacy_request') return 'Pharmacy request'
+  if (record.type === 'laboratory_request') return 'Laboratory request'
+  return 'Daily Services'
+}
 const statusBorder = {
   pending: 'border-warning/40',
+  partly_approved: 'border-warning/40',
   approved: 'border-success/25',
   rejected: 'border-destructive/25',
 }
 const statusIconClass = {
   pending: 'text-warning',
+  partly_approved: 'text-warning',
   approved: 'text-success',
   rejected: 'text-destructive',
 }
@@ -42,7 +65,8 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
         const isLast = index === slice.length - 1
         const total = computeRecordTotal(record)
         const isReturn = record.type === 'pharmacy_return'
-        const isRejected = record.status === 'rejected'
+        const isRejected = record.status === 'rejected' || record.status === 'cancelled'
+        const showLineStatus = record.services?.some((service) => service.lineStatus)
 
         return (
           <div key={record.id} className="relative flex gap-3 pb-5">
@@ -73,7 +97,7 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
                   <p className={cn('font-semibold', isRejected && 'text-muted-foreground')}>{record.recordName}</p>
                   <p className="text-xs text-muted-foreground">
                     {showSubject ? `${record.subjectType === 'baby' ? 'Baby' : 'Mother'} · ` : ''}
-                    {isReturn ? 'Pharmacy Return' : 'Daily Services'} · {formatDate(record.recordDate)} · {record.recordedBy}
+                    {recordKindLabel(record)} · {formatDate(record.recordDate)} · {record.recordedBy}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -96,7 +120,7 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
                 </div>
               </div>
 
-              {record.type === 'daily_services' && record.services?.length > 0 && (
+              {(record.type === 'daily_services' || record.type === 'pharmacy_request' || record.type === 'laboratory_request') && record.services?.length > 0 && (
                 <div className="mb-3 overflow-x-auto rounded-md border">
                   <table className="w-full text-xs">
                     <thead>
@@ -104,6 +128,7 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
                         <th className="px-3 py-2 text-left font-medium text-muted-foreground">Category</th>
                         <th className="px-3 py-2 text-left font-medium text-muted-foreground">Service</th>
                         <th className="px-3 py-2 text-center font-medium text-muted-foreground">Qty</th>
+                        {showLineStatus && <th className="px-3 py-2 text-left font-medium text-muted-foreground">Status</th>}
                         {!hideMoney && <th className="px-3 py-2 text-right font-medium text-muted-foreground">Amount</th>}
                       </tr>
                     </thead>
@@ -111,8 +136,14 @@ export function RecordTimeline({ records, showAudit = true, hideMoney = false, p
                       {record.services.map((s) => (
                         <tr key={s.id} className="border-b last:border-0 transition-colors duration-140 ease-out-soft hover:bg-muted/40">
                           <td className="px-3 py-2 text-muted-foreground">{s.category}</td>
-                          <td className="px-3 py-2 font-medium">{s.serviceName}</td>
+                          <td className="px-3 py-2 font-medium">
+                            {s.serviceName}
+                            {s.notes ? <span className="mt-0.5 block font-normal text-muted-foreground">{s.notes}</span> : null}
+                          </td>
                           <td className="px-3 py-2 text-center tabular-nums">{s.quantity}</td>
+                          {showLineStatus && (
+                            <td className="px-3 py-2">{s.lineStatus ? <StatusBadge status={s.lineStatus} /> : '—'}</td>
+                          )}
                           {!hideMoney && <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(s.total)}</td>}
                         </tr>
                       ))}
@@ -171,7 +202,7 @@ export function RecordDetailView({ record, showMoney = true }) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div><span className="text-muted-foreground">Record Name:</span> <strong>{record.recordName}</strong></div>
-        <div><span className="text-muted-foreground">Type:</span> {isReturn ? 'Pharmacy Return' : 'Daily Services'}</div>
+        <div><span className="text-muted-foreground">Type:</span> {recordKindLabel(record)}</div>
         <div><span className="text-muted-foreground">Date:</span> {formatDate(record.recordDate)}</div>
         <div><span className="text-muted-foreground">Recorded By:</span> {record.recordedBy}</div>
         <div><span className="text-muted-foreground">Submitted:</span> {formatDateTime(record.recordedAt)}</div>
@@ -188,7 +219,7 @@ export function RecordDetailView({ record, showMoney = true }) {
         )}
       </div>
 
-      {record.type === 'daily_services' && (
+      {(record.type === 'daily_services' || record.type === 'pharmacy_request' || record.type === 'laboratory_request') && (
         <div>
           <p className="mb-2 text-sm font-semibold">Services ({record.services?.length || 0})</p>
           <div className="overflow-x-auto rounded-md border">

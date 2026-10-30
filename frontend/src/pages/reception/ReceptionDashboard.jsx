@@ -82,11 +82,11 @@ export default function ReceptionDashboard() {
   }
 
   const census = data.census || { admitted: 0, pendingDischarge: 0 }
-  const pendingApprovals = data.workQueue?.pendingApprovals ?? 0
+  const pendingApprovals = data.receptionQueueCount ?? data.workQueue?.pendingApprovals ?? 0
   const pendingDischarges = data.workQueue?.pendingDischarges ?? census.pendingDischarge
   const todayDeposits = data.finance?.todayDeposits
   const lowBalanceCount = data.watchlist?.lowBalanceCount
-  const pendingRecords = data.pendingRecords || []
+  const pendingRecords = data.receptionQueue || data.pendingRecords || []
   const inpatients = data.currentInpatients || []
   const includeMoney = inpatients.some((row) => Object.prototype.hasOwnProperty.call(row, 'deposit'))
   const canReview = Boolean(data.canReview)
@@ -212,11 +212,11 @@ export default function ReceptionDashboard() {
         ) : (
           <div className="divide-y divide-primary/10 dark:divide-white/10">
             {pendingRecords.map((record) => (
-              <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+              <div key={record.requestId || record.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold">{record.recordName}</p>
+                  <p className="text-sm font-semibold">{record.patientName || record.recordName}</p>
                   <p className="text-xs text-muted-foreground">
-                    {record.type === 'pharmacy_return' ? 'Pharmacy Return' : 'Daily Services'} · {record.itemCount} item(s)
+                    {record.type === 'pharmacy_return' ? 'Pharmacy Return' : 'Service request'} · {record.eligibleCount != null ? `${record.eligibleCount} of ${record.itemCount} eligible` : `${record.itemCount} item(s)`}
                     {includeMoney ? ` · ${formatCurrency(Math.abs(record.amount))}${record.amount < 0 ? ' credit' : ''}` : ''}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -226,8 +226,8 @@ export default function ReceptionDashboard() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <StatusBadge status="pending" />
-                  {canReview && (
+                  <StatusBadge status={record.status || 'pending'} />
+                  {canReview && !record.reviewOnly ? (
                     <>
                       <Button size="sm" variant="outline" className={DASHBOARD_OUTLINE_BUTTON} onClick={() => handleApprove(record)}>
                         <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
@@ -236,7 +236,17 @@ export default function ReceptionDashboard() {
                         <XCircle className="h-4 w-4" />
                       </Button>
                     </>
-                  )}
+                  ) : null}
+                  {canReview && record.reviewOnly ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={DASHBOARD_OUTLINE_BUTTON}
+                      onClick={() => navigate(record.type === 'pharmacy_return' ? '/reception/medicine-returns' : '/reception/approvals')}
+                    >
+                      {record.type === 'pharmacy_return' ? 'Review return' : 'Review Items'}
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ))}

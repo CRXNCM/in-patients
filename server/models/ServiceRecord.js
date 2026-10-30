@@ -7,6 +7,8 @@ const serviceLineSchema = new mongoose.Schema(
     serviceName: String,
     quantity: { type: Number, default: 1 },
     unitPrice: Number,
+    baseUnitPrice: Number,
+    priceMultiplier: { type: Number, default: 1 },
     unit: { type: String, default: '' },
     catalogItemId: String,
     total: Number,
@@ -23,6 +25,8 @@ const returnLineSchema = new mongoose.Schema(
     serviceName: String,
     quantity: Number,
     unitPrice: Number,
+    baseUnitPrice: Number,
+    priceMultiplier: { type: Number, default: 1 },
     unit: { type: String, default: '' },
     catalogItemId: String,
     total: Number,
@@ -43,7 +47,17 @@ const serviceRecordSchema = new mongoose.Schema(
     babyId: { type: String, default: null },
     recordName: String,
     date: { type: String, required: true },
-    status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    status: { type: String, enum: ['pending', 'approved', 'rejected', 'logged'], default: 'pending' },
+    recordRole: { type: String, enum: ['billing', 'source'], default: 'billing' },
+    departmentGate: { type: String, enum: ['pharmacy', 'laboratory', ''], default: '' },
+    departmentCleared: { type: Boolean, default: false },
+    departmentClearedBy: { type: String, default: '' },
+    departmentClearedAt: Date,
+    workflowKind: { type: String, default: '' },
+    workflowOrderId: { type: String, default: '' },
+    workflowLineId: { type: String, default: '' },
+    billingKey: { type: String, default: '' },
+    submissionId: { type: String, default: '', index: true },
     recordType: { type: String, enum: ['daily', 'return', 'manual'], default: 'daily' },
     source: { type: String, enum: ['nurse', 'reception', 'system'], default: 'nurse' },
     autoType: { type: String, enum: ['room', 'doctor'], default: null },
@@ -63,6 +77,10 @@ const serviceRecordSchema = new mongoose.Schema(
 serviceRecordSchema.index(
   { patientId: 1, date: 1, autoType: 1 },
   { unique: true, partialFilterExpression: { autoType: { $in: ['room', 'doctor'] } } }
+)
+serviceRecordSchema.index(
+  { billingKey: 1 },
+  { unique: true, partialFilterExpression: { billingKey: { $type: 'string', $gt: '' } } }
 )
 
 export const ServiceRecord = mongoose.model('ServiceRecord', serviceRecordSchema)

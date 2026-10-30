@@ -11,9 +11,14 @@ import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
 import { RecordTimeline } from '@/components/shared/RecordTimeline'
 import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
 import { ClinicalNotesPanel } from '@/components/shared/ClinicalNotesPanel'
+import { PatientWorkflowPanel } from '@/components/workflow/PatientWorkflowPanel'
 import { isMaternityAdmission } from '@/lib/maternity'
+import { isEmergencyOpdAdmission, stayLocationLabel } from '@/lib/admissions'
+import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
+import { recordsWithWardRequests } from '@/lib/workflowHistory'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
+import { useWorkflowRequests } from '@/context/WorkflowRequestsContext'
 import { formatDate } from '@/lib/utils'
 import { MotionPage, MotionReveal } from '@/lib/motion'
 
@@ -22,6 +27,7 @@ export default function PatientServiceEntry() {
   const navigate = useNavigate()
   const { getPatient, applyPatientUpdate } = usePatients()
   const { getPatientRecords, CURRENT_NURSE } = useServiceEntries()
+  const { pharmacyOrders, laboratoryOrders } = useWorkflowRequests()
   const [historyEdit, setHistoryEdit] = useState(null)
 
   const patient = getPatient(patientId)
@@ -35,7 +41,8 @@ export default function PatientServiceEntry() {
     )
   }
 
-  const records = getPatientRecords(patientId)
+  const records = recordsWithWardRequests(getPatientRecords(patientId), pharmacyOrders, laboratoryOrders, patient.id)
+    .filter((record) => record.type !== 'pharmacy_return')
   const maternity = isMaternityAdmission(patient)
   const motherRecords = records.filter((r) => (r.subjectType || 'mother') !== 'baby')
   const babyRecords = records.filter((r) => r.subjectType === 'baby')
@@ -56,10 +63,13 @@ export default function PatientServiceEntry() {
         <CardContent className="p-5 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Inpatient stay</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                {isEmergencyOpdAdmission(patient) ? 'Emergency OPD' : 'Inpatient stay'}
+              </p>
               <p className="mt-1 font-mono text-xs font-medium text-primary">{patient.id}</p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <StatusBadge status={patient.status} />
+                <AdmissionTypeBadge patient={patient} />
                 <CreditBadge patient={patient} />
               </div>
             </div>
@@ -68,7 +78,7 @@ export default function PatientServiceEntry() {
             <div><p className="text-xs text-muted-foreground">Age / Gender</p><p className="font-medium">{patient.age} years · {patient.gender}</p></div>
             <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> Phone</p><p className="font-medium">{patient.phone}</p></div>
             <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> Admitted</p><p className="font-medium">{formatDate(patient.admissionDate)}</p></div>
-            <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Bed className="h-3 w-3" /> Room / Bed</p><p className="font-medium">{patient.room} · {patient.bed}</p></div>
+            <div><p className="text-xs text-muted-foreground flex items-center gap-1"><Bed className="h-3 w-3" /> Room / Bed</p><p className="font-medium">{stayLocationLabel(patient)}</p></div>
           </div>
         </CardContent>
       </Card>
@@ -81,6 +91,8 @@ export default function PatientServiceEntry() {
       />
 
       <MaternityAdmissionPanel patient={patient} canEdit={patient.status !== 'discharged'} />
+
+      <PatientWorkflowPanel patient={patient} />
 
       <AssignedDoctorsPanel
         patient={patient}
@@ -118,7 +130,9 @@ export default function PatientServiceEntry() {
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">History</p>
           <CardTitle className="mt-1 text-lg">Record History — {patient.name}</CardTitle>
           <CardDescription>
-            {maternity ? 'Mother and baby records stay on this same maternity admission.' : 'All submitted daily records and pharmacy returns'}
+            {maternity
+              ? 'Mother and baby records stay on this same maternity admission. Pharmacy and laboratory requests are listed with the mother record.'
+              : 'Daily records, pharmacy requests, and laboratory requests'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

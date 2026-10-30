@@ -265,6 +265,12 @@ describe('GET /api/manager/dashboard HTTP', { skip: !hasDb }, () => {
     assert.equal(labBucket.amount, 1200000)
 
     assert.ok(res.body.dailyChargesTrend.length === 7)
+    assert.ok(res.body.periodComparison?.week?.current)
+    assert.ok(res.body.periodComparison?.week?.previous)
+    assert.ok(res.body.periodComparison?.month?.current)
+    assert.ok(res.body.periodComparison?.month?.previous)
+    assert.equal(typeof res.body.periodComparison.week.current.deposits, 'number')
+    assert.equal(typeof res.body.periodComparison.month.previous.charges, 'number')
     assert.equal(res.body.dailyChargesTrend[6].date, today)
     assert.ok(res.body.topServices.length <= 5)
     assert.ok(res.body.topMedicines.length <= 5)

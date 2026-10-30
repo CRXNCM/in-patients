@@ -438,7 +438,30 @@ export const users = [
   { id: 1, name: 'Sara Bekele', email: 'reception@cc', role: 'Reception', status: 'active' },
   { id: 3, name: 'Admin User', email: 'admin@cc', role: 'Admin', status: 'active' },
   { id: 4, name: 'Manager User', email: 'manager@cc', role: 'Manager', status: 'active' },
-  { id: 6, name: 'Nurse Almaz Tsegaye', email: 'nurse@cc', role: 'Nurse', status: 'active' },
+  {
+    id: 6,
+    name: 'Nurse Almaz Tsegaye',
+    email: 'nurse@cc',
+    role: 'Nurse',
+    status: 'active',
+    permissions: ['patients.view', 'patients.edit', 'admissions.view', 'rooms.view', 'doctors.view', 'doctors.assign', 'clinicalNotes.view', 'clinicalNotes.create', 'clinicalNotes.editOwn'],
+  },
+  {
+    id: 7,
+    name: 'Dawit Lemma',
+    email: 'pharmacist@cc',
+    role: 'Pharmacist',
+    status: 'active',
+    permissions: ['patients.view', 'admissions.view'],
+  },
+  {
+    id: 8,
+    name: 'Bethlehem Assefa',
+    email: 'laboratory@cc',
+    role: 'Laboratory',
+    status: 'active',
+    permissions: ['patients.view', 'admissions.view'],
+  },
 ]
 
 /** Admin-defined service categories with billing behavior types */

@@ -12,6 +12,7 @@ import { DoctorAssignment } from '../models/DoctorAssignment.js'
 import { listAssignments, assignDoctor, assignDoctorsOnAdmit, endAssignment } from '../services/doctorAssignments.js'
 import { claimAvailableBed, releaseBed } from '../services/beds.js'
 import { applyCreditFlags, normalizeAdmissionPaymentMode } from '../utils/credit.js'
+import { resolveActiveCreditCompany } from '../services/creditCompanies.js'
 import { MaternityBaby } from '../models/MaternityBaby.js'
 import {
   normalizeAdmissionType,
@@ -20,9 +21,12 @@ import {
   resolveRecordSubject,
   babyFieldsFromBody,
 } from '../utils/maternity.js'
+import { catalogPricingForPatient, isEmergencyOpdAdmission } from '../utils/admissions.js'
+import { convertEmergencyOpdToInpatient } from '../services/emergencyConversion.js'
 import { toFrontendAssignment as toDoctorAssignment } from '../utils/doctors.js'
 import { todayStr } from '../utils/dates.js'
 import { resolveCatalogServiceLines, resolveCatalogReturnLines } from '../utils/catalog.js'
+import { categoryNeedsDepartment, departmentGateForLines } from '../services/departmentBilling.js'
 import { HospitalSettings } from '../models/HospitalSettings.js'
 import { loadResolvedSettings } from '../utils/settings.js'
 import {
@@ -54,7 +58,14 @@ function submitterFromAuth(req) {
 }
 
 function requireAdmit(req, res, next) {
-  if (!roleHasPermission(req.auth?.role, 'admissions.create')) {
+  const type = normalizeAdmissionType(req.body?.admissionType) || 'normal'
+  const canCreateAny = roleHasPermission(req.auth?.role, 'admissions.create')
+  const canCreateEmergency = roleHasPermission(req.auth?.role, 'admissions.create_emergency')
+  if (type === 'emergency-opd') {
+    if (!canCreateAny && !canCreateEmergency) {
+      return res.status(403).json({ error: 'Forbidden' })
+    }
+  } else if (!canCreateAny) {
     return res.status(403).json({ error: 'Forbidden' })
   }
   const mode = String(req.body?.admissionPaymentMode || '').toLowerCase()
@@ -263,12 +274,15 @@ router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 
     const subject = resolveRecordSubject(patient, req.body, baby)
     if (subject.error) return res.status(400).json({ error: subject.error })
 
-    const resolved = await resolveCatalogServiceLines(services)
+    const resolved = await resolveCatalogServiceLines(services, catalogPricingForPatient(patient))
     if (resolved.error) return res.status(400).json({ error: resolved.error })
     const lines = resolved.lines
 
     const date = recordDate || todayStr()
     const { autoApprove, source } = submitterFromAuth(req)
+    const gate = departmentGateForLines(lines)
+    const needsDepartment = lines.some((line) => categoryNeedsDepartment(line.category))
+    const canAutoApprove = autoApprove && !needsDepartment
     const now = new Date()
 
     const record = await ServiceRecord.create({
@@ -277,17 +291,25 @@ router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 
       babyId: subject.babyId,
       recordName: recordName || patient.name,
       date,
-      status: autoApprove ? 'approved' : 'pending',
+      status: canAutoApprove ? 'approved' : 'pending',
       recordType: 'daily',
       source,
+      departmentGate: gate,
+      departmentCleared: false,
       services: lines,
       submittedBy: req.user.name,
-      approvedBy: autoApprove ? req.user.name : null,
+      approvedBy: canAutoApprove ? req.user.name : null,
       recordedAt: now,
-      reviewedAt: autoApprove ? now : null,
+      reviewedAt: canAutoApprove ? now : null,
       auditTrail: [
-        audit('recorded', req.user.name, `Daily record submitted — ${lines.length} service(s)`),
-        ...(autoApprove ? [audit('approved', req.user.name, 'Auto-approved reception entry')] : []),
+        audit(
+          'recorded',
+          req.user.name,
+          gate
+            ? `Daily record submitted — ${lines.length} service(s). Pharmacy and laboratory items are not chargeable until the department releases them and reception approves that release.`
+            : `Daily record submitted — ${lines.length} service(s)`
+        ),
+        ...(canAutoApprove ? [audit('approved', req.user.name, 'Auto-approved reception entry')] : []),
       ],
     })
 
@@ -300,6 +322,9 @@ router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 
 
 router.post('/:id/returns', authRequired, requireAnyPermission('patients.edit', 'doctors.assign'), async (req, res) => {
   try {
+    if (req.user?.role === 'Nurse') {
+      return res.status(403).json({ error: 'Nurses cannot record a pharmacy return.' })
+    }
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
     const returnBlock = inpatientActionError(patient, 'returns')
@@ -312,7 +337,7 @@ router.post('/:id/returns', authRequired, requireAnyPermission('patients.edit', 
     const subject = resolveRecordSubject(patient, req.body, baby)
     if (subject.error) return res.status(400).json({ error: subject.error })
 
-    const resolved = await resolveCatalogReturnLines(returnItems)
+    const resolved = await resolveCatalogReturnLines(returnItems, catalogPricingForPatient(patient))
     if (resolved.error) return res.status(400).json({ error: resolved.error })
     const items = resolved.lines
 
@@ -495,24 +520,33 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
       if (dup) return res.status(400).json({ error: 'A patient with this National ID already has an active admission.' })
     }
 
-    const label = String(body.bedId).replace(/^BED-/, '')
-    try {
-      bedDoc = await claimAvailableBed({ label, patientId: 'pending' })
-    } catch (err) {
-      return res.status(err.status || 400).json({ error: err.message })
+    const admissionType = normalizeAdmissionType(body.admissionType) || 'normal'
+    const emergencyOpd = isEmergencyOpdAdmission(admissionType)
+
+    if (!emergencyOpd) {
+      const label = String(body.bedId).replace(/^BED-/, '')
+      try {
+        bedDoc = await claimAvailableBed({ label, patientId: 'pending' })
+      } catch (err) {
+        return res.status(err.status || 400).json({ error: err.message })
+      }
     }
 
     const patientId = await nextPatientId()
-    const deposit = Number(body.depositAmount)
+    const deposit = emergencyOpd ? 0 : Number(body.depositAmount)
     const admissionDate = resolveAdmissionDate(body.admissionDate)
-    const paymentMode = normalizeAdmissionPaymentMode(body.admissionPaymentMode)
-    const requiredInitialDeposit = rules.minimumInitialDeposit
+    const paymentMode = emergencyOpd ? 'paid' : normalizeAdmissionPaymentMode(body.admissionPaymentMode)
+    let creditCompany = null
+    if (paymentMode === 'credit') {
+      const resolved = await resolveActiveCreditCompany(body.creditCompanyId)
+      if (resolved.error) return res.status(400).json({ error: resolved.error })
+      creditCompany = resolved.company
+    }
+    const requiredInitialDeposit = emergencyOpd || paymentMode === 'credit' ? 0 : rules.minimumInitialDeposit
     const ageValue =
       body.age !== undefined && body.age !== null && body.age !== ''
         ? Number(body.age)
         : computeAgeFromDob(body.dateOfBirth)
-
-    const admissionType = normalizeAdmissionType(body.admissionType) || 'normal'
 
     const patient = await Patient.create({
       patientId,
@@ -521,21 +555,24 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
       dateOfBirth: body.dateOfBirth || null,
       gender: body.gender,
       admissionType,
+      originalAdmissionType: admissionType,
       phone: body.phone?.trim() || '',
-      address: String(body.address).trim(),
+      address: String(body.address || '').trim(),
       emergencyContact: body.emergencyContact?.trim() || '',
       emergencyPhone: body.emergencyPhone?.trim() || '',
       mrn: mrn || undefined,
       nationalId: nationalId || undefined,
       admissionReason: body.admissionReason?.trim() || '',
       admissionDate,
-      room: bedDoc.roomType,
-      bed: bedDoc.label,
-      bedId: bedDoc._id.toString(),
+      room: bedDoc?.roomType || undefined,
+      bed: bedDoc?.label || undefined,
+      bedId: bedDoc?._id?.toString() || undefined,
       depositTotal: deposit > 0 ? deposit : 0,
       requiredInitialDeposit,
       admissionPaymentMode: paymentMode,
-      isCreditPatient: paymentMode === 'credit' && deposit < requiredInitialDeposit,
+      isCreditPatient: paymentMode === 'credit',
+      creditCompanyId: creditCompany ? String(creditCompany._id) : '',
+      creditCompanyName: creditCompany ? creditCompany.name : '',
       creditMarkedBy: paymentMode === 'credit' ? req.user.name : undefined,
       creditMarkedAt: paymentMode === 'credit' ? new Date() : undefined,
       status: 'admitted',
@@ -543,19 +580,21 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
       updatedBy: req.user.name,
     })
 
-    bedDoc.patientId = patientId
-    await bedDoc.save()
+    if (bedDoc) {
+      bedDoc.patientId = patientId
+      await bedDoc.save()
 
-    await RoomAssignment.create({
-      patientId,
-      bedId: bedDoc.label,
-      roomType: bedDoc.roomType,
-      bedLabel: bedDoc.label,
-      startDate: admissionDate,
-      dailyRate: bedDoc.dailyRate,
-      reason: 'Initial admission',
-      assignedBy: req.user.name,
-    })
+      await RoomAssignment.create({
+        patientId,
+        bedId: bedDoc.label,
+        roomType: bedDoc.roomType,
+        bedLabel: bedDoc.label,
+        startDate: admissionDate,
+        dailyRate: bedDoc.dailyRate,
+        reason: 'Initial admission',
+        assignedBy: req.user.name,
+      })
+    }
 
     if (deposit > 0) {
       await Deposit.create({
@@ -570,13 +609,15 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
     }
 
     let assignedDoctors = []
-    try {
-      assignedDoctors = await assignDoctorsOnAdmit(patient, body.doctorIds || [], req.user.name)
-    } catch (err) {
-      if (err.status) return res.status(err.status).json({ error: err.message })
-      throw err
+    if (!emergencyOpd) {
+      try {
+        assignedDoctors = await assignDoctorsOnAdmit(patient, body.doctorIds || [], req.user.name)
+      } catch (err) {
+        if (err.status) return res.status(err.status).json({ error: err.message })
+        throw err
+      }
+      await ensureAutomaticDailyCharges(patient, null, { range: true })
     }
-    await ensureAutomaticDailyCharges(patient, null, { range: true })
     const balance = await calcPatientBalance(patientId)
     const assignments = await RoomAssignment.find({ patientId }).sort({ startDate: 1 })
     const beds = await Bed.find()
@@ -591,6 +632,31 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
     }
     console.error(err)
     res.status(500).json({ error: 'Failed to admit patient' })
+  }
+})
+
+router.post('/:id/convert-to-inpatient', authRequired, requirePermission('admissions.convert_inpatient'), async (req, res) => {
+  try {
+    const rules = await loadResolvedSettings(HospitalSettings)
+    const result = await convertEmergencyOpdToInpatient({
+      patientId: req.params.id,
+      body: req.body,
+      userName: req.user.name,
+      rules,
+    })
+    const assignments = await RoomAssignment.find({ patientId: req.params.id }).sort({ startDate: 1 })
+    const beds = await Bed.find()
+    res.json({
+      patient: {
+        ...mapPatient(result.patient, result.balance, result.assignedDoctors),
+        roomHistory: buildRoomHistory(assignments),
+      },
+      rooms: buildRoomsFromBeds(beds),
+    })
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message })
+    console.error(err)
+    res.status(500).json({ error: 'Failed to convert Emergency OPD admission' })
   }
 })
 

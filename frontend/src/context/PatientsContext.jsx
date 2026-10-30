@@ -11,6 +11,7 @@ import {
 } from '@/data/mockData'
 import { api, USE_API } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
+import { isOfflineWorkflowUser } from '@/lib/workflowAccess'
 
 const PatientsContext = React.createContext(null)
 
@@ -31,13 +32,14 @@ function withRoomHistory(patient) {
 }
 
 export function PatientsProvider({ children }) {
-  const { isAuthenticated, authReady } = useAuth()
+  const { isAuthenticated, authReady, user } = useAuth()
   const [patients, setPatients] = React.useState(() => (USE_API ? [] : initialPatients.map(withRoomHistory)))
   const [dischargedPatients, setDischargedPatients] = React.useState([])
   const [deposits, setDeposits] = React.useState(() => (USE_API ? {} : depositHistory))
   const [rooms, setRooms] = React.useState(() => (USE_API ? [] : initialHospitalRooms))
   const [roomAssignments, setRoomAssignments] = React.useState(() => (USE_API ? [] : initialRoomAssignments))
   const [loading, setLoading] = React.useState(USE_API)
+  const hasLoadedRef = React.useRef(!USE_API)
 
   const refreshFromApi = React.useCallback(async () => {
     const [data, discharged] = await Promise.all([
@@ -54,38 +56,47 @@ export function PatientsProvider({ children }) {
 
   React.useEffect(() => {
     if (!USE_API || !authReady) return undefined
-    if (!isAuthenticated) {
-      setPatients([])
-      setDischargedPatients([])
-      setDeposits({})
-      setRoomAssignments([])
-      setRooms([])
+    if (!isAuthenticated || isOfflineWorkflowUser(user)) {
+      if (!isAuthenticated) {
+        hasLoadedRef.current = false
+        setPatients([])
+        setDischargedPatients([])
+        setDeposits({})
+        setRoomAssignments([])
+        setRooms([])
+      }
       setLoading(false)
       return undefined
     }
     let cancelled = false
-    setLoading(true)
+    if (!hasLoadedRef.current) setLoading(true)
     refreshFromApi()
       .catch(console.error)
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (cancelled) return
+        hasLoadedRef.current = true
+        setLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [refreshFromApi, isAuthenticated, authReady])
+  }, [refreshFromApi, isAuthenticated, authReady, user])
 
   const addPatient = React.useCallback(
     async (patientData) => {
       if (USE_API) {
         let bedLabel = patientData.bed
         if (!bedLabel) {
-          const room = rooms.find((r) => r.roomType === patientData.room)
-          const avail = room?.beds.find((b) => b.status === 'available')
-          if (!avail) throw new Error('No available bed for selected room type')
-          bedLabel = avail.label
+          const emergencyOpd = patientData.admissionType === 'emergency-opd'
+          if (!emergencyOpd) {
+            const room = rooms.find((r) => r.roomType === patientData.room)
+            const avail = room?.beds.find((b) => b.status === 'available')
+            if (!avail) throw new Error('No available bed for selected room type')
+            bedLabel = avail.label
+          }
         }
         const admissionDate = patientData.admissionDate || new Date().toISOString().split('T')[0]
+        const emergencyOpd = patientData.admissionType === 'emergency-opd'
         const res = await api.createPatient({
           name: patientData.name,
           age: patientData.age,
@@ -96,18 +107,19 @@ export function PatientsProvider({ children }) {
           mrn: patientData.mrn,
           nationalId: patientData.nationalId,
           admissionDate,
-          bedId: bedLabel,
-          depositAmount: patientData.initialDeposit ?? patientData.deposit ?? 0,
+          bedId: emergencyOpd ? undefined : bedLabel,
+          depositAmount: emergencyOpd ? 0 : patientData.initialDeposit ?? patientData.deposit ?? 0,
           depositMethod: patientData.depositType || 'Cash',
           referenceNumber: patientData.referenceNumber,
           admissionPaymentMode: patientData.admissionPaymentMode || 'paid',
+          creditCompanyId: patientData.admissionPaymentMode === 'credit' ? patientData.creditCompanyId : undefined,
           doctorIds: patientData.doctorIds || [],
           admissionType: patientData.admissionType || 'normal',
         })
         const patient = withRoomHistory(res.patient)
         setPatients((prev) => [patient, ...prev])
         if (res.rooms) setRooms(res.rooms)
-        if (patientData.initialDeposit > 0) {
+        if (!emergencyOpd && patientData.initialDeposit > 0) {
           setDeposits((prev) => ({
             ...prev,
             [patient.id]: [
@@ -127,13 +139,14 @@ export function PatientsProvider({ children }) {
 
       const id = `PAT-${String(Date.now()).slice(-6)}`
       const admissionDate = patientData.admissionDate || new Date().toISOString().split('T')[0]
-      const roomConfig = initialHospitalRooms.find((r) => r.roomType === patientData.room)
-      let bedLabel = patientData.bed
-      if (!bedLabel && roomConfig) {
+      const emergencyOpd = patientData.admissionType === 'emergency-opd'
+      const roomConfig = emergencyOpd ? null : initialHospitalRooms.find((r) => r.roomType === patientData.room)
+      let bedLabel = emergencyOpd ? undefined : patientData.bed
+      if (!emergencyOpd && !bedLabel && roomConfig) {
         const avail = roomConfig.beds.find((b) => b.status === 'available')
         bedLabel = avail?.label || `${roomConfig.roomType === 'General Ward' ? 'GW' : 'PR'}-01`
       }
-      const bedId = `BED-${bedLabel}`
+      const bedId = bedLabel ? `BED-${bedLabel}` : undefined
 
       const patient = withRoomHistory({
         id,
@@ -143,12 +156,18 @@ export function PatientsProvider({ children }) {
         ...patientData,
         admissionDate,
         bed: bedLabel,
-        deposit: patientData.deposit ?? patientData.initialDeposit ?? 0,
-        admissionPaymentMode: patientData.admissionPaymentMode || 'paid',
-        requiredInitialDeposit: patientData.requiredInitialDeposit ?? 15000,
-        isCreditPatient: (patientData.admissionPaymentMode === 'credit') && Number(patientData.initialDeposit || 0) < 15000,
-        assignedDoctors: patientData.assignedDoctors || [],
-        roomHistory: [
+        room: emergencyOpd ? undefined : patientData.room,
+        deposit: emergencyOpd ? 0 : patientData.deposit ?? patientData.initialDeposit ?? 0,
+        admissionPaymentMode: emergencyOpd ? 'paid' : patientData.admissionPaymentMode || 'paid',
+        requiredInitialDeposit: emergencyOpd || patientData.admissionPaymentMode === 'credit'
+          ? 0
+          : (patientData.requiredInitialDeposit ?? 15000),
+        isCreditPatient: !emergencyOpd && patientData.admissionPaymentMode === 'credit',
+        creditCompanyId: !emergencyOpd && patientData.admissionPaymentMode === 'credit' ? (patientData.creditCompanyId || '') : '',
+        creditCompanyName: !emergencyOpd && patientData.admissionPaymentMode === 'credit' ? (patientData.creditCompanyName || '') : '',
+        assignedDoctors: emergencyOpd ? [] : patientData.assignedDoctors || [],
+        originalAdmissionType: patientData.admissionType || 'normal',
+        roomHistory: emergencyOpd ? [] : [
           {
             room: patientData.room,
             bed: bedLabel,
@@ -189,7 +208,7 @@ export function PatientsProvider({ children }) {
         )
       }
 
-      if (patientData.initialDeposit > 0) {
+      if (!emergencyOpd && patientData.initialDeposit > 0) {
         setDeposits((prev) => ({
           ...prev,
           [id]: [{
@@ -464,6 +483,17 @@ export function PatientsProvider({ children }) {
     return mapped
   }, [])
 
+  const convertToInpatient = React.useCallback(
+    async (patientId, body) => {
+      const res = await api.convertToInpatient(patientId, body)
+      const patient = withRoomHistory(res.patient)
+      applyPatientUpdate(patient)
+      if (res.rooms) setRooms(res.rooms)
+      return patient
+    },
+    [applyPatientUpdate]
+  )
+
   const saveMaternityBaby = React.useCallback(
     async (patientId, body) => {
       const res = await api.upsertMaternityBaby(patientId, body)
@@ -635,6 +665,7 @@ export function PatientsProvider({ children }) {
         loading,
         refreshFromApi,
         addPatient,
+        convertToInpatient,
         getPatient,
         getPatientDeposits,
         addDeposit,

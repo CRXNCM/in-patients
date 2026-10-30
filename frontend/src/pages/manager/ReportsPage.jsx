@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   FileText, Calendar, CalendarDays, CalendarRange, Building2, Wallet,
-  AlertCircle, History, Bed, FileDown, FileSpreadsheet, Printer,
+  AlertCircle, History, Bed, FileDown, FileSpreadsheet, Printer, CreditCard,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { PageHeader } from '@/components/shared/CommonComponents'
+import { PageHeader, DataTable, EmptyState, StatusBadge } from '@/components/shared/CommonComponents'
+import { LoadingState } from '@/components/shared/LoadingState'
+import { ErrorState } from '@/components/shared/ErrorState'
+import { Input } from '@/components/ui/input'
 import { useToast } from '@/context/ToastContext'
 import { api, USE_API } from '@/api/client'
 import { printReport, exportReportCsv } from '@/lib/printReport'
@@ -15,6 +18,11 @@ import {
   dailyRevenueTrend,
 } from '@/data/mockData'
 import { useBillingConfig } from '@/context/BillingConfigContext'
+import { useAuth } from '@/context/AuthContext'
+import { useManagerFinanceQuery } from '@/hooks/useManagerFinanceQuery'
+import { filterControlClass } from '@/pages/manager/financeShared'
+import { formatCurrency, formatDate } from '@/lib/utils'
+import { creditCompanyLabel } from '@/lib/credit'
 
 const reports = [
   { id: 'daily', title: 'Daily Report', description: 'Summary of today\'s revenue, deposits, and transactions', icon: Calendar, color: 'bg-blue-500' },
@@ -26,6 +34,7 @@ const reports = [
   { id: 'outstanding', title: 'Outstanding Balance', description: 'Patients with unpaid or low balances', icon: AlertCircle, color: 'bg-red-500' },
   { id: 'billing', title: 'Patient Billing History', description: 'Detailed billing records per patient', icon: History, color: 'bg-orange-500' },
   { id: 'occupancy', title: 'Room Occupancy', description: 'Bed utilization and occupancy rates', icon: Bed, color: 'bg-violet-500' },
+  { id: 'credit-patients', title: 'Credit Patients', description: 'Credit admissions by company, dates, and outstanding deposit', icon: CreditCard, color: 'bg-amber-500' },
 ]
 
 function buildMockReport(type, settings) {
@@ -83,18 +92,84 @@ function buildMockReport(type, settings) {
           patientId: p.id,
         })),
       }
+    case 'credit-patients':
+      return {
+        ...base,
+        title: 'Credit Patients',
+        summary: { patients: 0, creditOutstanding: 0 },
+        rows: [],
+        byCompany: [],
+      }
     default:
       return { ...base, title: 'Report', rows: [] }
   }
 }
 
+const creditColumns = [
+  { key: 'patientName', header: 'Patient name', render: (row) => row.patientName || '—' },
+  { key: 'patientId', header: 'Patient ID', render: (row) => <span className="font-mono text-sm">{row.patientId}</span> },
+  { key: 'admissionId', header: 'Admission ID', render: (row) => <span className="font-mono text-xs">{row.admissionId || '—'}</span> },
+  { key: 'admissionDate', header: 'Admission date', render: (row) => formatDate(row.admissionDate) },
+  { key: 'status', header: 'Admission status', render: (row) => <StatusBadge status={row.status} /> },
+  { key: 'company', header: 'Credit company', render: (row) => creditCompanyLabel(row) },
+  { key: 'code', header: 'Company code', render: (row) => row.creditCompanyCode || '—' },
+  {
+    key: 'creditOutstanding',
+    header: 'Credit outstanding',
+    render: (row) => <span className="tabular-nums">{formatCurrency(row.creditOutstanding)}</span>,
+  },
+  {
+    key: 'depositStatus',
+    header: 'Credit status',
+    render: (row) => (row.depositStatus === 'partially-paid' ? 'Partially paid' : row.depositStatus === 'unpaid' ? 'Unpaid' : row.depositStatus || 'Unpaid'),
+  },
+]
+
+async function emptyCreditReport() {
+  return { rows: [], summary: { patients: 0, creditOutstanding: 0 }, byCompany: [] }
+}
+
 export default function ReportsPage() {
   const { toast } = useToast()
   const { settings } = useBillingConfig()
+  const { hasPermission } = useAuth()
+  const canViewCredit = hasPermission('credit.view')
   const [loadingId, setLoadingId] = useState(null)
+  const [companies, setCompanies] = useState([])
+  const [creditFilters, setCreditFilters] = useState({
+    companyId: '',
+    from: '',
+    to: '',
+    stay: '',
+    depositStatus: '',
+  })
 
-  const fetchReport = async (reportId, reportTitle) => {
-    if (USE_API) return api.getManagerReport(reportId)
+  const visibleReports = reports.filter((report) => report.id !== 'credit-patients' || canViewCredit)
+  const { data: creditData, loading: creditLoading, error: creditError, reload: reloadCredit } = useManagerFinanceQuery(
+    canViewCredit ? api.getManagerCreditPatients : emptyCreditReport,
+    canViewCredit ? creditFilters : { disabled: true },
+    'Credit-patient reports require the live API.'
+  )
+
+  useEffect(() => {
+    if (!canViewCredit || !USE_API) return undefined
+    let cancelled = false
+    api.listCreditCompanies()
+      .then((payload) => {
+        if (!cancelled) setCompanies(payload.companies || [])
+      })
+      .catch(() => {
+        if (!cancelled) setCompanies([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [canViewCredit])
+
+  const fetchReport = async (reportId) => {
+    if (USE_API) {
+      return api.getManagerReport(reportId, reportId === 'credit-patients' ? creditFilters : {})
+    }
     return buildMockReport(reportId, settings)
   }
 
@@ -150,7 +225,7 @@ export default function ReportsPage() {
       <PageHeader title="Reports" description="Generate and export hospital financial reports" />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {reports.map((report) => {
+        {visibleReports.map((report) => {
           const Icon = report.icon
           return (
             <Card key={report.id} className="hover:shadow-md transition-shadow">
@@ -197,6 +272,106 @@ export default function ReportsPage() {
           )
         })}
       </div>
+
+      {canViewCredit ? (
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Credit Patients</CardTitle>
+            <CardDescription>
+              Admission-level credit stays by company. Outstanding amounts use the existing credit-deposit calculation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <select
+                className={filterControlClass}
+                value={creditFilters.companyId}
+                onChange={(event) => setCreditFilters((prev) => ({ ...prev, companyId: event.target.value }))}
+                aria-label="Credit company"
+              >
+                <option value="">All companies</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}{company.active === false ? ' (inactive)' : ''}
+                  </option>
+                ))}
+              </select>
+              <Input
+                type="date"
+                value={creditFilters.from}
+                onChange={(event) => setCreditFilters((prev) => ({ ...prev, from: event.target.value }))}
+                aria-label="Admission from"
+                className="sm:max-w-[11rem]"
+              />
+              <Input
+                type="date"
+                value={creditFilters.to}
+                onChange={(event) => setCreditFilters((prev) => ({ ...prev, to: event.target.value }))}
+                aria-label="Admission to"
+                className="sm:max-w-[11rem]"
+              />
+              <select
+                className={filterControlClass}
+                value={creditFilters.stay}
+                onChange={(event) => setCreditFilters((prev) => ({ ...prev, stay: event.target.value }))}
+                aria-label="Admission stay"
+              >
+                <option value="">Current stays</option>
+                <option value="discharged">Discharged</option>
+                <option value="all">All admissions</option>
+              </select>
+              <select
+                className={filterControlClass}
+                value={creditFilters.depositStatus}
+                onChange={(event) => setCreditFilters((prev) => ({ ...prev, depositStatus: event.target.value }))}
+                aria-label="Credit status"
+              >
+                <option value="">All credit statuses</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="partially-paid">Partially paid</option>
+                <option value="paid">Paid</option>
+              </select>
+            </div>
+
+            {creditLoading ? <LoadingState message="Loading credit-patient report…" /> : null}
+            {!creditLoading && creditError ? (
+              <ErrorState title="Credit patients could not be loaded." message={creditError} onRetry={reloadCredit} />
+            ) : null}
+            {!creditLoading && !creditError && creditData ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {creditData.summary?.patients || 0} admission{(creditData.summary?.patients || 0) === 1 ? '' : 's'}
+                  {' · '}
+                  Credit outstanding {formatCurrency(creditData.summary?.creditOutstanding || 0)}
+                </p>
+                {(creditData.byCompany || []).length > 0 ? (
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {creditData.byCompany.map((group) => (
+                      <div key={group.companyId || group.companyName || 'unrecorded'} className="rounded-md border p-3 text-sm">
+                        <p className="font-medium">{group.companyName || 'Company not recorded'}</p>
+                        <p className="text-muted-foreground">
+                          {group.admissions} admission{group.admissions === 1 ? '' : 's'}
+                          {' · '}
+                          {formatCurrency(group.creditOutstanding)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {(creditData.rows || []).length === 0 ? (
+                  <EmptyState
+                    icon={CreditCard}
+                    title="No credit-patient admissions"
+                    description="No admissions match the selected company, dates, or status."
+                  />
+                ) : (
+                  <DataTable columns={creditColumns} data={creditData.rows} />
+                )}
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }

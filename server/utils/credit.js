@@ -9,17 +9,20 @@ export function computeCreditState({
   requiredInitialDeposit,
   depositTotal,
 } = {}) {
-  const required = Number(requiredInitialDeposit ?? MIN_INITIAL_DEPOSIT)
+  const admittedOnCredit = admissionPaymentMode === 'credit'
+  const required = Number(requiredInitialDeposit ?? (admittedOnCredit ? 0 : MIN_INITIAL_DEPOSIT))
   const paid = Number(depositTotal ?? 0)
-  const safeRequired = Number.isNaN(required) ? MIN_INITIAL_DEPOSIT : Math.max(0, required)
+  const safeRequired = admittedOnCredit
+    ? 0
+    : (Number.isNaN(required) ? MIN_INITIAL_DEPOSIT : Math.max(0, required))
   const safePaid = Number.isNaN(paid) ? 0 : paid
   const outstandingDeposit = Math.max(0, safeRequired - safePaid)
-  const admittedOnCredit = admissionPaymentMode === 'credit'
-  const isCreditPatient = admittedOnCredit && outstandingDeposit > 0
+  const isCreditPatient = admittedOnCredit
   let depositStatus = 'paid'
-  if (outstandingDeposit === 0) depositStatus = 'paid'
+  if (admittedOnCredit) depositStatus = 'unpaid'
+  else if (outstandingDeposit === 0) depositStatus = 'paid'
   else if (safePaid > 0) depositStatus = 'partially-paid'
-  else depositStatus = admittedOnCredit ? 'credit' : 'unpaid'
+  else depositStatus = 'unpaid'
   return {
     requiredInitialDeposit: safeRequired,
     depositPaid: safePaid,

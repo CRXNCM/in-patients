@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import { ServiceCategory } from '../models/ServiceCategory.js'
+import { applyEmergencyPrice, roundMoney } from './admissions.js'
 
 function trimText(value) {
   return String(value ?? '').trim()
@@ -233,8 +234,8 @@ function safeQuantity(value) {
   return qty
 }
 
-function snapshotFromCatalogItem(item, category, { id, quantity, notes } = {}) {
-  const price = Number(item.price) || 0
+function snapshotFromCatalogItem(item, category, { id, quantity, notes, emergencyPricing } = {}) {
+  const priced = applyEmergencyPrice(item.price, { emergencyPricing })
   const qty = quantity
   return {
     id: id || `svc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -243,14 +244,33 @@ function snapshotFromCatalogItem(item, category, { id, quantity, notes } = {}) {
     serviceName: item.name,
     unit: item.unit || '',
     quantity: qty,
-    unitPrice: price,
-    total: qty * price,
+    baseUnitPrice: priced.baseUnitPrice,
+    priceMultiplier: priced.priceMultiplier,
+    unitPrice: priced.unitPrice,
+    total: roundMoney(qty * priced.unitPrice),
     notes: notes || '',
   }
 }
 
+function passthroughAutomaticLine(s, qty, index) {
+  const price = Number(s.unitPrice)
+  return {
+    id: s.id || `svc-${Date.now()}-${index}`,
+    category: s.category,
+    serviceName: s.serviceName,
+    quantity: qty,
+    baseUnitPrice: Number.isFinite(Number(s.baseUnitPrice)) ? Number(s.baseUnitPrice) : price,
+    priceMultiplier: 1,
+    unitPrice: price,
+    total: Number(s.total ?? qty * price),
+    notes: s.notes || '',
+    doctorId: s.doctorId || undefined,
+    specialty: s.specialty || undefined,
+  }
+}
+
 /** Resolve catalog-backed lines. Client name/price/unit are ignored. Auto room/doctor lines pass through. */
-export async function resolveCatalogServiceLines(services = []) {
+export async function resolveCatalogServiceLines(services = [], { emergencyPricing = false } = {}) {
   const categories = await ServiceCategory.find()
   const lines = []
 
@@ -261,18 +281,7 @@ export async function resolveCatalogServiceLines(services = []) {
 
     const category = matchServiceCategory(categories, s?.category)
     if (isAutomaticChargeCategory(category, s?.category)) {
-      const price = Number(s.unitPrice)
-      lines.push({
-        id: s.id || `svc-${Date.now()}-${i}`,
-        category: s.category,
-        serviceName: s.serviceName,
-        quantity: qty,
-        unitPrice: price,
-        total: Number(s.total ?? qty * price),
-        notes: s.notes || '',
-        doctorId: s.doctorId || undefined,
-        specialty: s.specialty || undefined,
-      })
+      lines.push(passthroughAutomaticLine(s, qty, i))
       continue
     }
 
@@ -295,13 +304,13 @@ export async function resolveCatalogServiceLines(services = []) {
       return { error: 'This catalog item is inactive and cannot be billed.', lines: [] }
     }
 
-    lines.push(snapshotFromCatalogItem(item, category, { id: s.id, quantity: qty, notes: s.notes }))
+    lines.push(snapshotFromCatalogItem(item, category, { id: s.id, quantity: qty, notes: s.notes, emergencyPricing }))
   }
 
   return { error: null, lines }
 }
 
-export async function resolveCatalogReturnLines(returnItems = []) {
+export async function resolveCatalogReturnLines(returnItems = [], { emergencyPricing = false } = {}) {
   const pharmacy = await ServiceCategory.findOne({ slug: 'pharmacy' })
   if (!pharmacy) return { error: 'Pharmacy catalog was not found.', lines: [] }
 
@@ -320,15 +329,17 @@ export async function resolveCatalogReturnLines(returnItems = []) {
       return { error: 'This catalog item is inactive and cannot be billed.', lines: [] }
     }
 
-    const price = Number(item.price) || 0
+    const priced = applyEmergencyPrice(item.price, { emergencyPricing })
     lines.push({
       id: r.id || `ret-${Date.now()}-${i}`,
       catalogItemId: String(item._id),
       serviceName: item.name,
       unit: item.unit || '',
       quantity: qty,
-      unitPrice: price,
-      total: qty * price,
+      baseUnitPrice: priced.baseUnitPrice,
+      priceMultiplier: priced.priceMultiplier,
+      unitPrice: priced.unitPrice,
+      total: roundMoney(qty * priced.unitPrice),
       reason: r.reason || '',
     })
   }

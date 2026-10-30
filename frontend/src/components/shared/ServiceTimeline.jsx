@@ -105,14 +105,36 @@ export function ServiceTimeline({ entries, showAudit = true, compact = false }) 
 export function AuditTrail({ trail }) {
   const actionLabels = {
     recorded: 'Recorded',
+    submitted: 'Submitted',
     approved: 'Approved',
     rejected: 'Rejected',
+    accepted: 'Accepted',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    department_approved: 'Department approved',
+    department_rejected: 'Department rejected',
+    processing: 'Processing',
+    handed_over: 'Handed over',
+    partial_handover: 'Partially handed over',
+    not_supplied: 'Not supplied',
+    returned: 'Returned',
   }
 
   const actionColors = {
     recorded: 'text-primary',
+    submitted: 'text-primary',
     approved: 'text-success',
     rejected: 'text-destructive',
+    accepted: 'text-primary',
+    completed: 'text-success',
+    cancelled: 'text-muted-foreground',
+    department_approved: 'text-success',
+    department_rejected: 'text-destructive',
+    processing: 'text-primary',
+    handed_over: 'text-success',
+    partial_handover: 'text-primary',
+    not_supplied: 'text-destructive',
+    returned: 'text-primary',
   }
 
   return (

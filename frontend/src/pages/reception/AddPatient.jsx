@@ -11,6 +11,8 @@ import { useBillingConfig } from '@/context/BillingConfigContext'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
+import { useAuth } from '@/context/AuthContext'
+import { isEmergencyOpdAdmission } from '@/lib/admissions'
 import { formatCurrency } from '@/lib/utils'
 import { DoctorPicker } from '@/components/shared/DoctorPicker'
 import { api, USE_API } from '@/api/client'
@@ -33,7 +35,9 @@ function FieldError({ message }) {
 export default function AddPatient() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { user, hasPermission } = useAuth()
   const { addPatient, patients, rooms } = usePatients()
+  const emergencyOnly = hasPermission('admissions.create_emergency') && !hasPermission('admissions.create')
   const { ensureAutomaticDailyCharges } = useServiceEntries()
   const { settings: hospitalConfig } = useBillingConfig()
 
@@ -67,12 +71,16 @@ export default function AddPatient() {
     referenceNumber: '',
     notes: '',
     admissionPaymentMode: 'paid',
+    creditCompanyId: '',
     doctorIds: [],
-    admissionType: 'normal',
+    admissionType: emergencyOnly ? 'emergency-opd' : 'normal',
   })
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [doctors, setDoctors] = useState([])
+  const [companies, setCompanies] = useState([])
+  const [companiesLoading, setCompaniesLoading] = useState(false)
+  const [companyQuery, setCompanyQuery] = useState('')
 
   const methodKey = paymentMethods.join('|')
   const [methodTouched, setMethodTouched] = useState(false)
@@ -80,8 +88,13 @@ export default function AddPatient() {
     setForm((prev) => {
       const next = { ...prev }
       if (!methodTouched || !paymentMethods.includes(prev.depositType)) next.depositType = defaultPaymentMethod
-      if (!creditAdmissionsEnabled && prev.admissionPaymentMode === 'credit') next.admissionPaymentMode = 'paid'
-      return next.depositType === prev.depositType && next.admissionPaymentMode === prev.admissionPaymentMode
+      if (!creditAdmissionsEnabled && prev.admissionPaymentMode === 'credit') {
+        next.admissionPaymentMode = 'paid'
+        next.creditCompanyId = ''
+      }
+      return next.depositType === prev.depositType
+        && next.admissionPaymentMode === prev.admissionPaymentMode
+        && next.creditCompanyId === prev.creditCompanyId
         ? prev
         : next
     })
@@ -102,10 +115,39 @@ export default function AddPatient() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!USE_API || !creditAdmissionsEnabled) return undefined
+    let cancelled = false
+    setCompaniesLoading(true)
+    api.listCreditCompanies({ active: true })
+      .then((data) => {
+        if (!cancelled) setCompanies(data.companies || [])
+      })
+      .catch(() => {
+        if (!cancelled) setCompanies([])
+      })
+      .finally(() => {
+        if (!cancelled) setCompaniesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [creditAdmissionsEnabled])
+
   const availableBeds = useMemo(() => {
     const room = rooms.find((r) => r.roomType === form.bedType)
     return room?.beds.filter((b) => b.status === 'available') || []
   }, [rooms, form.bedType])
+
+  const visibleCompanies = useMemo(() => {
+    const search = companyQuery.trim().toLowerCase()
+    if (!search) return companies
+    return companies.filter((row) =>
+      [row.name, row.code].some((value) => String(value || '').toLowerCase().includes(search))
+    )
+  }, [companies, companyQuery])
+
+  const selectedCompany = companies.find((row) => row.id === form.creditCompanyId)
 
   const set = (key, val) => {
     setForm((p) => ({ ...p, [key]: val }))
@@ -124,6 +166,7 @@ export default function AddPatient() {
       referenceNumber: trimText(form.referenceNumber),
       admissionDate,
       admissionPaymentMode: form.admissionPaymentMode,
+      creditCompanyId: form.admissionPaymentMode === 'credit' ? form.creditCompanyId : '',
       doctorIds: form.doctorIds,
     }
 
@@ -168,18 +211,27 @@ export default function AddPatient() {
         notes: trimmed.notes,
         initialDeposit: Number(trimmed.initialDeposit || 0),
         admissionPaymentMode: trimmed.admissionPaymentMode,
+        creditCompanyId: trimmed.admissionPaymentMode === 'credit' ? trimmed.creditCompanyId : undefined,
+        creditCompanyName: trimmed.admissionPaymentMode === 'credit'
+          ? companies.find((row) => row.id === trimmed.creditCompanyId)?.name
+          : undefined,
         doctorIds: trimmed.doctorIds,
         admissionType: trimmed.admissionType || 'normal',
       })
 
-      await ensureAutomaticDailyCharges(patient.id, admissionDate, patient)
+      if (trimmed.admissionType !== 'emergency-opd') {
+        await ensureAutomaticDailyCharges(patient.id, admissionDate, patient)
+      }
 
+      const emergency = isEmergencyOpdAdmission(trimmed.admissionType)
       toast({
-        title: 'Patient Admitted',
-        description: `${patient.name} registered. Room assignment and daily charges applied.`,
+        title: emergency ? 'Emergency OPD patient registered' : 'Patient Admitted',
+        description: emergency
+          ? `${patient.name} is registered without a bed, doctor, or deposit. Services use emergency pricing.`
+          : `${patient.name} registered. Room assignment and daily charges applied.`,
         variant: 'success',
       })
-      navigate(`/reception/patient/${patient.id}`)
+      navigate(user?.roleKey === 'nurse' ? `/nurse/patient/${patient.id}` : `/reception/patient/${patient.id}`)
     } catch (err) {
       toast({ title: 'Admission failed', description: err.message, variant: 'destructive' })
     } finally {
@@ -189,7 +241,14 @@ export default function AddPatient() {
 
   return (
     <div>
-      <PageHeader title="Add Patient" description="Register a new in-patient with deposit and bed assignment" />
+      <PageHeader
+        title={emergencyOnly ? 'Emergency OPD Admission' : 'Add Patient'}
+        description={
+          emergencyOnly
+            ? 'Register a patient for emergency care. Bed, doctor, and deposit are not required.'
+            : 'Register a new in-patient with deposit and bed assignment, or an Emergency OPD visit without a bed.'
+        }
+      />
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid gap-6 lg:grid-cols-2">
@@ -229,8 +288,8 @@ export default function AddPatient() {
                 <FieldError message={errors.phone} />
               </div>
               <div>
-                <Label>Address *</Label>
-                <Input value={form.address} onChange={(e) => set('address', e.target.value)} />
+                <Label>Address</Label>
+                <Input value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Optional" />
                 <FieldError message={errors.address} />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -251,13 +310,20 @@ export default function AddPatient() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={form.admissionType}
                   onChange={(e) => set('admissionType', e.target.value)}
+                  disabled={emergencyOnly}
                 >
-                  <option value="normal">Normal</option>
-                  <option value="maternity">Maternity (mother & baby)</option>
+                  {!emergencyOnly && <option value="normal">Normal</option>}
+                  {!emergencyOnly && <option value="maternity">Maternity (mother & baby)</option>}
+                  <option value="emergency-opd">Emergency OPD</option>
                 </select>
                 {form.admissionType === 'maternity' && (
                   <p className="text-xs text-muted-foreground mt-1">
                     The mother is the primary patient. Newborn details can be added after delivery on the same admission.
+                  </p>
+                )}
+                {form.admissionType === 'emergency-opd' && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    No bed, doctor, or deposit is required. Billable services are charged at 1.25 times the catalog price.
                   </p>
                 )}
               </div>
@@ -275,6 +341,7 @@ export default function AddPatient() {
           </Card>
 
           <div className="space-y-6">
+            {form.admissionType !== 'emergency-opd' && (
             <Card>
               <CardHeader><CardTitle>Bed Assignment</CardTitle></CardHeader>
               <CardContent className="space-y-4">
@@ -306,7 +373,9 @@ export default function AddPatient() {
                 </div>
               </CardContent>
             </Card>
+            )}
 
+            {form.admissionType !== 'emergency-opd' && (
             <Card>
               <CardHeader>
                 <CardTitle>Visiting Doctors</CardTitle>
@@ -321,13 +390,28 @@ export default function AddPatient() {
                 />
               </CardContent>
             </Card>
+            )}
 
+            {form.admissionType !== 'emergency-opd' && (
             <Card>
               <CardHeader><CardTitle>Admission Deposit</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div>
                   <Label>Payment status *</Label>
-                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.admissionPaymentMode} onChange={(e) => set('admissionPaymentMode', e.target.value)}>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={form.admissionPaymentMode}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      setForm((prev) => ({
+                        ...prev,
+                        admissionPaymentMode: next,
+                        creditCompanyId: next === 'credit' ? prev.creditCompanyId : '',
+                      }))
+                      setErrors((prev) => ({ ...prev, admissionPaymentMode: undefined, creditCompanyId: undefined }))
+                      if (next !== 'credit') setCompanyQuery('')
+                    }}
+                  >
                     <option value="paid">Paid</option>
                     {creditAdmissionsEnabled && <option value="credit">Credit</option>}
                   </select>
@@ -343,6 +427,41 @@ export default function AddPatient() {
                     <p className="text-muted-foreground">
                       This patient is admitted on credit. Amount paid now can be 0.
                     </p>
+                    {selectedCompany ? (
+                      <p className="mt-2 font-medium">Credit Company: {selectedCompany.name}{selectedCompany.code ? ` (${selectedCompany.code})` : ''}</p>
+                    ) : null}
+                  </div>
+                )}
+                {form.admissionPaymentMode === 'credit' && (
+                  <div>
+                    <Label>Credit Company *</Label>
+                    <Input
+                      className="mb-2"
+                      value={companyQuery}
+                      onChange={(e) => setCompanyQuery(e.target.value)}
+                      placeholder="Search companies"
+                    />
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={form.creditCompanyId}
+                      onChange={(e) => set('creditCompanyId', e.target.value)}
+                    >
+                      <option value="">Select a credit company</option>
+                      {visibleCompanies.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.name}{row.code ? ` (${row.code})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <FieldError message={errors.creditCompanyId} />
+                    {companiesLoading ? (
+                      <p className="mt-1 text-xs text-muted-foreground">Loading credit companies…</p>
+                    ) : null}
+                    {!companiesLoading && companies.length === 0 ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        No active credit companies are available. Please contact an administrator.
+                      </p>
+                    ) : null}
                   </div>
                 )}
                 <div>
@@ -373,10 +492,11 @@ export default function AddPatient() {
                 )}
               </CardContent>
             </Card>
+            )}
 
             <div className="flex gap-3">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => navigate('/reception')} disabled={submitting}>Cancel</Button>
-              <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? 'Admitting...' : 'Admit Patient'}</Button>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => navigate(user?.roleKey === 'nurse' ? '/nurse' : '/reception')} disabled={submitting}>Cancel</Button>
+              <Button type="submit" className="flex-1" disabled={submitting}>{submitting ? 'Admitting...' : form.admissionType === 'emergency-opd' ? 'Register Emergency OPD' : 'Admit Patient'}</Button>
             </div>
           </div>
         </div>

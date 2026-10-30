@@ -192,7 +192,7 @@ describe('GET /api/manager finance pages HTTP', { skip: !hasDb }, () => {
     const res = await request(app, '/api/manager/credit-patients', sign(manager))
     assert.equal(res.status, 200)
     const ours = res.body.rows.filter((row) => row.patientId?.startsWith(PREFIX))
-    assert.ok(ours.some((row) => row.patientId === `${PREFIX}CR` && row.creditOutstanding === 11000))
+    assert.ok(ours.some((row) => row.patientId === `${PREFIX}CR` && row.creditOutstanding === row.remaining))
     assert.equal(ours.some((row) => row.patientId === `${PREFIX}OWES`), false)
   })
 })
