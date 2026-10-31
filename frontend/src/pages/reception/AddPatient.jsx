@@ -323,7 +323,7 @@ export default function AddPatient() {
                 )}
                 {form.admissionType === 'emergency-opd' && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    No bed, doctor, or deposit is required. Billable services are charged at 1.25 times the catalog price.
+                    No bed, doctor, or deposit is required. Services use normal catalog prices. The 1.25 inpatient surcharge starts only after conversion.
                   </p>
                 )}
               </div>

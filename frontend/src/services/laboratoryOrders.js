@@ -2,15 +2,15 @@ function trimText(value) {
   return String(value ?? '').trim()
 }
 
+function isReleased(status) {
+  return status === 'approved' || status === 'processing' || status === 'completed'
+}
+
 export function laboratoryOverallStatus(items = []) {
   if (!items.length) return 'pending'
   const open = items.filter((item) => item.status !== 'cancelled' && item.status !== 'rejected')
   if (!open.length) return items.some((item) => item.status === 'rejected') ? 'rejected' : 'cancelled'
-  if (open.every((item) => item.status === 'completed')) return 'completed'
-  if (open.some((item) => item.status === 'processing')) return 'processing'
-  if (open.every((item) => item.status === 'approved' || item.status === 'processing' || item.status === 'completed')) {
-    return open.every((item) => item.status === 'approved') ? 'approved' : 'processing'
-  }
+  if (open.every((item) => isReleased(item.status))) return 'approved'
   if (open.some((item) => item.status !== 'pending')) return 'partially_decided'
   return 'pending'
 }
@@ -118,12 +118,6 @@ function reasonText(value, label) {
   return { note }
 }
 
-function optionalNote(value) {
-  const note = trimText(value)
-  if (note.length > 400) return { error: 'Keep the completion note under 400 characters.' }
-  return { note }
-}
-
 export function approveLaboratoryItem(order, actor, input = {}, at = new Date().toISOString()) {
   if (!order) return { error: 'Request not found.' }
   const found = requireItem(order, input)
@@ -168,47 +162,6 @@ export function rejectLaboratoryItem(order, actor, input = {}, at = new Date().t
       status: 'rejected',
       reason: reason.note,
       receptionStatus: 'not_sent',
-    }, event),
-  }
-}
-
-export function processLaboratoryItem(order, actor, input = {}, at = new Date().toISOString()) {
-  if (!order) return { error: 'Request not found.' }
-  const found = requireItem(order, input)
-  if (found.error || found.duplicate) return found
-  if (found.item.status !== 'approved') return { error: 'Approve the test before processing it.' }
-  const event = {
-    action: 'processing',
-    by: actor?.name || 'Laboratory',
-    byId: String(actor?.id || ''),
-    at,
-    lineId: found.item.lineId,
-    note: 'Test accepted for processing. This does not approve the charge.',
-    clientActionId: found.clientActionId,
-  }
-  return { order: withItem(order, found.item.lineId, { status: 'processing' }, event) }
-}
-
-export function completeLaboratoryItem(order, actor, input = {}, at = new Date().toISOString()) {
-  if (!order) return { error: 'Request not found.' }
-  const found = requireItem(order, input)
-  if (found.error || found.duplicate) return found
-  if (found.item.status !== 'processing') return { error: 'Accept the test for processing before completing it.' }
-  const note = optionalNote(input.note || input.completionNote)
-  if (note.error) return note
-  const event = {
-    action: 'completed',
-    by: actor?.name || 'Laboratory',
-    byId: String(actor?.id || ''),
-    at,
-    lineId: found.item.lineId,
-    note: note.note || 'Test completed.',
-    clientActionId: found.clientActionId,
-  }
-  return {
-    order: withItem(order, found.item.lineId, {
-      status: 'completed',
-      completionNote: note.note,
     }, event),
   }
 }

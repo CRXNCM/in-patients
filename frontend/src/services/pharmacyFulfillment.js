@@ -390,6 +390,18 @@ export function verifyReturn(order, actor, input = {}, at = new Date().toISOStri
   if (presented == null || accepted == null || accepted < 0 || accepted > presented) {
     return { error: 'Accepted quantity must be a whole number from zero up to the quantity presented.' }
   }
+  if (input.rejectedQuantity !== undefined && input.rejectedQuantity !== null && input.rejectedQuantity !== '') {
+    const rejected = wholeQuantity(input.rejectedQuantity)
+    if (rejected == null || rejected < 0) {
+      return { error: 'Rejected quantity must be a whole number of zero or more.' }
+    }
+    if (accepted + rejected > presented) {
+      return { error: 'Accepted and rejected quantities cannot exceed the quantity presented.' }
+    }
+    if (accepted + rejected !== presented) {
+      return { error: 'Accepted plus rejected must equal the quantity presented.' }
+    }
+  }
   const discrepancy = trimText(input.discrepancyReason)
   if (accepted < presented && discrepancy.length < 3) {
     return { error: 'Enter why part of the presented quantity was not accepted.' }
@@ -454,6 +466,9 @@ export function describeMedicineReturn(order, entry) {
     patientId: order?.patientId || '',
     patientName: order?.patientName || '',
     admissionId: order?.admissionId || '',
+    ward: order?.ward || '',
+    room: order?.room || '',
+    bed: order?.bed || '',
     lineId: entry.lineId,
     medicineName: item.name || '',
     unit: item.unit || '',

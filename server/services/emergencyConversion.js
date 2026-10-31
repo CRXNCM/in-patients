@@ -20,6 +20,9 @@ export async function convertEmergencyOpdToInpatient({
   patientId,
   body,
   userName,
+  actor = null,
+  pathway = 'reception',
+  conversionRequestId = '',
   rules,
 }) {
   const patient = await Patient.findOne({ patientId })
@@ -102,28 +105,30 @@ export async function convertEmergencyOpdToInpatient({
 
     const assignedDoctors = await assignDoctorsOnAdmit(patient, doctorIds, userName)
 
-    patient.conversionEvents = [
-      ...(patient.conversionEvents || []),
-      {
-        fromType: 'emergency-opd',
-        toType: 'normal',
-        at: new Date().toISOString(),
-        by: userName,
-        room: bedDoc.roomType,
-        bed: bedDoc.label,
-        bedId: bedDoc._id.toString(),
-        doctorIds,
-        depositAmount: deposit,
-        depositMethod: deposit > 0 ? (body.depositMethod || 'Cash') : '',
-        depositId: depositDoc ? String(depositDoc._id) : '',
-        admissionPaymentMode: paymentMode,
-      },
-    ]
+    const conversionEvent = {
+      fromType: 'emergency-opd',
+      toType: 'normal',
+      at: new Date().toISOString(),
+      by: userName,
+      byId: actor?.id || '',
+      byRole: actor?.role || '',
+      pathway,
+      conversionRequestId: conversionRequestId || '',
+      room: bedDoc.roomType,
+      bed: bedDoc.label,
+      bedId: bedDoc._id.toString(),
+      doctorIds,
+      depositAmount: deposit,
+      depositMethod: deposit > 0 ? (body.depositMethod || 'Cash') : '',
+      depositId: depositDoc ? String(depositDoc._id) : '',
+      admissionPaymentMode: paymentMode,
+    }
+    patient.conversionEvents = [...(patient.conversionEvents || []), conversionEvent]
     await patient.save()
 
     await ensureAutomaticDailyCharges(patient, null, { range: true })
     const balance = await calcPatientBalance(patient.patientId)
-    return { patient, bedDoc, assignedDoctors, balance, depositDoc }
+    return { patient, bedDoc, assignedDoctors, balance, depositDoc, conversionEvent }
   } catch (err) {
     await releaseBed(bedDoc, patient.patientId).catch(() => {})
     throw err

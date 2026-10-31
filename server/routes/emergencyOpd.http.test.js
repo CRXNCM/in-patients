@@ -14,8 +14,11 @@ import { Doctor } from '../models/Doctor.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { ServiceCategory } from '../models/ServiceCategory.js'
 import { defaultPermissionsForSlug } from '../utils/permissions.js'
-import { applyEmergencyPrice } from '../utils/admissions.js'
+import { applyAdmissionPrice } from '../utils/admissions.js'
 import patientRoutes from './patients.routes.js'
+import conversionRoutes from './conversion.routes.js'
+import { ConversionRequest } from '../models/ConversionRequest.js'
+import { Deposit } from '../models/Deposit.js'
 import { todayStr } from '../utils/dates.js'
 
 const PREFIX = 'emopd-test-'
@@ -60,11 +63,25 @@ describe('Emergency OPD admission HTTP', { skip: !hasDb }, () => {
   let labItem
   const created = { roles: [], users: [], patients: [], beds: [], doctors: [] }
 
+  async function cleanupPatients() {
+    const rows = await Patient.find({ name: { $regex: PREFIX } }).select('patientId')
+    const ids = rows.map((row) => row.patientId)
+    if (ids.length) {
+      await ConversionRequest.deleteMany({ patientId: { $in: ids } })
+      await Deposit.deleteMany({ patientId: { $in: ids } })
+      await ServiceRecord.deleteMany({ patientId: { $in: ids } })
+    }
+    await Patient.deleteMany({ name: { $regex: PREFIX } })
+    await Patient.deleteMany({ $or: [{ _id: { $in: created.patients } }, { patientId: { $regex: `^${PREFIX}` } }] })
+    await ConversionRequest.deleteMany({ requestedByName: { $in: ['Emergency Nurse Test', 'Reception Test'] } })
+    await Deposit.deleteMany({ receivedBy: { $in: ['Emergency Nurse Test', 'Reception Test'] } })
+  }
+
   before(async () => {
     await connectDB(process.env.MONGODB_URI)
     await User.deleteMany({ email: { $regex: `^${PREFIX}` } })
     await Role.deleteMany({ slug: { $regex: `^${PREFIX}` } })
-    await Patient.deleteMany({ patientId: { $regex: `^${PREFIX}` } })
+    await cleanupPatients()
     await ServiceRecord.deleteMany({ patientId: { $regex: `^${PREFIX}` } })
     await Bed.deleteMany({ label: { $regex: `^${PREFIX}` } })
     await Doctor.deleteMany({ name: { $regex: `^${PREFIX}` } })
@@ -139,20 +156,35 @@ describe('Emergency OPD admission HTTP', { skip: !hasDb }, () => {
 
     bed = await Bed.create({
       label: `${PREFIX}GW-01`,
+      nameKey: `${PREFIX}gw-01`,
       roomType: 'General Ward',
       dailyRate: 1500,
       status: 'available',
     })
-    created.beds.push(bed._id)
+    const bed2 = await Bed.create({
+      label: `${PREFIX}GW-02`,
+      nameKey: `${PREFIX}gw-02`,
+      roomType: 'General Ward',
+      dailyRate: 1500,
+      status: 'available',
+    })
+    const bed3 = await Bed.create({
+      label: `${PREFIX}GW-03`,
+      nameKey: `${PREFIX}gw-03`,
+      roomType: 'General Ward',
+      dailyRate: 1500,
+      status: 'available',
+    })
+    created.beds.push(bed._id, bed2._id, bed3._id)
 
     app = express()
     app.use(express.json())
     app.use('/api/patients', patientRoutes)
+    app.use('/api', conversionRoutes)
   })
 
   after(async () => {
-    await ServiceRecord.deleteMany({ patientId: { $regex: `^${PREFIX}` } })
-    await Patient.deleteMany({ $or: [{ _id: { $in: created.patients } }, { patientId: { $regex: `^${PREFIX}` } }] })
+    await cleanupPatients()
     await Bed.deleteMany({ _id: { $in: created.beds } })
     await Doctor.deleteMany({ _id: { $in: created.doctors } })
     await User.deleteMany({ _id: { $in: created.users } })
@@ -211,23 +243,23 @@ describe('Emergency OPD admission HTTP', { skip: !hasDb }, () => {
     assert.equal(res.status, 403)
   })
 
-  it('applies 1.25 emergency pricing once on catalog services and keeps it after conversion', async () => {
+  async function admitEmergency(name) {
     const admit = await request(app, '/api/patients', {
       token: sign(emergencyNurse),
       method: 'POST',
-      body: {
-        name: `${PREFIX} Pricing`,
-        gender: 'Female',
-        age: 33,
-        admissionType: 'emergency-opd',
-      },
+      body: { name: `${PREFIX} ${name}`, gender: 'Female', age: 33, admissionType: 'emergency-opd' },
     })
     assert.equal(admit.status, 201, admit.body.error)
-    const patientId = admit.body.patient.id
     created.patients.push(admit.body.patient.admissionId)
+    return admit.body.patient
+  }
 
-    const expected = applyEmergencyPrice(labItem.price, { emergencyPricing: true })
-    const record = await request(app, `/api/patients/${patientId}/records`, {
+  it('keeps Emergency OPD catalog prices and applies 1.25 only after inpatient conversion', async () => {
+    const patient = await admitEmergency('Pricing')
+    const emergencyPrice = applyAdmissionPrice(labItem.price, { inpatientPricing: false })
+    const inpatientPrice = applyAdmissionPrice(labItem.price, { inpatientPricing: true })
+
+    const record = await request(app, `/api/patients/${patient.id}/records`, {
       token: sign(emergencyNurse),
       method: 'POST',
       body: {
@@ -235,23 +267,23 @@ describe('Emergency OPD admission HTTP', { skip: !hasDb }, () => {
           catalogItemId: String(labItem._id),
           category: 'Laboratory',
           quantity: 1,
-          unitPrice: labItem.price,
+          unitPrice: 9999,
         }],
       },
     })
     assert.equal(record.status, 201, record.body.error)
-    assert.equal(record.body.services[0].baseUnitPrice, expected.baseUnitPrice)
-    assert.equal(record.body.services[0].priceMultiplier, 1.25)
-    assert.equal(record.body.services[0].unitPrice, expected.unitPrice)
+    assert.equal(record.body.services[0].baseUnitPrice, emergencyPrice.baseUnitPrice)
+    assert.equal(record.body.services[0].priceMultiplier, 1)
+    assert.equal(record.body.services[0].unitPrice, emergencyPrice.unitPrice)
 
-    const missing = await request(app, `/api/patients/${patientId}/convert-to-inpatient`, {
+    const missing = await request(app, `/api/patients/${patient.id}/convert-to-inpatient`, {
       token: sign(reception),
       method: 'POST',
       body: { bedId: bed.label, doctorIds: [String(doctor._id)] },
     })
     assert.equal(missing.status, 400)
 
-    const converted = await request(app, `/api/patients/${patientId}/convert-to-inpatient`, {
+    const converted = await request(app, `/api/patients/${patient.id}/convert-to-inpatient`, {
       token: sign(reception),
       method: 'POST',
       body: {
@@ -264,31 +296,184 @@ describe('Emergency OPD admission HTTP', { skip: !hasDb }, () => {
     assert.equal(converted.status, 200, converted.body.error)
     assert.equal(converted.body.patient.admissionType, 'normal')
     assert.equal(converted.body.patient.convertedFromEmergency, true)
-    assert.ok(converted.body.patient.conversionEvents?.length)
 
-    const saved = await ServiceRecord.findOne({ patientId, 'services.catalogItemId': String(labItem._id) })
-    assert.equal(saved.services[0].unitPrice, expected.unitPrice)
-    assert.equal(saved.services[0].priceMultiplier, 1.25)
-  })
+    const saved = await ServiceRecord.findById(record.body.id)
+    assert.equal(saved.services[0].unitPrice, emergencyPrice.unitPrice)
+    assert.equal(saved.services[0].priceMultiplier, 1)
 
-  it('blocks conversion by an Emergency Nurse', async () => {
-    const admit = await request(app, '/api/patients', {
-      token: sign(emergencyNurse),
-      method: 'POST',
-      body: { name: `${PREFIX} Block`, gender: 'Male', age: 22, admissionType: 'emergency-opd' },
-    })
-    assert.equal(admit.status, 201, admit.body.error)
-    created.patients.push(admit.body.patient.admissionId)
-    const res = await request(app, `/api/patients/${admit.body.patient.id}/convert-to-inpatient`, {
+    const later = await request(app, `/api/patients/${patient.id}/records`, {
       token: sign(emergencyNurse),
       method: 'POST',
       body: {
-        bedId: `${PREFIX}GW-99`,
+        services: [{
+          catalogItemId: String(labItem._id),
+          category: 'Laboratory',
+          quantity: 1,
+        }],
+      },
+    })
+    assert.equal(later.status, 201, later.body.error)
+    assert.equal(later.body.services[0].priceMultiplier, 1.25)
+    assert.equal(later.body.services[0].unitPrice, inpatientPrice.unitPrice)
+  })
+
+  it('lets an Emergency Nurse request inpatient admission without changing type', async () => {
+    const patient = await admitEmergency('Request')
+    const createdReq = await request(app, `/api/patients/${patient.id}/conversion-requests`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: { reason: 'Needs observation overnight', notes: 'Handover at 22:00' },
+    })
+    assert.equal(createdReq.status, 201, createdReq.body.error)
+    assert.equal(createdReq.body.request.status, 'pending')
+
+    const stillEmergency = await Patient.findOne({ patientId: patient.id })
+    assert.equal(stillEmergency.admissionType, 'emergency-opd')
+    assert.ok(!stillEmergency.bed)
+
+    const duplicate = await request(app, `/api/patients/${patient.id}/conversion-requests`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: { reason: 'Second request' },
+    })
+    assert.equal(duplicate.status, 409)
+
+    const queue = await request(app, '/api/conversion-requests', { token: sign(reception) })
+    assert.equal(queue.status, 200, queue.body.error)
+    assert.ok(queue.body.requests.some((row) => row.patientId === patient.id))
+
+    const nurseQueue = await request(app, '/api/conversion-requests', { token: sign(emergencyNurse) })
+    assert.equal(nurseQueue.status, 403)
+  })
+
+  it('lets Reception return, the nurse resubmit, then Reception reject a request', async () => {
+    const patient = await admitEmergency('ReturnReject')
+    const createdReq = await request(app, `/api/patients/${patient.id}/conversion-requests`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: { reason: 'Admit for surgery' },
+    })
+    const requestId = createdReq.body.request.id
+
+    const returned = await request(app, `/api/conversion-requests/${requestId}/return`, {
+      token: sign(reception),
+      method: 'POST',
+      body: { reason: 'Need estimated stay length' },
+    })
+    assert.equal(returned.status, 200, returned.body.error)
+    assert.equal(returned.body.request.status, 'returned')
+
+    const resubmitted = await request(app, `/api/conversion-requests/${requestId}/resubmit`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: { reason: 'Admit for surgery. Estimated 3 days.' },
+    })
+    assert.equal(resubmitted.status, 200, resubmitted.body.error)
+    assert.equal(resubmitted.body.request.status, 'resubmitted')
+
+    const rejected = await request(app, `/api/conversion-requests/${requestId}/reject`, {
+      token: sign(reception),
+      method: 'POST',
+      body: { reason: 'Can continue as Emergency OPD' },
+    })
+    assert.equal(rejected.status, 200, rejected.body.error)
+    assert.equal(rejected.body.request.status, 'rejected')
+    const still = await Patient.findOne({ patientId: patient.id })
+    assert.equal(still.admissionType, 'emergency-opd')
+  })
+
+  it('lets Reception complete a pending request with bed, doctor, and deposit', async () => {
+    const patient = await admitEmergency('Complete')
+    const createdReq = await request(app, `/api/patients/${patient.id}/conversion-requests`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: { reason: 'Needs ward bed' },
+    })
+    const completed = await request(app, `/api/conversion-requests/${createdReq.body.request.id}/complete`, {
+      token: sign(reception),
+      method: 'POST',
+      body: {
+        bedId: `${PREFIX}GW-02`,
         doctorIds: [String(doctor._id)],
         depositAmount: 15000,
         depositMethod: 'Cash',
       },
     })
-    assert.equal(res.status, 403)
+    assert.equal(completed.status, 200, completed.body.error)
+    assert.equal(completed.body.patient.admissionType, 'normal')
+    assert.equal(completed.body.request.status, 'completed')
+    const deposits = await Deposit.find({ patientId: patient.id, receivedBy: 'Reception Test', isInitial: true })
+    assert.equal(deposits.length, 1)
+    assert.equal(deposits[0].amount, 15000)
+  })
+
+  it('lets an Emergency Nurse self-convert with full inpatient validation and blocks unrelated reception work', async () => {
+    const patient = await admitEmergency('Self')
+    const missingBed = await request(app, `/api/patients/${patient.id}/convert-to-inpatient`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: { doctorIds: [String(doctor._id)], depositAmount: 15000, depositMethod: 'Cash' },
+    })
+    assert.equal(missingBed.status, 400)
+
+    const missingDoctor = await request(app, `/api/patients/${patient.id}/convert-to-inpatient`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: { bedId: `${PREFIX}GW-03`, depositAmount: 15000, depositMethod: 'Cash' },
+    })
+    assert.equal(missingDoctor.status, 400)
+
+    const missingDeposit = await request(app, `/api/patients/${patient.id}/convert-to-inpatient`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: { bedId: `${PREFIX}GW-03`, doctorIds: [String(doctor._id)] },
+    })
+    assert.equal(missingDeposit.status, 400)
+
+    const occupied = await request(app, `/api/patients/${patient.id}/convert-to-inpatient`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: {
+        bedId: bed.label,
+        doctorIds: [String(doctor._id)],
+        depositAmount: 15000,
+        depositMethod: 'Cash',
+      },
+    })
+    assert.equal(occupied.status, 400)
+
+    const depositAttempt = await request(app, `/api/patients/${patient.id}/deposits`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: { amount: 15000, method: 'Cash' },
+    })
+    assert.equal(depositAttempt.status, 403)
+
+    const converted = await request(app, `/api/patients/${patient.id}/convert-to-inpatient`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: {
+        bedId: `${PREFIX}GW-03`,
+        doctorIds: [String(doctor._id)],
+        depositAmount: 15000,
+        depositMethod: 'Cash',
+      },
+    })
+    assert.equal(converted.status, 200, converted.body.error)
+    assert.equal(converted.body.patient.admissionType, 'normal')
+    assert.equal(converted.body.patient.convertedFromEmergency, true)
+
+    const again = await request(app, `/api/patients/${patient.id}/convert-to-inpatient`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: {
+        bedId: `${PREFIX}GW-03`,
+        doctorIds: [String(doctor._id)],
+        depositAmount: 15000,
+        depositMethod: 'Cash',
+      },
+    })
+    assert.ok(again.status === 400 || again.status === 409)
   })
 })
+

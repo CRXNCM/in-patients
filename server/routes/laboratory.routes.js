@@ -5,9 +5,7 @@ import { todayStr } from '../utils/dates.js'
 import {
   approveLaboratoryItem,
   cancelLaboratoryItem,
-  completeLaboratoryItem,
   laboratoryOverallStatus,
-  processLaboratoryItem,
   rejectLaboratoryItem,
 } from '../../frontend/src/services/laboratoryOrders.js'
 import { syncLaboratoryItemCharge, withdrawPendingDepartmentCharge } from '../services/departmentBilling.js'
@@ -180,31 +178,6 @@ router.post('/orders/:id/items/:lineId/reject', authRequired, requireRoles('Labo
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to reject the test' })
-  }
-})
-
-router.post('/orders/:id/items/:lineId/process', authRequired, requireRoles('Laboratory'), async (req, res) => {
-  try {
-    await transition(req, res, (order) => processLaboratoryItem(order, actorOf(req), {
-      lineId: req.params.lineId,
-      clientActionId: req.body?.clientActionId,
-    }))
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Failed to start processing' })
-  }
-})
-
-router.post('/orders/:id/items/:lineId/complete', authRequired, requireRoles('Laboratory'), async (req, res) => {
-  try {
-    await transition(req, res, (order) => completeLaboratoryItem(order, actorOf(req), {
-      lineId: req.params.lineId,
-      clientActionId: req.body?.clientActionId,
-      note: req.body?.note || req.body?.completionNote,
-    }))
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Failed to complete the test' })
   }
 })
 

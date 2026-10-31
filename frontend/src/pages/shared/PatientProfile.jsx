@@ -50,7 +50,7 @@ import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionP
 import { isMaternityAdmission } from '@/lib/maternity'
 import { admissionTypeLabel, isEmergencyOpdAdmission } from '@/lib/admissions'
 import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
-import { ConvertToInpatientDialog } from '@/components/shared/ConvertToInpatientDialog'
+import { InpatientConversionPanel } from '@/components/shared/InpatientConversionPanel'
 
 function display(value) {
   if (value === 0) return '0'
@@ -159,7 +159,6 @@ function PatientProfile() {
   const canCompleteDischarge = hasPermission('admissions.discharge')
   const canRequestDischarge = user?.roleKey === 'nurse' && canEditPatient
   const canOpenBilling = user?.roleKey === 'reception' && hasPermission('patients.view')
-  const [convertOpen, setConvertOpen] = useState(false)
 
   const liveRecords = listed ? getPatientRecords(patientId) : data?.records || []
   const pendingRecords = liveRecords.filter((row) => row.status === 'pending')
@@ -367,15 +366,22 @@ function PatientProfile() {
                     <Wallet className="h-4 w-4" /> Add Deposit
                   </Button>
                 )}
-                {hasPermission('admissions.convert_inpatient') && isEmergencyOpdAdmission(stay.admissionType) && activeStay && (
-                  <Button size="sm" onClick={() => setConvertOpen(true)}>Convert to Inpatient</Button>
-                )}
                 {canRequestDischarge && listed && <RequestDischargeButton patient={listed} />}
               </div>
             </div>
           </CardContent>
         </Card>
       </MotionReveal>
+
+      {isEmergencyOpdAdmission(stay.admissionType) && activeStay && (
+        <InpatientConversionPanel
+          patient={listed || { id: patient.patientId, name: patient.name, status: patient.status, admissionType: stay.admissionType }}
+          onChanged={(updated) => {
+            if (updated) applyPatientUpdate(updated)
+            reload()
+          }}
+        />
+      )}
 
       {canReviewRecords && pendingRecords.length > 0 && (
         <MotionReveal className="mb-6">
@@ -691,12 +697,6 @@ function PatientProfile() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <ConvertToInpatientDialog
-        patient={listed || { id: patient.patientId, name: patient.name }}
-        open={convertOpen}
-        onOpenChange={setConvertOpen}
-        onConverted={() => reload()}
-      />
     </MotionPage>
   )
 }

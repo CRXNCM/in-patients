@@ -18,7 +18,9 @@ export const PERMISSION_CATALOG = [
       { key: 'admissions.view', label: 'View admissions' },
       { key: 'admissions.create', label: 'Create admissions' },
       { key: 'admissions.create_emergency', label: 'Create Emergency OPD admissions' },
-      { key: 'admissions.convert_inpatient', label: 'Convert Emergency OPD to inpatient' },
+      { key: 'admissions.convert_inpatient', label: 'Complete Emergency OPD inpatient conversion (Reception)' },
+      { key: 'admissions.request_inpatient', label: 'Request inpatient admission from Emergency OPD' },
+      { key: 'admissions.convert_inpatient_self', label: 'Convert Emergency OPD to inpatient without Reception' },
       { key: 'admissions.edit', label: 'Edit admissions' },
       { key: 'admissions.cancel', label: 'Cancel admissions' },
       { key: 'admissions.discharge', label: 'Discharge patients' },
@@ -192,6 +194,8 @@ const EMERGENCY_NURSE_PERMISSIONS = [
   'patients.edit',
   'admissions.view',
   'admissions.create_emergency',
+  'admissions.request_inpatient',
+  'admissions.convert_inpatient_self',
   'rooms.view',
   'doctors.view',
   'clinicalNotes.view',
@@ -235,7 +239,7 @@ export const PREDEFINED_ROLE_PRESETS = [
   {
     slug: 'emergency-nurse',
     label: 'Emergency Nurse',
-    description: 'Register Emergency OPD patients and submit service requests. Cannot assign beds, collect deposits, or approve billing.',
+    description: 'Register Emergency OPD patients, request inpatient admission, or complete a controlled self-conversion when Reception is unavailable.',
     permissions: EMERGENCY_NURSE_PERMISSIONS,
   },
   {

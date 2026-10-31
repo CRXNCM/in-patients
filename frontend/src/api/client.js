@@ -52,6 +52,21 @@ export const api = {
   createPatient: (body) => apiFetch('/api/patients', { method: 'POST', body: JSON.stringify(body) }),
   convertToInpatient: (id, body) =>
     apiFetch(`/api/patients/${id}/convert-to-inpatient`, { method: 'POST', body: JSON.stringify(body) }),
+  getConversionRequests: () => apiFetch('/api/conversion-requests'),
+  getPatientConversionRequests: (id) => apiFetch(`/api/patients/${encodeURIComponent(id)}/conversion-requests`),
+  requestInpatientAdmission: (id, body) =>
+    apiFetch(`/api/patients/${encodeURIComponent(id)}/conversion-requests`, { method: 'POST', body: JSON.stringify(body) }),
+  resubmitConversionRequest: (id, body) =>
+    apiFetch(`/api/conversion-requests/${encodeURIComponent(id)}/resubmit`, { method: 'POST', body: JSON.stringify(body) }),
+  returnConversionRequest: (id, body) =>
+    apiFetch(`/api/conversion-requests/${encodeURIComponent(id)}/return`, { method: 'POST', body: JSON.stringify(body) }),
+  rejectConversionRequest: (id, body) =>
+    apiFetch(`/api/conversion-requests/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify(body) }),
+  cancelConversionRequest: (id, body) =>
+    apiFetch(`/api/conversion-requests/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify(body) }),
+  completeConversionRequest: (id, body) =>
+    apiFetch(`/api/conversion-requests/${encodeURIComponent(id)}/complete`, { method: 'POST', body: JSON.stringify(body) }),
+
   upsertMaternityBaby: (id, body) =>
     apiFetch(`/api/patients/${id}/baby`, { method: 'PUT', body: JSON.stringify(body) }),
   addDeposit: (id, body) =>
@@ -140,10 +155,6 @@ export const api = {
     apiFetch(`/api/laboratory/orders/${orderId}/items/${encodeURIComponent(lineId)}/approve`, { method: 'POST', body: JSON.stringify(body) }),
   rejectLaboratoryItem: (orderId, lineId, body) =>
     apiFetch(`/api/laboratory/orders/${orderId}/items/${encodeURIComponent(lineId)}/reject`, { method: 'POST', body: JSON.stringify(body) }),
-  processLaboratoryItem: (orderId, lineId, body) =>
-    apiFetch(`/api/laboratory/orders/${orderId}/items/${encodeURIComponent(lineId)}/process`, { method: 'POST', body: JSON.stringify(body) }),
-  completeLaboratoryItem: (orderId, lineId, body) =>
-    apiFetch(`/api/laboratory/orders/${orderId}/items/${encodeURIComponent(lineId)}/complete`, { method: 'POST', body: JSON.stringify(body) }),
   cancelLaboratoryItem: (orderId, lineId, body) =>
     apiFetch(`/api/laboratory/orders/${orderId}/items/${encodeURIComponent(lineId)}/cancel`, { method: 'POST', body: JSON.stringify(body) }),
 

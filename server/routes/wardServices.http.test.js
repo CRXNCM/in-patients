@@ -21,6 +21,11 @@ import laboratoryRoutes from './laboratory.routes.js'
 import recordRoutes from './records.routes.js'
 import { todayStr } from '../utils/dates.js'
 import { calcPatientBalance } from '../services/autoCharges.js'
+import { applyAdmissionPrice } from '../utils/admissions.js'
+
+function billedPrice(base) {
+  return applyAdmissionPrice(base, { inpatientPricing: true }).unitPrice
+}
 
 const PREFIX = 'ward-route-'
 const hasDb = Boolean(process.env.MONGODB_URI && process.env.JWT_SECRET)
@@ -321,7 +326,7 @@ describe('ward service routing HTTP', { skip: !hasDb }, () => {
       body: { note: 'Dressing checked' },
     })
     assert.equal(dressingApproved.status, 200, dressingApproved.body.error)
-    assert.equal((await calcPatientBalance(patientId)).totalCharges, 50)
+    assert.equal((await calcPatientBalance(patientId)).totalCharges, billedPrice(50))
 
     const medApproved = await request(app, `/api/records/${med.billingRecordId}/approve`, {
       token: sign(reception),
@@ -329,7 +334,7 @@ describe('ward service routing HTTP', { skip: !hasDb }, () => {
       body: { note: 'Supplied quantity checked' },
     })
     assert.equal(medApproved.status, 200, medApproved.body.error)
-    assert.equal((await calcPatientBalance(patientId)).totalCharges, 50 + (4 * Number(pharmA.price)))
+    assert.equal((await calcPatientBalance(patientId)).totalCharges, billedPrice(50) + (4 * billedPrice(pharmA.price)))
     const billedOrders = await ServiceRecord.find({ billingKey: `pharmacy:${pharmacy._id}:med-a` })
     assert.equal(billedOrders.length, 1)
 
@@ -340,7 +345,7 @@ describe('ward service routing HTTP', { skip: !hasDb }, () => {
     })
     assert.equal(replay.status, 200, replay.body.error)
     assert.equal(await ServiceRecord.countDocuments({ billingKey: `pharmacy:${pharmacy._id}:med-a` }), 1)
-    assert.equal((await calcPatientBalance(patientId)).totalCharges, 50 + (4 * Number(pharmA.price)))
+    assert.equal((await calcPatientBalance(patientId)).totalCharges, billedPrice(50) + (4 * billedPrice(pharmA.price)))
 
     const over = await request(app, `/api/pharmacy/orders/${pharmacy._id}/handover`, {
       token: sign(pharmacist),
@@ -381,28 +386,19 @@ describe('ward service routing HTTP', { skip: !hasDb }, () => {
     assert.equal(labItemState.receptionStatus, 'pending')
     assert.equal((await calcPatientBalance(patientId)).totalCharges, beforeLab)
 
-    const completeEarly = await request(app, `/api/laboratory/orders/${laboratory._id}/items/${lineId}/complete`, {
-      token: sign(laboratoryUser),
-      method: 'POST',
-      body: { clientActionId: 'lab-complete-early', note: 'Too soon' },
-    })
-    assert.equal(completeEarly.status, 400)
-    const missingNote = await request(app, `/api/laboratory/orders/${laboratory._id}/items/${lineId}/process`, {
+    assert.equal((await calcPatientBalance(patientId)).totalCharges, beforeLab)
+    const goneProcess = await request(app, `/api/laboratory/orders/${laboratory._id}/items/${lineId}/process`, {
       token: sign(laboratoryUser),
       method: 'POST',
       body: { clientActionId: 'lab-process' },
     })
-    assert.equal(missingNote.status, 200, missingNote.body.error)
-    const completed = await request(app, `/api/laboratory/orders/${laboratory._id}/items/${lineId}/complete`, {
+    assert.equal(goneProcess.status, 404)
+    const goneComplete = await request(app, `/api/laboratory/orders/${laboratory._id}/items/${lineId}/complete`, {
       token: sign(laboratoryUser),
       method: 'POST',
-      body: { clientActionId: 'lab-complete-blank', note: '' },
+      body: { clientActionId: 'lab-complete', note: 'Done' },
     })
-    assert.equal(completed.status, 200, completed.body.error)
-    assert.equal(completed.body.items[0].completionNote, '')
-    assert.equal(completed.body.items[0].status, 'completed')
-    assert.equal(completed.body.status, 'completed')
-    assert.equal((await calcPatientBalance(patientId)).totalCharges, beforeLab)
+    assert.equal(goneComplete.status, 404)
 
     const labBill = await request(app, `/api/records/${labItemState.billingRecordId}/approve`, {
       token: sign(reception),
@@ -410,7 +406,7 @@ describe('ward service routing HTTP', { skip: !hasDb }, () => {
       body: { note: 'Laboratory release checked' },
     })
     assert.equal(labBill.status, 200, labBill.body.error)
-    assert.equal((await calcPatientBalance(patientId)).totalCharges, beforeLab + Number(labItem.price))
+    assert.equal((await calcPatientBalance(patientId)).totalCharges, beforeLab + billedPrice(labItem.price))
 
     const rejectedSubmit = await request(app, `/api/patients/${patientId}/ward-services`, {
       token: sign(nurse),
@@ -429,7 +425,7 @@ describe('ward service routing HTTP', { skip: !hasDb }, () => {
     assert.equal(rejected.status, 200, rejected.body.error)
     assert.equal(rejected.body.items[0].status, 'rejected')
     assert.equal(rejected.body.items[0].billingRecordId || '', '')
-    assert.equal((await calcPatientBalance(patientId)).totalCharges, beforeLab + Number(labItem.price))
+    assert.equal((await calcPatientBalance(patientId)).totalCharges, beforeLab + billedPrice(labItem.price))
 
     const [firstReturn, secondReturn] = await Promise.all([
       request(app, `/api/pharmacy/orders/${pharmacy._id}/returns`, {

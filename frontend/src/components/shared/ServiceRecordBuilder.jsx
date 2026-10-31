@@ -24,7 +24,7 @@ import {
   trimText,
 } from '@/lib/validation'
 import { isMaternityAdmission } from '@/lib/maternity'
-import { applyEmergencyPrice, isEmergencyOpdAdmission } from '@/lib/admissions'
+import { applyAdmissionPrice, usesInpatientPricing } from '@/lib/admissions'
 import { partitionServiceLines } from '@/services/pharmacyFulfillment'
 import { AnimatePresence, motion, useReducedMotion, fadeUp, revealTransition } from '@/lib/motion'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -62,8 +62,8 @@ export function ServiceRecordBuilder({
   const submissionRef = useRef('')
   const submissionSigRef = useRef('')
 
-  const emergencyPricing = isEmergencyOpdAdmission(patient)
-  const displayCatalogPrice = (price) => applyEmergencyPrice(price, { emergencyPricing }).unitPrice
+  const inpatientPricing = usesInpatientPricing(patient)
+  const displayCatalogPrice = (price) => applyAdmissionPrice(price, { inpatientPricing }).unitPrice
   const manualCategories = categories.filter((c) => c.billingType !== BILLING_TYPES.AUTOMATIC_DAILY)
   const pharmacyCategory = categories.find((c) => c.id === 'pharmacy')
 
@@ -266,7 +266,7 @@ export function ServiceRecordBuilder({
                   {!hideMoney && (
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                       {formatCurrency(displayCatalogPrice(svc.price))}
-                      {emergencyPricing ? <span className="ml-1 text-[10px] uppercase">1.25×</span> : null}
+                      {inpatientPricing ? <span className="ml-1 text-[10px] uppercase">1.25×</span> : null}
                     </span>
                   )}
                   <div className="flex items-center gap-1 shrink-0">

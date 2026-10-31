@@ -5,7 +5,7 @@ export default function LaboratoryQueuePage() {
     <LaboratoryOrderQueue
       canProcess
       title="Laboratory queue"
-      description="Review tests from the nurse record. Approving a test sends it to reception. Processing and completion do not approve the charge."
+      description="Review tests from the nurse record. Approving a test sends it to reception. That does not approve the charge."
     />
   )
 }

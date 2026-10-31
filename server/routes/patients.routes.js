@@ -23,6 +23,12 @@ import {
 } from '../utils/maternity.js'
 import { catalogPricingForPatient, isEmergencyOpdAdmission } from '../utils/admissions.js'
 import { convertEmergencyOpdToInpatient } from '../services/emergencyConversion.js'
+import {
+  actorFromReq,
+  completeSelfConversion,
+  findActiveConversionRequest,
+  recordCompletedConversion,
+} from '../services/conversionRequests.js'
 import { toFrontendAssignment as toDoctorAssignment } from '../utils/doctors.js'
 import { todayStr } from '../utils/dates.js'
 import { resolveCatalogServiceLines, resolveCatalogReturnLines } from '../utils/catalog.js'
@@ -635,15 +641,39 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
   }
 })
 
-router.post('/:id/convert-to-inpatient', authRequired, requirePermission('admissions.convert_inpatient'), async (req, res) => {
+router.post('/:id/convert-to-inpatient', authRequired, requireAnyPermission('admissions.convert_inpatient', 'admissions.convert_inpatient_self'), async (req, res) => {
   try {
     const rules = await loadResolvedSettings(HospitalSettings)
-    const result = await convertEmergencyOpdToInpatient({
-      patientId: req.params.id,
-      body: req.body,
-      userName: req.user.name,
-      rules,
-    })
+    const actor = actorFromReq(req)
+    const canReceptionConvert = roleHasPermission(req.auth?.role, 'admissions.convert_inpatient')
+    const result = canReceptionConvert
+      ? await convertEmergencyOpdToInpatient({
+        patientId: req.params.id,
+        body: req.body,
+        userName: req.user.name,
+        actor,
+        pathway: 'reception',
+        rules,
+      })
+      : await completeSelfConversion({
+        patientId: req.params.id,
+        body: req.body,
+        actor,
+        userName: req.user.name,
+        rules,
+      })
+
+    if (canReceptionConvert) {
+      const active = await findActiveConversionRequest(req.params.id)
+      await recordCompletedConversion({
+        patient: result.patient,
+        actor,
+        pathway: 'reception',
+        conversionEvent: result.conversionEvent,
+        existingRequest: active,
+      })
+    }
+
     const assignments = await RoomAssignment.find({ patientId: req.params.id }).sort({ startDate: 1 })
     const beds = await Bed.find()
     res.json({

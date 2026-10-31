@@ -51,6 +51,8 @@ describe('permission catalog', () => {
     assert.ok(emergencyNurse.includes('patients.create'))
     assert.ok(!emergencyNurse.includes('admissions.create'))
     assert.ok(!emergencyNurse.includes('admissions.convert_inpatient'))
+    assert.ok(emergencyNurse.includes('admissions.request_inpatient'))
+    assert.ok(emergencyNurse.includes('admissions.convert_inpatient_self'))
     assert.ok(!emergencyNurse.includes('rooms.assign_beds'))
     assert.ok(!emergencyNurse.includes('doctors.assign'))
     assert.ok(!emergencyNurse.includes('payments.create'))

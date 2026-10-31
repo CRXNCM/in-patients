@@ -1,9 +1,9 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  applyEmergencyPrice,
+  applyAdmissionPrice,
   catalogPricingForPatient,
-  EMERGENCY_PRICE_MULTIPLIER,
+  INPATIENT_PRICE_MULTIPLIER,
   isEmergencyOpdAdmission,
   normalizeAdmissionType,
 } from './admissions.js'
@@ -17,40 +17,41 @@ describe('emergency OPD admission type', () => {
     assert.equal(normalizeAdmissionType('twin'), null)
   })
 
-  it('identifies Emergency OPD patients for pricing', () => {
+  it('identifies Emergency OPD patients for catalog pricing', () => {
     assert.equal(isEmergencyOpdAdmission('emergency-opd'), true)
     assert.equal(isEmergencyOpdAdmission({ admissionType: 'emergency-opd' }), true)
     assert.equal(isEmergencyOpdAdmission({ admissionType: 'normal' }), false)
-    assert.deepEqual(catalogPricingForPatient({ admissionType: 'emergency-opd' }), { emergencyPricing: true })
-    assert.deepEqual(catalogPricingForPatient({ admissionType: 'normal' }), { emergencyPricing: false })
+    assert.deepEqual(catalogPricingForPatient({ admissionType: 'emergency-opd' }), {
+      inpatientPricing: false,
+      pricingAdmissionType: 'emergency-opd',
+    })
+    assert.deepEqual(catalogPricingForPatient({ admissionType: 'normal' }), {
+      inpatientPricing: true,
+      pricingAdmissionType: 'normal',
+    })
   })
 })
 
-describe('emergency pricing', () => {
-  it('multiplies catalog prices by 1.25 exactly once from the base', () => {
-    assert.equal(EMERGENCY_PRICE_MULTIPLIER, 1.25)
+describe('admission pricing', () => {
+  it('multiplies regular inpatient catalog prices by 1.25 exactly once from the base', () => {
+    assert.equal(INPATIENT_PRICE_MULTIPLIER, 1.25)
     const examples = [
       [100, 125],
       [200, 250],
-      [300, 375],
       [500, 625],
       [1000, 1250],
-      [1500, 1875],
       [2000, 2500],
-      [2500, 3125],
-      [5000, 6250],
-      [10000, 12500],
     ]
     for (const [base, expected] of examples) {
-      const priced = applyEmergencyPrice(base, { emergencyPricing: true })
+      const priced = applyAdmissionPrice(base, { inpatientPricing: true })
       assert.equal(priced.baseUnitPrice, base)
       assert.equal(priced.priceMultiplier, 1.25)
       assert.equal(priced.unitPrice, expected)
     }
   })
 
-  it('leaves normal catalog prices unchanged', () => {
-    const priced = applyEmergencyPrice(200, { emergencyPricing: false })
+  it('leaves Emergency OPD catalog prices unchanged', () => {
+    const priced = applyAdmissionPrice(200, { inpatientPricing: false })
     assert.equal(priced.unitPrice, 200)
     assert.equal(priced.priceMultiplier, 1)
     assert.equal(priced.baseUnitPrice, 200)

@@ -446,6 +446,10 @@ function shapeDashboard({ includeFinance, includeCredit, includeCensus, includeO
         today: collected.raw.emergencyChargesToday || 0,
         month: collected.raw.emergencyChargesMonth || 0,
       },
+      inpatientCharges: {
+        today: collected.raw.emergencyChargesToday || 0,
+        month: collected.raw.emergencyChargesMonth || 0,
+      },
       dischargeAmount: {
         today: collected.raw.dischargeAmountToday || 0,
         month: collected.raw.dischargeAmountMonth || 0,

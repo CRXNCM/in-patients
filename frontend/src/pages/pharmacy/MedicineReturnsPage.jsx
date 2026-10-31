@@ -7,10 +7,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { SearchInput } from '@/components/ui/search-input'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { EmptyState, PageHeader, StatusBadge } from '@/components/shared/CommonComponents'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { usePatients } from '@/context/PatientsContext'
@@ -30,16 +26,15 @@ export default function MedicineReturnsPage() {
   const [quantity, setQuantity] = useState('1')
   const [reasonCode, setReasonCode] = useState('unused')
   const [reasonNote, setReasonNote] = useState('')
-  const [confirm, setConfirm] = useState(false)
   const [formError, setFormError] = useState('')
   const [busy, setBusy] = useState(false)
   const actionId = useRef('')
   const [verifyTarget, setVerifyTarget] = useState(null)
   const [accepted, setAccepted] = useState('1')
+  const [rejected, setRejected] = useState('0')
   const [discrepancy, setDiscrepancy] = useState('')
   const [notes, setNotes] = useState('')
   const [verifyError, setVerifyError] = useState('')
-  const [verifyConfirm, setVerifyConfirm] = useState(false)
   const verifyActionId = useRef('')
 
   const matches = useMemo(() => {
@@ -88,8 +83,8 @@ export default function MedicineReturnsPage() {
     actionId.current = ''
   }
 
-  const review = () => {
-    if (!selected) return
+  const submit = async () => {
+    if (!selected || busy) return
     if (!actionId.current) actionId.current = crypto.randomUUID()
     const preview = applyReturn(selected.order, { id: 'preview', name: 'Pharmacist' }, {
       clientActionId: actionId.current,
@@ -104,11 +99,6 @@ export default function MedicineReturnsPage() {
       return
     }
     setFormError('')
-    setConfirm(true)
-  }
-
-  const submit = async () => {
-    if (!selected) return
     setBusy(true)
     try {
       await recordReturn(selected.order.id, {
@@ -120,12 +110,10 @@ export default function MedicineReturnsPage() {
         reasonNote,
       })
       toast({ title: 'Return sent for verification', description: 'Billing is unchanged until pharmacy accepts a quantity and reception reviews it.', variant: 'success' })
-      setConfirm(false)
       setSelection(null)
       setReasonNote('')
       actionId.current = ''
     } catch (err) {
-      setConfirm(false)
       setFormError(err.message)
       toast({ title: 'Return was not saved', description: err.message, variant: 'destructive' })
     } finally {
@@ -135,21 +123,43 @@ export default function MedicineReturnsPage() {
 
   const openVerify = (row) => {
     setVerifyTarget(row)
-    setAccepted(String(row.entry.presentedQuantity || row.entry.quantity || 1))
+    const presented = Number(row.entry.presentedQuantity || row.entry.quantity || 1)
+    setAccepted(String(presented))
+    setRejected('0')
     setDiscrepancy('')
     setNotes('')
     setVerifyError('')
     verifyActionId.current = ''
-    setVerifyConfirm(false)
   }
 
-  const reviewVerify = () => {
-    if (!verifyTarget) return
+  const changeAccepted = (value) => {
+    verifyActionId.current = ''
+    setAccepted(value)
+    const presented = Number(verifyTarget?.entry.presentedQuantity || verifyTarget?.entry.quantity || 0)
+    const nextAccepted = Number(value)
+    if (Number.isInteger(nextAccepted) && nextAccepted >= 0 && nextAccepted <= presented) {
+      setRejected(String(presented - nextAccepted))
+    }
+  }
+
+  const changeRejected = (value) => {
+    verifyActionId.current = ''
+    setRejected(value)
+    const presented = Number(verifyTarget?.entry.presentedQuantity || verifyTarget?.entry.quantity || 0)
+    const nextRejected = Number(value)
+    if (Number.isInteger(nextRejected) && nextRejected >= 0 && nextRejected <= presented) {
+      setAccepted(String(presented - nextRejected))
+    }
+  }
+
+  const submitVerify = async () => {
+    if (!verifyTarget || busy) return
     if (!verifyActionId.current) verifyActionId.current = crypto.randomUUID()
     const preview = verifyReturn(verifyTarget.order, { id: 'preview', name: 'Pharmacist' }, {
       clientActionId: verifyActionId.current,
       returnId: verifyTarget.entry.id,
       acceptedQuantity: Number(accepted),
+      rejectedQuantity: Number(rejected),
       discrepancyReason: discrepancy,
       verificationNotes: notes,
     })
@@ -158,16 +168,12 @@ export default function MedicineReturnsPage() {
       return
     }
     setVerifyError('')
-    setVerifyConfirm(true)
-  }
-
-  const submitVerify = async () => {
-    if (!verifyTarget) return
     setBusy(true)
     try {
       await verifyMedicineReturn(verifyTarget.order.id, verifyTarget.entry.id, {
         clientActionId: verifyActionId.current,
         acceptedQuantity: Number(accepted),
+        rejectedQuantity: Number(rejected),
         discrepancyReason: discrepancy,
         verificationNotes: notes,
       })
@@ -179,11 +185,9 @@ export default function MedicineReturnsPage() {
           : 'Nothing was accepted, so no billing adjustment was created.',
         variant: 'success',
       })
-      setVerifyConfirm(false)
       setVerifyTarget(null)
       verifyActionId.current = ''
     } catch (err) {
-      setVerifyConfirm(false)
       setVerifyError(err.message)
       toast({ title: 'Verification was not saved', description: err.message, variant: 'destructive' })
     } finally {
@@ -263,26 +267,31 @@ export default function MedicineReturnsPage() {
                   <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
                     <p className="text-sm font-medium">Initiate return — {selected.line.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      Up to {selected.line.netHeld} can be presented. This does not change the handover or the bill.
+                      {patient.name} · {patient.id} · Admission {selected.order.admissionId || patient.admissionId || patient.id}
+                      {' · '}{formatStayLocation(selected.order)} · Request {selected.order.submissionId}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Requested {selected.line.requestedQuantity} · Handed over {selected.line.suppliedQuantity} · Previously accepted returns {selected.line.acceptedReturned} · Eligible {selected.line.netHeld}
+                      {selected.line.unit ? ` ${selected.line.unit}` : ''}
                     </p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="return-qty">Quantity presented</Label>
-                        <Input id="return-qty" type="number" min="1" max={selected.line.netHeld} value={quantity} onChange={(event) => { actionId.current = ''; setQuantity(event.target.value) }} />
+                        <Label htmlFor="return-qty">Quantity being returned</Label>
+                        <Input id="return-qty" type="number" min="1" max={selected.line.netHeld} value={quantity} disabled={busy} onChange={(event) => { actionId.current = ''; setQuantity(event.target.value) }} />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="return-reason">Reason</Label>
-                        <NativeSelect id="return-reason" value={reasonCode} onChange={(event) => { actionId.current = ''; setReasonCode(event.target.value) }}>
+                        <NativeSelect id="return-reason" value={reasonCode} disabled={busy} onChange={(event) => { actionId.current = ''; setReasonCode(event.target.value) }}>
                           {RETURN_REASONS.map((reason) => <option key={reason.value} value={reason.value}>{reason.label}</option>)}
                         </NativeSelect>
                       </div>
                       <div className="space-y-2 sm:col-span-2">
                         <Label htmlFor="return-note">{reasonCode === 'other' ? 'Explanation' : 'Note (optional)'}</Label>
-                        <Textarea id="return-note" value={reasonNote} onChange={(event) => { actionId.current = ''; setReasonNote(event.target.value) }} />
+                        <Textarea id="return-note" value={reasonNote} disabled={busy} onChange={(event) => { actionId.current = ''; setReasonNote(event.target.value) }} />
                       </div>
                     </div>
                     {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
-                    <Button type="button" onClick={review}>Initiate return</Button>
+                    <Button type="button" onClick={submit} disabled={busy}>{busy ? 'Saving…' : 'Submit Return'}</Button>
                   </div>
                 ) : null}
               </CardContent>
@@ -317,25 +326,36 @@ export default function MedicineReturnsPage() {
               {verifyTarget ? (
                 <div className="mt-4 space-y-3 rounded-lg border bg-muted/30 p-4">
                   <p className="text-sm font-medium">Verify {verifyTarget.line?.name}</p>
-                  <p className="text-xs text-muted-foreground">Presented {verifyTarget.entry.presentedQuantity}. Accept only the quantity pharmacy keeps. The rest is not a return.</p>
+                  <p className="text-xs text-muted-foreground">
+                    {verifyTarget.order.patientName} · {verifyTarget.order.patientId} · Admission {verifyTarget.order.admissionId || verifyTarget.order.admissionNumber}
+                    {' · '}{formatStayLocation(verifyTarget.order)} · Request {verifyTarget.order.submissionId}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Handed over {verifyTarget.line?.suppliedQuantity ?? '—'} · Previously accepted returns {medicineSummary(verifyTarget.order).find((line) => line.lineId === verifyTarget.entry.lineId)?.acceptedReturned ?? 0}
+                    {' · '}Presented {verifyTarget.entry.presentedQuantity} · Initiated by {verifyTarget.entry.pharmacistName} · {formatDateTime(verifyTarget.entry.at)}
+                  </p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="accepted-qty">Quantity accepted</Label>
-                      <Input id="accepted-qty" type="number" min="0" max={verifyTarget.entry.presentedQuantity} value={accepted} onChange={(event) => { verifyActionId.current = ''; setAccepted(event.target.value) }} />
+                      <Input id="accepted-qty" type="number" min="0" max={verifyTarget.entry.presentedQuantity} value={accepted} disabled={busy} onChange={(event) => changeAccepted(event.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="rejected-qty">Quantity rejected</Label>
+                      <Input id="rejected-qty" type="number" min="0" max={verifyTarget.entry.presentedQuantity} value={rejected} disabled={busy} onChange={(event) => changeRejected(event.target.value)} />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <Label htmlFor="discrepancy">Reason for any quantity not accepted</Label>
-                      <Textarea id="discrepancy" value={discrepancy} onChange={(event) => { verifyActionId.current = ''; setDiscrepancy(event.target.value) }} />
+                      <Textarea id="discrepancy" value={discrepancy} disabled={busy} onChange={(event) => { verifyActionId.current = ''; setDiscrepancy(event.target.value) }} />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <Label htmlFor="verify-notes">Verification notes (optional)</Label>
-                      <Textarea id="verify-notes" value={notes} onChange={(event) => { verifyActionId.current = ''; setNotes(event.target.value) }} />
+                      <Textarea id="verify-notes" value={notes} disabled={busy} onChange={(event) => { verifyActionId.current = ''; setNotes(event.target.value) }} />
                     </div>
                   </div>
                   {verifyError ? <p className="text-sm text-destructive">{verifyError}</p> : null}
                   <div className="flex gap-2">
-                    <Button type="button" onClick={reviewVerify}>Review verification</Button>
-                    <Button type="button" variant="outline" onClick={() => setVerifyTarget(null)}>Close</Button>
+                    <Button type="button" onClick={submitVerify} disabled={busy}>{busy ? 'Saving…' : 'Confirm Verification'}</Button>
+                    <Button type="button" variant="outline" disabled={busy} onClick={() => setVerifyTarget(null)}>Close</Button>
                   </div>
                 </div>
               ) : null}
@@ -371,40 +391,6 @@ export default function MedicineReturnsPage() {
           </Card>
         </div>
       </div>
-
-      <AlertDialog open={confirm} onOpenChange={(open) => { if (!busy) setConfirm(open) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Send this return for verification?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {quantity} of {selected?.line.name} will be recorded as presented for {patient?.name} ({patient?.id}). The handover and the bill stay unchanged until pharmacy verifies an accepted quantity.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Back</AlertDialogCancel>
-            <AlertDialogAction disabled={busy} onClick={(event) => { event.preventDefault(); submit() }}>
-              {busy ? 'Saving…' : 'Confirm'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={verifyConfirm} onOpenChange={(open) => { if (!busy) setVerifyConfirm(open) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm pharmacy verification?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Accepted {accepted} of {verifyTarget?.entry.presentedQuantity} presented {verifyTarget?.line?.name}. {Number(accepted) > 0 ? 'Reception will review that accepted quantity. This is not a posted adjustment.' : 'No billing adjustment will be created.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Back</AlertDialogCancel>
-            <AlertDialogAction disabled={busy} onClick={(event) => { event.preventDefault(); submitVerify() }}>
-              {busy ? 'Saving…' : 'Confirm verification'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

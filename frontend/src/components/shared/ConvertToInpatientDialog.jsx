@@ -25,7 +25,16 @@ function FieldError({ message }) {
   return <p className="text-xs text-destructive mt-1">{message}</p>
 }
 
-export function ConvertToInpatientDialog({ patient, open, onOpenChange, onConverted }) {
+export function ConvertToInpatientDialog({
+  patient,
+  open,
+  onOpenChange,
+  onConverted,
+  submitConversion,
+  title = 'Convert to Inpatient',
+  description = 'Assign a bed, visiting doctor, and admission deposit. Emergency OPD services already recorded keep their original prices.',
+  submitLabel = 'Convert to Inpatient',
+}) {
   const { toast } = useToast()
   const { rooms, convertToInpatient } = usePatients()
   const { settings: hospitalConfig } = useBillingConfig()
@@ -114,7 +123,7 @@ export function ConvertToInpatientDialog({ patient, open, onOpenChange, onConver
     const bedLabel = form.bedNumber || room?.beds.find((b) => b.status === 'available')?.label
     setSubmitting(true)
     try {
-      const updated = await convertToInpatient(patient.id, {
+      const payload = {
         bedId: bedLabel,
         doctorIds: form.doctorIds,
         depositAmount: Number(form.initialDeposit || 0),
@@ -122,7 +131,10 @@ export function ConvertToInpatientDialog({ patient, open, onOpenChange, onConver
         referenceNumber: trimText(form.referenceNumber) || undefined,
         admissionPaymentMode: form.admissionPaymentMode,
         creditCompanyId: form.admissionPaymentMode === 'credit' ? form.creditCompanyId : undefined,
-      })
+      }
+      const updated = submitConversion
+        ? await submitConversion(patient.id, payload)
+        : await convertToInpatient(patient.id, payload)
       toast({
         title: 'Converted to inpatient',
         description: `${patient.name} now has a bed, doctor, and admission deposit. Earlier Emergency OPD charges are unchanged.`,
@@ -141,10 +153,8 @@ export function ConvertToInpatientDialog({ patient, open, onOpenChange, onConver
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Convert to Inpatient</DialogTitle>
-          <DialogDescription>
-            Assign a bed, visiting doctor, and admission deposit. Emergency OPD services already recorded keep their original prices.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -244,7 +254,7 @@ export function ConvertToInpatientDialog({ patient, open, onOpenChange, onConver
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-            <Button type="submit" disabled={submitting}>{submitting ? 'Converting…' : 'Convert to Inpatient'}</Button>
+            <Button type="submit" disabled={submitting}>{submitting ? 'Converting…' : submitLabel}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

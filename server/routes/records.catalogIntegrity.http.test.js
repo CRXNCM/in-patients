@@ -15,6 +15,11 @@ import patientRoutes from './patients.routes.js'
 import recordRoutes from './records.routes.js'
 import { todayStr } from '../utils/dates.js'
 import { calcPatientBalance } from '../services/autoCharges.js'
+import { applyAdmissionPrice } from '../utils/admissions.js'
+
+function billedPrice(base) {
+  return applyAdmissionPrice(base, { inpatientPricing: true }).unitPrice
+}
 
 const PREFIX = 'catalog-integrity-'
 const PRICE_ITEM = `${PREFIX}price`
@@ -200,7 +205,7 @@ describe('catalog price integrity HTTP', { skip: !hasDb }, () => {
     const line = res.body.services[0]
     assert.equal(line.catalogItemId, String(labItem._id))
     assert.equal(line.serviceName, labItem.name)
-    assert.equal(line.unitPrice, Number(labItem.price))
+    assert.equal(line.unitPrice, billedPrice(labItem.price))
     assert.equal(line.unit, labItem.unit || '')
     assert.equal(line.category, 'Laboratory')
   })
@@ -224,10 +229,10 @@ describe('catalog price integrity HTTP', { skip: !hasDb }, () => {
     assert.equal(res.status, 201)
     const line = res.body.services[0]
     assert.equal(line.serviceName, labItem.name)
-    assert.equal(line.unitPrice, Number(labItem.price))
+    assert.equal(line.unitPrice, billedPrice(labItem.price))
     assert.equal(line.unit, labItem.unit || '')
     assert.equal(line.quantity, 2)
-    assert.equal(line.total, 2 * Number(labItem.price))
+    assert.equal(line.total, 2 * billedPrice(labItem.price))
   })
 
   it('rejects a new catalog record without catalogItemId', async () => {
@@ -310,12 +315,12 @@ describe('catalog price integrity HTTP', { skip: !hasDb }, () => {
       },
     })
     assert.equal(first.status, 201)
-    assert.equal(first.body.services[0].unitPrice, 300)
+    assert.equal(first.body.services[0].unitPrice, billedPrice(300))
     const firstId = first.body.id
 
     const updated = await upsertLabItem(PRICE_ITEM, { price: 350 })
     const stored = await ServiceRecord.findById(firstId)
-    assert.equal(stored.services[0].unitPrice, 300)
+    assert.equal(stored.services[0].unitPrice, billedPrice(300))
     assert.equal(stored.services[0].serviceName, PRICE_ITEM)
 
     const second = await request(app, `/api/patients/${patientId}/records`, {
@@ -330,11 +335,11 @@ describe('catalog price integrity HTTP', { skip: !hasDb }, () => {
       },
     })
     assert.equal(second.status, 201)
-    assert.equal(second.body.services[0].unitPrice, 350)
+    assert.equal(second.body.services[0].unitPrice, billedPrice(350))
     assert.equal(second.body.services[0].catalogItemId, String(updated._id))
 
     const stillFirst = await ServiceRecord.findById(firstId)
-    assert.equal(stillFirst.services[0].unitPrice, 300)
+    assert.equal(stillFirst.services[0].unitPrice, billedPrice(300))
   })
 
   it('bills only approved snapshots and ignores pending and rejected records', async () => {
@@ -407,7 +412,7 @@ describe('catalog price integrity HTTP', { skip: !hasDb }, () => {
       body: { note: 'Verified' },
     })
     assert.equal(approveRes.status, 200)
-    assert.equal((await calcPatientBalance(billPatientId)).totalCharges, 111 + Number(labItem.price))
+    assert.equal((await calcPatientBalance(billPatientId)).totalCharges, 111 + billedPrice(labItem.price))
   })
 
   it('still creates automatic room and doctor charges without catalogItemId', async () => {

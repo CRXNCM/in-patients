@@ -237,6 +237,15 @@ test('verification accepts only part of a presented return and releases the rest
   }, at)
   assert.equal(replay.duplicate, true)
   assert.equal(replay.order.returns.length, 1)
+
+  const mismatch = verifyReturn(order, pharmacist, {
+    clientActionId: 'ret-verify-mismatch',
+    returnId: 'ret-present',
+    acceptedQuantity: 2,
+    rejectedQuantity: 2,
+    discrepancyReason: 'Counts do not add up',
+  }, at)
+  assert.match(mismatch.error, /cannot exceed|must equal/i)
 })
 
 test('a later return cannot exceed the quantity still eligible after an accepted return', () => {

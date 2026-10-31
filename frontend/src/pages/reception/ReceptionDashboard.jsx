@@ -83,6 +83,7 @@ export default function ReceptionDashboard() {
 
   const census = data.census || { admitted: 0, pendingDischarge: 0 }
   const pendingApprovals = data.receptionQueueCount ?? data.workQueue?.pendingApprovals ?? 0
+  const pendingInpatientAdmissions = data.workQueue?.pendingInpatientAdmissions ?? 0
   const pendingDischarges = data.workQueue?.pendingDischarges ?? census.pendingDischarge
   const todayDeposits = data.finance?.todayDeposits
   const lowBalanceCount = data.watchlist?.lowBalanceCount
@@ -173,6 +174,13 @@ export default function ReceptionDashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricTile label="Total admitted patients" value={census.admitted} subtitle="Currently in hospital" />
+        <MetricTile
+          label="Pending inpatient admissions"
+          value={pendingInpatientAdmissions}
+          subtitle="Emergency OPD conversion requests"
+          alert={pendingInpatientAdmissions > 0}
+          onClick={() => navigate('/reception/inpatient-admissions')}
+        />
         <MetricTile label="Pending approvals" value={pendingApprovals} subtitle="Records to review" alert={pendingApprovals > 0} />
         {todayDeposits !== undefined && (
           <MetricTile label="Today’s deposits" value={formatCurrency(todayDeposits)} subtitle="Collected today" />

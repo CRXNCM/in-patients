@@ -22,6 +22,7 @@ import AddPatient from '@/pages/reception/AddPatient'
 import PendingDischarges from '@/pages/reception/PendingDischarges'
 import DischargedPatients from '@/pages/reception/DischargedPatients'
 import CriticalBalances from '@/pages/reception/CriticalBalances'
+import PendingInpatientAdmissions from '@/pages/reception/PendingInpatientAdmissions'
 
 import NurseDashboard from '@/pages/nurse/NurseDashboard'
 import NursePatientsList from '@/pages/nurse/NursePatientsList'
@@ -83,6 +84,9 @@ export default function App() {
                         </Route>
                         <Route element={<RequirePermission permission="admissions.create" />}>
                           <Route path="add-patient" element={<AddPatient />} />
+                        </Route>
+                        <Route element={<RequirePermission permission="admissions.convert_inpatient" />}>
+                          <Route path="inpatient-admissions" element={<PendingInpatientAdmissions />} />
                         </Route>
                         <Route element={<RequirePermission permission="admissions.edit" />}>
                           <Route path="approvals" element={<PendingApprovals />} />

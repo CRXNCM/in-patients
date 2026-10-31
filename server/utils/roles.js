@@ -8,7 +8,7 @@ export const DEFAULT_ROLES = [
   { name: 'Reception', slug: 'reception', accessRole: 'Reception', system: true, description: 'Admissions, deposits, and reception billing.' },
   { name: 'Night Reception', slug: 'night-reception', accessRole: 'Reception', system: false, description: 'Reception access for night-shift staff.' },
   { name: 'Nurse', slug: 'nurse', accessRole: 'Nurse', system: true, description: 'Inpatient nursing documentation.' },
-  { name: 'Emergency Nurse', slug: 'emergency-nurse', accessRole: 'Nurse', system: true, description: 'Emergency OPD registration and service requests without inpatient bed, doctor, or deposit assignment.' },
+  { name: 'Emergency Nurse', slug: 'emergency-nurse', accessRole: 'Nurse', system: true, description: 'Emergency OPD registration, inpatient admission requests, and controlled self-conversion when Reception is unavailable.' },
   { name: 'Manager', slug: 'manager', accessRole: 'Manager', system: true, description: 'Reports and financial oversight.' },
   { name: 'Pharmacist', slug: 'pharmacist', accessRole: 'Pharmacist', system: true, description: 'Dispense ward medicines handed over from the patient record and record returns.' },
   { name: 'Laboratory', slug: 'laboratory', accessRole: 'Laboratory', system: true, description: 'Process laboratory requests routed from the patient record.' },

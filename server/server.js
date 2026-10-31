@@ -26,6 +26,7 @@ import laboratoryRoutes from './routes/laboratory.routes.js'
 import wardServicesRoutes from './routes/wardServices.routes.js'
 import serviceHistoryRoutes from './routes/serviceHistory.routes.js'
 import creditCompanyRoutes from './routes/creditCompanies.routes.js'
+import conversionRoutes from './routes/conversion.routes.js'
 import { ensureDefaultRoles, ensureWorkflowStaff } from './services/roles.js'
 
 const app = express()
@@ -62,6 +63,7 @@ app.use('/api/laboratory', laboratoryRoutes)
 app.use('/api', wardServicesRoutes)
 app.use('/api/service-history', serviceHistoryRoutes)
 app.use('/api/credit-companies', creditCompanyRoutes)
+app.use('/api', conversionRoutes)
 
 async function start() {
   const uri = process.env.MONGODB_URI

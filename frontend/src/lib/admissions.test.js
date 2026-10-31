@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { applyEmergencyPrice, isEmergencyOpdAdmission, stayLocationLabel } from './admissions.js'
+import { applyAdmissionPrice, isEmergencyOpdAdmission, stayLocationLabel } from './admissions.js'
 
 describe('frontend emergency admission helpers', () => {
   it('labels Emergency OPD location without inventing a bed', () => {
@@ -8,8 +8,9 @@ describe('frontend emergency admission helpers', () => {
     assert.equal(stayLocationLabel({ admissionType: 'normal', room: 'ICU', bed: 'ICU-01' }), 'ICU / ICU-01')
   })
 
-  it('applies the same 1.25 display formula as the server', () => {
+  it('uses catalog prices for Emergency OPD and 1.25 for regular inpatient', () => {
     assert.equal(isEmergencyOpdAdmission({ admissionType: 'emergency-opd' }), true)
-    assert.equal(applyEmergencyPrice(200, { emergencyPricing: true }).unitPrice, 250)
+    assert.equal(applyAdmissionPrice(200, { inpatientPricing: false }).unitPrice, 200)
+    assert.equal(applyAdmissionPrice(200, { inpatientPricing: true }).unitPrice, 250)
   })
 })

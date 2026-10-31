@@ -120,10 +120,10 @@ function FinancePanel({ finance }) {
         <MetricTile label="Monthly deposits" value={formatCurrency(finance.deposits.month)} />
         <MetricTile label="Today’s charges" value={formatCurrency(finance.approvedCharges.today)} />
         <MetricTile label="Monthly charges" value={formatCurrency(finance.approvedCharges.month)} />
-        {finance.emergencyCharges && (
+        {(finance.inpatientCharges || finance.emergencyCharges) && (
           <>
-            <MetricTile label="Emergency charges today" value={formatCurrency(finance.emergencyCharges.today || 0)} />
-            <MetricTile label="Emergency charges this month" value={formatCurrency(finance.emergencyCharges.month || 0)} />
+            <MetricTile label="Inpatient surcharge today (1.25×)" value={formatCurrency((finance.inpatientCharges || finance.emergencyCharges).today || 0)} />
+            <MetricTile label="Inpatient surcharge this month (1.25×)" value={formatCurrency((finance.inpatientCharges || finance.emergencyCharges).month || 0)} />
           </>
         )}
         <MetricTile

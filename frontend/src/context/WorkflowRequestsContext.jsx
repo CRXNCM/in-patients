@@ -7,8 +7,6 @@ import {
   approveLaboratoryItem,
   buildLaboratoryOrder,
   cancelLaboratoryItem,
-  completeLaboratoryItem,
-  processLaboratoryItem,
   rejectLaboratoryItem,
 } from '@/services/laboratoryOrders'
 import {
@@ -246,26 +244,6 @@ export function WorkflowRequestsProvider({ children }) {
     )
   }, [runLaboratory, user])
 
-  const processLaboratory = React.useCallback((orderId, lineId, clientActionId) => {
-    if (user?.roleKey !== 'laboratory') throw new Error('Only laboratory staff can process a test.')
-    return runLaboratory(
-      orderId,
-      lineId,
-      () => api.processLaboratoryItem(orderId, lineId, { clientActionId }),
-      (order) => processLaboratoryItem(order, workflowActor(user), { lineId, clientActionId })
-    )
-  }, [runLaboratory, user])
-
-  const completeLaboratory = React.useCallback((orderId, lineId, body) => {
-    if (user?.roleKey !== 'laboratory') throw new Error('Only laboratory staff can complete a test.')
-    return runLaboratory(
-      orderId,
-      lineId,
-      () => api.completeLaboratoryItem(orderId, lineId, body),
-      (order) => completeLaboratoryItem(order, workflowActor(user), { ...body, lineId })
-    )
-  }, [runLaboratory, user])
-
   const cancelLaboratory = React.useCallback((orderId, lineId, body) => (
     runLaboratory(
       orderId,
@@ -278,7 +256,7 @@ export function WorkflowRequestsProvider({ children }) {
   const counts = React.useMemo(() => ({
     pharmacyPending: pharmacyOrders.filter((order) => order.status === 'pending' || order.status === 'partially_fulfilled').length,
     laboratoryPending: laboratoryOrders.filter((order) => (
-      order.status === 'pending' || order.status === 'partially_decided' || order.status === 'approved' || order.status === 'processing'
+      order.status === 'pending' || order.status === 'partially_decided'
     )).length,
   }), [laboratoryOrders, pharmacyOrders])
 
@@ -296,8 +274,6 @@ export function WorkflowRequestsProvider({ children }) {
     verifyMedicineReturn,
     approveLaboratory,
     rejectLaboratory,
-    processLaboratory,
-    completeLaboratory,
     cancelLaboratory,
   }), [
     pharmacyOrders,
@@ -312,8 +288,6 @@ export function WorkflowRequestsProvider({ children }) {
     verifyMedicineReturn,
     approveLaboratory,
     rejectLaboratory,
-    processLaboratory,
-    completeLaboratory,
     cancelLaboratory,
   ])
 

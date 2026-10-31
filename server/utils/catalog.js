@@ -1,6 +1,12 @@
 import mongoose from 'mongoose'
 import { ServiceCategory } from '../models/ServiceCategory.js'
-import { applyEmergencyPrice, roundMoney } from './admissions.js'
+import { applyAdmissionPrice, roundMoney } from './admissions.js'
+
+function resolveInpatientPricing(opts = {}) {
+  if (opts.inpatientPricing != null) return Boolean(opts.inpatientPricing)
+  if (opts.emergencyPricing != null) return !Boolean(opts.emergencyPricing)
+  return false
+}
 
 function trimText(value) {
   return String(value ?? '').trim()
@@ -234,8 +240,8 @@ function safeQuantity(value) {
   return qty
 }
 
-function snapshotFromCatalogItem(item, category, { id, quantity, notes, emergencyPricing } = {}) {
-  const priced = applyEmergencyPrice(item.price, { emergencyPricing })
+function snapshotFromCatalogItem(item, category, { id, quantity, notes, inpatientPricing, pricingAdmissionType } = {}) {
+  const priced = applyAdmissionPrice(item.price, { inpatientPricing })
   const qty = quantity
   return {
     id: id || `svc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -248,6 +254,7 @@ function snapshotFromCatalogItem(item, category, { id, quantity, notes, emergenc
     priceMultiplier: priced.priceMultiplier,
     unitPrice: priced.unitPrice,
     total: roundMoney(qty * priced.unitPrice),
+    pricingAdmissionType: pricingAdmissionType || (inpatientPricing ? 'normal' : 'emergency-opd'),
     notes: notes || '',
   }
 }
@@ -270,7 +277,9 @@ function passthroughAutomaticLine(s, qty, index) {
 }
 
 /** Resolve catalog-backed lines. Client name/price/unit are ignored. Auto room/doctor lines pass through. */
-export async function resolveCatalogServiceLines(services = [], { emergencyPricing = false } = {}) {
+export async function resolveCatalogServiceLines(services = [], opts = {}) {
+  const inpatientPricing = resolveInpatientPricing(opts)
+  const pricingAdmissionType = opts.pricingAdmissionType || (inpatientPricing ? 'normal' : 'emergency-opd')
   const categories = await ServiceCategory.find()
   const lines = []
 
@@ -304,13 +313,21 @@ export async function resolveCatalogServiceLines(services = [], { emergencyPrici
       return { error: 'This catalog item is inactive and cannot be billed.', lines: [] }
     }
 
-    lines.push(snapshotFromCatalogItem(item, category, { id: s.id, quantity: qty, notes: s.notes, emergencyPricing }))
+    lines.push(snapshotFromCatalogItem(item, category, {
+      id: s.id,
+      quantity: qty,
+      notes: s.notes,
+      inpatientPricing,
+      pricingAdmissionType,
+    }))
   }
 
   return { error: null, lines }
 }
 
-export async function resolveCatalogReturnLines(returnItems = [], { emergencyPricing = false } = {}) {
+export async function resolveCatalogReturnLines(returnItems = [], opts = {}) {
+  const inpatientPricing = resolveInpatientPricing(opts)
+  const pricingAdmissionType = opts.pricingAdmissionType || (inpatientPricing ? 'normal' : 'emergency-opd')
   const pharmacy = await ServiceCategory.findOne({ slug: 'pharmacy' })
   if (!pharmacy) return { error: 'Pharmacy catalog was not found.', lines: [] }
 
@@ -329,7 +346,7 @@ export async function resolveCatalogReturnLines(returnItems = [], { emergencyPri
       return { error: 'This catalog item is inactive and cannot be billed.', lines: [] }
     }
 
-    const priced = applyEmergencyPrice(item.price, { emergencyPricing })
+    const priced = applyAdmissionPrice(item.price, { inpatientPricing })
     lines.push({
       id: r.id || `ret-${Date.now()}-${i}`,
       catalogItemId: String(item._id),
@@ -340,6 +357,7 @@ export async function resolveCatalogReturnLines(returnItems = [], { emergencyPri
       priceMultiplier: priced.priceMultiplier,
       unitPrice: priced.unitPrice,
       total: roundMoney(qty * priced.unitPrice),
+      pricingAdmissionType,
       reason: r.reason || '',
     })
   }

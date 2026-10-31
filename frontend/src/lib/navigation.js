@@ -59,6 +59,13 @@ export const NAVIGATION = {
           allOf: ['patients.view', 'payments.view'],
         },
         {
+          id: 'reception-inpatient-admissions',
+          label: 'Inpatient Admissions',
+          path: '/reception/inpatient-admissions',
+          icon: Bed,
+          permission: 'admissions.convert_inpatient',
+        },
+        {
           id: 'reception-approvals',
           label: 'Pending Approvals',
           path: '/reception/approvals',

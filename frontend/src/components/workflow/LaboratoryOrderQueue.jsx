@@ -23,13 +23,10 @@ const PAGE_SIZE = 20
 const ACTION_LABELS = {
   approve: 'Approve for reception',
   reject: 'Reject',
-  process: 'Start processing',
-  complete: 'Complete',
   cancel: 'Cancel',
 }
 
 const NOTE_PLACEHOLDERS = {
-  complete: 'Sample collected and test completed',
   reject: 'Why this test cannot be released',
   cancel: 'Why this test is being cancelled',
 }
@@ -42,14 +39,11 @@ function receptionLabel(status) {
 }
 
 function defaultAction(item) {
-  if (item.status === 'pending') return 'approve'
-  if (item.status === 'approved') return 'process'
-  if (item.status === 'processing') return 'complete'
-  return 'cancel'
+  return item.status === 'pending' ? 'approve' : 'cancel'
 }
 
 function showsNote(action) {
-  return action === 'complete' || action === 'reject' || action === 'cancel'
+  return action === 'reject' || action === 'cancel'
 }
 
 function needsNote(action) {
@@ -57,7 +51,7 @@ function needsNote(action) {
 }
 
 function matches(order, { status, search, priority, date, ward, sort }) {
-  if (status === 'open' && !['pending', 'partially_decided', 'approved', 'processing'].includes(order.status)) return false
+  if (status === 'open' && !['pending', 'partially_decided'].includes(order.status)) return false
   if (status !== 'all' && status !== 'open' && order.status !== status) return false
   if (ward && ward !== 'all' && order.ward !== ward) return false
   if (priority !== 'all' && !(order.items || []).some((item) => item.priority === priority)) return false
@@ -73,7 +67,7 @@ function matches(order, { status, search, priority, date, ward, sort }) {
 
 export default function LaboratoryOrderQueue({
   title = 'Laboratory queue',
-  description = 'Tests routed from a nurse record. Laboratory approval sends an item to reception. It does not approve the charge.',
+  description = 'Tests routed from a nurse record. Approve or reject each test. Approval sends it to reception and does not approve the charge.',
   canProcess = false,
 }) {
   const { user } = useAuth()
@@ -85,8 +79,6 @@ export default function LaboratoryOrderQueue({
     refresh,
     approveLaboratory,
     rejectLaboratory,
-    processLaboratory,
-    completeLaboratory,
     cancelLaboratory,
   } = useWorkflowRequests()
   const [status, setStatus] = useState(canProcess ? 'open' : 'all')
@@ -154,8 +146,6 @@ export default function LaboratoryOrderQueue({
     try {
       const clientActionId = actionId(selected.id, item.lineId, action)
       if (action === 'approve') await approveLaboratory(selected.id, item.lineId, clientActionId)
-      else if (action === 'process') await processLaboratory(selected.id, item.lineId, clientActionId)
-      else if (action === 'complete') await completeLaboratory(selected.id, item.lineId, { clientActionId, note })
       else if (action === 'reject') await rejectLaboratory(selected.id, item.lineId, { clientActionId, reason: note })
       else await cancelLaboratory(selected.id, item.lineId, { clientActionId, reason: note })
       clearAction(selected.id, item.lineId, action)
@@ -166,11 +156,7 @@ export default function LaboratoryOrderQueue({
       })
       const success = action === 'approve'
         ? 'Test released to reception. The charge is still pending reception approval.'
-        : action === 'process'
-          ? 'Test is processing. This does not approve the charge.'
-          : action === 'complete'
-            ? 'Test completed. The note is saved and the charge is still not approved.'
-            : 'Laboratory request updated.'
+        : 'Laboratory request updated.'
       toast({ title: success, variant: 'success' })
     } catch (err) {
       setRowErrors((current) => ({ ...current, [item.lineId]: err.message }))
@@ -230,8 +216,6 @@ export default function LaboratoryOrderQueue({
             <option value="pending">Pending departmental approval</option>
             <option value="partially_decided">Partly decided</option>
             <option value="approved">Department approved</option>
-            <option value="processing">Processing</option>
-            <option value="completed">Completed</option>
             <option value="rejected">Rejected</option>
             <option value="cancelled">Cancelled</option>
           </NativeSelect>
@@ -315,7 +299,7 @@ export default function LaboratoryOrderQueue({
                       <th className="px-3 py-2 font-medium">Qty</th>
                       <th className="px-3 py-2 font-medium">Status</th>
                       <th className="px-3 py-2 font-medium">Action</th>
-                      <th className="px-3 py-2 font-medium">Completion note</th>
+                      <th className="px-3 py-2 font-medium">Reason</th>
                       <th className="px-3 py-2 font-medium" />
                     </tr>
                   </thead>
@@ -329,8 +313,6 @@ export default function LaboratoryOrderQueue({
                         && (staff || ownPending)
                       const actions = []
                       if (staff && item.status === 'pending') actions.push('approve', 'reject')
-                      if (staff && item.status === 'approved') actions.push('process')
-                      if (staff && item.status === 'processing') actions.push('complete')
                       if (canCancel && !actions.includes('cancel')) actions.push('cancel')
                       const draft = draftOf(item)
                       const action = actions.includes(draft.action) ? draft.action : actions[0]
@@ -370,7 +352,7 @@ export default function LaboratoryOrderQueue({
                               <td className="px-3 py-2">
                                 {showNote ? (
                                   <Input
-                                    aria-label={action === 'complete' ? `Completion note for ${item.name}` : `Reason for ${item.name}`}
+                                    aria-label={`Reason for ${item.name}`}
                                     className="h-9 min-w-[16rem]"
                                     placeholder={NOTE_PLACEHOLDERS[action]}
                                     value={draft.note}

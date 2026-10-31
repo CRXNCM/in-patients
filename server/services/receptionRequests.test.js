@@ -271,4 +271,108 @@ describe('reception request grouping', () => {
     assert.notEqual(requests[0].items[0].lineId, requests[0].items[1].lineId)
     assert.equal(requests[0].actionRecordId, '')
   })
+
+  it('shows accepted quantity and credit on a pharmacy return request', () => {
+    const requests = buildReceptionRequests({
+      records: [{
+        _id: 'ret-1',
+        patientId: 'PAT-1',
+        recordName: 'Patient A',
+        status: 'pending',
+        recordType: 'return',
+        workflowKind: 'pharmacy-return',
+        workflowOrderId: 'order-p',
+        workflowLineId: 'a',
+        billingKey: 'pharmacy-return:order-p:ret-entry',
+        submittedBy: 'Pharmacist',
+        recordedAt: '2026-10-31T08:00:00.000Z',
+        services: [],
+        returnItems: [{
+          id: 'ret-entry',
+          serviceName: 'Amoxicillin',
+          quantity: 3,
+          unitPrice: 12,
+          unit: 'tab',
+          total: 36,
+        }],
+      }],
+      patients: [{ patientId: 'PAT-1', name: 'Patient A', _id: 'stay-1' }],
+    })
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0].wholeRecord, true)
+    assert.equal(requests[0].items.length, 1)
+    assert.equal(requests[0].items[0].description, 'Amoxicillin')
+    assert.equal(requests[0].items[0].quantity, 3)
+    assert.equal(requests[0].items[0].unit, 'tab')
+    assert.equal(requests[0].items[0].total, -36)
+    assert.equal(requests[0].pendingAmount, -36)
+    assert.equal(requests[0].items[0].approveMode, 'record')
+    assert.equal(requests[0].actionRecordId, 'ret-1')
+    assert.equal(requests[0].id, 'PAT-1:pharmacy-returns')
+  })
+
+  it('groups later pharmacy returns for the same patient on one request', () => {
+    const requests = buildReceptionRequests({
+      records: [
+        {
+          _id: 'ret-1',
+          patientId: 'PAT-1',
+          recordName: 'Patient A',
+          status: 'pending',
+          recordType: 'return',
+          workflowKind: 'pharmacy-return',
+          workflowLineId: 'a',
+          billingKey: 'pharmacy-return:order-p:one',
+          submittedBy: 'Pharmacist A',
+          recordedAt: '2026-10-31T08:00:00.000Z',
+          services: [],
+          returnItems: [{ serviceName: 'Amoxicillin', quantity: 2, unitPrice: 10, total: 20 }],
+        },
+        {
+          _id: 'ret-2',
+          patientId: 'PAT-1',
+          recordName: 'Patient A',
+          status: 'pending',
+          recordType: 'return',
+          workflowKind: 'pharmacy-return',
+          workflowLineId: 'b',
+          billingKey: 'pharmacy-return:order-q:two',
+          submittedBy: 'Pharmacist B',
+          recordedAt: '2026-10-31T09:00:00.000Z',
+          services: [],
+          returnItems: [{ serviceName: 'Paracetamol', quantity: 1, unitPrice: 8, total: 8 }],
+        },
+        {
+          _id: 'ret-other',
+          patientId: 'PAT-2',
+          recordName: 'Patient B',
+          status: 'pending',
+          recordType: 'return',
+          workflowKind: 'pharmacy-return',
+          workflowLineId: 'c',
+          billingKey: 'pharmacy-return:order-r:three',
+          submittedBy: 'Pharmacist A',
+          recordedAt: '2026-10-31T09:30:00.000Z',
+          services: [],
+          returnItems: [{ serviceName: 'Ibuprofen', quantity: 1, unitPrice: 15, total: 15 }],
+        },
+      ],
+      patients: [
+        { patientId: 'PAT-1', name: 'Patient A', _id: 'stay-1' },
+        { patientId: 'PAT-2', name: 'Patient B', _id: 'stay-2' },
+      ],
+    })
+    const forA = requests.find((row) => row.patientId === 'PAT-1')
+    const forB = requests.find((row) => row.patientId === 'PAT-2')
+    assert.equal(requests.length, 2)
+    assert.equal(forA.items.length, 2)
+    assert.equal(forA.totalItems, 2)
+    assert.equal(forA.pendingAmount, -28)
+    assert.equal(forA.actionRecordId, '')
+    assert.equal(forA.submittedAt, '2026-10-31T09:00:00.000Z')
+    assert.equal(forA.submittedBy, 'Pharmacist B')
+    assert.deepEqual(forA.items.map((item) => item.description).sort(), ['Amoxicillin', 'Paracetamol'])
+    assert.equal(forB.items.length, 1)
+    assert.equal(forB.items[0].description, 'Ibuprofen')
+  })
 })

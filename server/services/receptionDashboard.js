@@ -6,6 +6,7 @@ import { todayStr } from '../utils/dates.js'
 import { roleHasPermission } from '../utils/permissions.js'
 import { recordTotalExpr } from './managerDashboard.js'
 import { buildReceptionRequests, panelRow } from './receptionRequests.js'
+const NO_CONVERSION_REQUESTS = { countDocuments: async () => 0 }
 
 export const RECEPTION_DASHBOARD_PERMISSION = 'patients.view'
 
@@ -76,6 +77,7 @@ function defaultDeps() {
     ServiceRecord,
     Deposit,
     HospitalSettings,
+    ConversionRequest: NO_CONVERSION_REQUESTS,
     today: todayStr(),
   }
 }
@@ -122,7 +124,7 @@ export async function buildReceptionDashboard(auth, injected = {}) {
   const today = deps.today
   const threshold = includeMoney ? await loadThreshold(deps.HospitalSettings) : DEFAULT_LOW_BALANCE_THRESHOLD
 
-  const [admitted, pendingDischarge, pendingApprovals, pendingList, inpatientRows, todayDeposits] = await Promise.all([
+  const [admitted, pendingDischarge, pendingApprovals, pendingList, inpatientRows, todayDeposits, pendingInpatientAdmissions] = await Promise.all([
     deps.Patient.countDocuments({ status: 'admitted' }),
     deps.Patient.countDocuments({ status: 'pending-discharge' }),
     deps.ServiceRecord.countDocuments({ status: 'pending' }),
@@ -133,6 +135,9 @@ export async function buildReceptionDashboard(auth, injected = {}) {
     ),
     leanFind(inpatientFind(deps.Patient)),
     includeDeposits ? sumDepositsToday(deps.Deposit, today) : Promise.resolve(null),
+    deps.ConversionRequest
+      ? deps.ConversionRequest.countDocuments({ status: { $in: ['pending', 'resubmitted'] } })
+      : Promise.resolve(0),
   ])
 
   const nameIds = [...new Set((pendingList || []).map((doc) => doc.patientId).filter(Boolean))]
@@ -181,7 +186,7 @@ export async function buildReceptionDashboard(auth, injected = {}) {
   const payload = {
     generatedAt: new Date().toISOString(),
     census: { admitted, pendingDischarge },
-    workQueue: { pendingApprovals, pendingDischarges: pendingDischarge },
+    workQueue: { pendingApprovals, pendingDischarges: pendingDischarge, pendingInpatientAdmissions },
     pendingRecords: pendingList.slice(0, PENDING_PANEL_LIMIT).map((doc) => mapPendingRecord(doc, namesById[doc.patientId] || '')),
     receptionQueue: receptionQueue.slice(0, PENDING_PANEL_LIMIT).map(panelRow),
     receptionQueueCount: receptionQueue.length,

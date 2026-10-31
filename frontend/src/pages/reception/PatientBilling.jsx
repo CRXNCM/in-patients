@@ -37,6 +37,7 @@ import { isMaternityAdmission, subjectLabel } from '@/lib/maternity'
 import { isEmergencyOpdAdmission, stayLocationLabel } from '@/lib/admissions'
 import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
 import { ConvertToInpatientDialog } from '@/components/shared/ConvertToInpatientDialog'
+import { InpatientConversionPanel } from '@/components/shared/InpatientConversionPanel'
 import { useAuth } from '@/context/AuthContext'
 import { api, USE_API } from '@/api/client'
 import { hospitalSettings, depositTypes } from '@/data/mockData'
@@ -462,6 +463,15 @@ export default function PatientBilling() {
             </div>
           </CardContent>
         </Card>
+
+        {isEmergencyOpdAdmission(patient) && (
+          <InpatientConversionPanel
+            patient={patient}
+            onChanged={(updated) => {
+              if (updated) applyPatientUpdate(updated)
+            }}
+          />
+        )}
 
         <ClinicalNotesPanel
           className="mb-8"

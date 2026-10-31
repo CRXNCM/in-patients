@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { authRequired, requirePermission } from '../middleware/auth.js'
 import { RECEPTION_DASHBOARD_PERMISSION, buildReceptionDashboard } from '../services/receptionDashboard.js'
+import { ConversionRequest } from '../models/ConversionRequest.js'
 import {
   RECEPTION_CRITICAL_BALANCES_PERMISSIONS,
   buildReceptionCriticalBalances,
@@ -18,7 +19,7 @@ router.get(
   requirePermission(RECEPTION_DASHBOARD_PERMISSION),
   async (req, res) => {
     try {
-      res.json(await buildReceptionDashboard(req.auth))
+      res.json(await buildReceptionDashboard(req.auth, { ConversionRequest }))
     } catch (err) {
       console.error(err)
       res.status(500).json({ error: 'Failed to load dashboard' })

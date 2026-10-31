@@ -151,10 +151,12 @@ export default function ReceptionMedicineReturns() {
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>{selected?.patientName} · {selected?.patientId} · Admission {selected?.admissionId || '—'}</p>
+                <p>{[selected?.ward, selected?.room, selected?.bed].filter(Boolean).join(' · ') || 'Location not recorded'}</p>
                 <p>Request {selected?.submissionId} · Item {selected?.lineId}</p>
-                <p>Handed over {selected?.suppliedQuantity} · Presented {selected?.presentedQuantity} · Accepted {selected?.acceptedQuantity} · Not accepted {selected?.notAcceptedQuantity}</p>
+                <p>Handed over {selected?.suppliedQuantity} · Previously accepted on line {selected?.acceptedOnLine} · Presented {selected?.presentedQuantity} · Accepted {selected?.acceptedQuantity} · Rejected {selected?.notAcceptedQuantity}</p>
                 <p>Verified by {selected?.verifiedByName || '—'} · {selected?.verifiedAt ? formatDateTime(selected.verifiedAt) : '—'}</p>
                 <p>Reason: {selected?.reason}{selected?.discrepancyReason ? ` · ${selected.discrepancyReason}` : ''}</p>
+                {selected?.verificationNotes ? <p>Pharmacy notes: {selected.verificationNotes}</p> : null}
                 <p>Original charge: {selected?.chargeReference || 'No posted charge reference'}{selected?.chargeStatus ? ` · ${selected.chargeStatus}` : ''}</p>
                 <p className="font-medium text-foreground">
                   Proposed adjustment: {selected?.proposedAdjustment == null ? 'Cannot be calculated from the stored handover.' : formatCurrency(selected.proposedAdjustment)}

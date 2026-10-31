@@ -3,8 +3,6 @@ import assert from 'node:assert/strict'
 import {
   approveLaboratoryItem,
   buildLaboratoryOrder,
-  completeLaboratoryItem,
-  processLaboratoryItem,
   rejectLaboratoryItem,
 } from '../../frontend/src/services/laboratoryOrders.js'
 
@@ -32,19 +30,13 @@ describe('laboratory item workflow', () => {
     assert.equal(approved.order.status, 'partially_decided')
   })
 
-  it('requires processing before completion and allows an empty completion note', () => {
-    const approved = approveLaboratoryItem(order(), actor, { lineId: 't1', clientActionId: 'approve-1' })
-    const early = completeLaboratoryItem(approved.order, actor, { lineId: 't1', clientActionId: 'done-early', note: 'Finished' })
-    assert.match(early.error, /processing/)
-    const started = processLaboratoryItem(approved.order, actor, { lineId: 't1', clientActionId: 'process-1' })
-    const blank = completeLaboratoryItem(started.order, actor, { lineId: 't1', clientActionId: 'done-blank', note: '' })
-    assert.equal(blank.order.items.find((item) => item.lineId === 't1').status, 'completed')
-    assert.equal(blank.order.items.find((item) => item.lineId === 't1').completionNote, '')
-    const done = completeLaboratoryItem(started.order, actor, { lineId: 't1', clientActionId: 'done-1', note: 'Run finished' })
-    assert.equal(done.order.items.find((item) => item.lineId === 't1').status, 'completed')
-    assert.equal(done.order.items.find((item) => item.lineId === 't1').completionNote, 'Run finished')
-    assert.equal(done.order.items.find((item) => item.lineId === 't1').receptionStatus, 'not_sent')
-    assert.equal(done.order.items.find((item) => item.lineId === 't2').status, 'pending')
+  it('treats an approved test as finished laboratory work', () => {
+    const first = approveLaboratoryItem(order(), actor, { lineId: 't1', clientActionId: 'approve-1' })
+    assert.equal(first.order.status, 'partially_decided')
+    const both = approveLaboratoryItem(first.order, actor, { lineId: 't2', clientActionId: 'approve-2' })
+    assert.equal(both.order.items.every((item) => item.status === 'approved'), true)
+    assert.equal(both.order.status, 'approved')
+    assert.equal(both.order.items.find((item) => item.lineId === 't1').receptionStatus, 'not_sent')
   })
 
   it('rejects only the selected pending test', () => {

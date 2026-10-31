@@ -15,6 +15,11 @@ import patientRoutes from './patients.routes.js'
 import recordRoutes from './records.routes.js'
 import { todayStr } from '../utils/dates.js'
 import { calcPatientBalance } from '../services/autoCharges.js'
+import { applyAdmissionPrice } from '../utils/admissions.js'
+
+function billedPrice(base) {
+  return applyAdmissionPrice(base, { inpatientPricing: true }).unitPrice
+}
 
 const PREFIX = 'record-edit-test-'
 const hasDb = Boolean(process.env.MONGODB_URI && process.env.JWT_SECRET)
@@ -316,7 +321,7 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
     assert.equal(deskApprove.status, 200)
     assert.equal(deskApprove.body.status, 'approved')
     const after = await calcPatientBalance(patientId)
-    assert.equal(after.totalCharges, before.totalCharges + Number(labA.price))
+    assert.equal(after.totalCharges, before.totalCharges + billedPrice(labA.price))
   })
 
   it('keeps a pending catalog line off the bill until departmental clearance and reception approval', async () => {
@@ -331,7 +336,7 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
     })
     assert.equal(createdRecord.status, 201)
     assert.equal(createdRecord.body.status, 'pending')
-    assert.equal(createdRecord.body.services[0].unitPrice, Number(labA.price))
+    assert.equal(createdRecord.body.services[0].unitPrice, billedPrice(labA.price))
     const id = createdRecord.body.id
     const afterCreate = await calcPatientBalance(billPatientId)
     assert.equal(afterCreate.totalCharges, 0)
@@ -345,7 +350,7 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
     assert.equal(patched.status, 200)
     assert.equal(patched.body.status, 'pending')
     assert.equal(patched.body.id, id)
-    assert.equal(patched.body.services[0].unitPrice, Number(labA.price))
+    assert.equal(patched.body.services[0].unitPrice, billedPrice(labA.price))
     const afterPatch = await calcPatientBalance(billPatientId)
     assert.equal(afterPatch.totalCharges, 0)
     assert.equal(afterPatch.balance, 20000)
@@ -372,8 +377,8 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
     })
     assert.equal(approved.status, 200)
     const afterApprove = await calcPatientBalance(billPatientId)
-    assert.equal(afterApprove.totalCharges, Number(labA.price))
-    assert.equal(afterApprove.balance, 20000 - Number(labA.price))
+    assert.equal(afterApprove.totalCharges, billedPrice(labA.price))
+    assert.equal(afterApprove.balance, 20000 - billedPrice(labA.price))
   })
 
   it('rejects a nurse pharmacy return and credits when reception records it', async () => {
@@ -412,9 +417,9 @@ describe('pending record PATCH HTTP', { skip: !hasDb }, () => {
     })
     assert.equal(createdReturn.status, 201)
     assert.equal(createdReturn.body.status, 'approved')
-    assert.equal(createdReturn.body.returnItems[0].unitPrice, Number(pharm.price))
+    assert.equal(createdReturn.body.returnItems[0].unitPrice, billedPrice(pharm.price))
     const after = await calcPatientBalance(billPatientId)
-    assert.equal(after.totalCharges, before.totalCharges - Number(pharm.price))
+    assert.equal(after.totalCharges, before.totalCharges - billedPrice(pharm.price))
   })
 
   it('does not change the bill when a pending record is rejected', async () => {

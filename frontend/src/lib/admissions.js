@@ -1,5 +1,6 @@
 export const EMERGENCY_OPD = 'emergency-opd'
-export const EMERGENCY_PRICE_MULTIPLIER = 1.25
+export const INPATIENT_PRICE_MULTIPLIER = 1.25
+export const EMERGENCY_PRICE_MULTIPLIER = INPATIENT_PRICE_MULTIPLIER
 export const ADMISSION_TYPES = ['normal', 'maternity', 'emergency-opd']
 
 export function normalizeAdmissionType(value) {
@@ -18,20 +19,29 @@ export function wasConvertedFromEmergency(patient) {
   return Boolean(patient?.convertedFromEmergency)
 }
 
+export function usesInpatientPricing(patient) {
+  return !isEmergencyOpdAdmission(patient)
+}
+
 export function roundMoney(value) {
   return Math.round((Number(value) || 0) * 100) / 100
 }
 
-export function applyEmergencyPrice(basePrice, { emergencyPricing = false } = {}) {
+export function applyAdmissionPrice(basePrice, { inpatientPricing = false } = {}) {
   const baseUnitPrice = roundMoney(basePrice)
-  if (!emergencyPricing) {
+  if (!inpatientPricing) {
     return { baseUnitPrice, priceMultiplier: 1, unitPrice: baseUnitPrice }
   }
   return {
     baseUnitPrice,
-    priceMultiplier: EMERGENCY_PRICE_MULTIPLIER,
-    unitPrice: roundMoney(baseUnitPrice * EMERGENCY_PRICE_MULTIPLIER),
+    priceMultiplier: INPATIENT_PRICE_MULTIPLIER,
+    unitPrice: roundMoney(baseUnitPrice * INPATIENT_PRICE_MULTIPLIER),
   }
+}
+
+export function applyEmergencyPrice(basePrice, { emergencyPricing = false, inpatientPricing } = {}) {
+  const useInpatient = inpatientPricing != null ? Boolean(inpatientPricing) : !emergencyPricing
+  return applyAdmissionPrice(basePrice, { inpatientPricing: useInpatient })
 }
 
 export function admissionTypeLabel(type) {
@@ -47,4 +57,16 @@ export function stayLocationLabel(patient) {
   if (room && bed) return `${room} / ${bed}`
   if (room || bed) return room || bed
   return '—'
+}
+
+export function conversionStatusLabel(status) {
+  const labels = {
+    pending: 'Pending Inpatient Admission',
+    returned: 'Returned for Correction',
+    resubmitted: 'Resubmitted',
+    rejected: 'Rejected',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+  }
+  return labels[status] || status || 'None'
 }

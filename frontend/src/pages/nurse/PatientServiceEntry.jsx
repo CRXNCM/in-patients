@@ -15,6 +15,7 @@ import { PatientWorkflowPanel } from '@/components/workflow/PatientWorkflowPanel
 import { isMaternityAdmission } from '@/lib/maternity'
 import { isEmergencyOpdAdmission, stayLocationLabel } from '@/lib/admissions'
 import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
+import { InpatientConversionPanel } from '@/components/shared/InpatientConversionPanel'
 import { recordsWithWardRequests } from '@/lib/workflowHistory'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
@@ -84,6 +85,15 @@ export default function PatientServiceEntry() {
           </div>
         </CardContent>
       </Card>
+
+      {isEmergencyOpdAdmission(patient) && (
+        <InpatientConversionPanel
+          patient={patient}
+          onChanged={(updated) => {
+            if (updated) applyPatientUpdate(updated)
+          }}
+        />
+      )}
 
       <ClinicalNotesPanel
         className="mb-6"

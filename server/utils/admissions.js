@@ -1,6 +1,8 @@
 export const ADMISSION_TYPES = ['normal', 'maternity', 'emergency-opd']
 export const EMERGENCY_OPD = 'emergency-opd'
-export const EMERGENCY_PRICE_MULTIPLIER = 1.25
+export const INPATIENT_PRICE_MULTIPLIER = 1.25
+/** @deprecated Use INPATIENT_PRICE_MULTIPLIER. Kept so older imports keep resolving. */
+export const EMERGENCY_PRICE_MULTIPLIER = INPATIENT_PRICE_MULTIPLIER
 
 const ADMISSION_SET = new Set(ADMISSION_TYPES)
 
@@ -28,24 +30,38 @@ export function wasConvertedFromEmergency(patient) {
   return Boolean(patient?.convertedFromEmergency)
 }
 
+export function usesInpatientPricing(patient) {
+  return !isEmergencyOpdAdmission(patient)
+}
+
 export function catalogPricingForPatient(patient) {
-  return { emergencyPricing: isEmergencyOpdAdmission(patient) }
+  const admissionType = admissionTypeForApi(patient?.admissionType)
+  return {
+    inpatientPricing: usesInpatientPricing(patient),
+    pricingAdmissionType: admissionType,
+  }
 }
 
 /**
- * Apply the Emergency OPD multiplier once from the catalog base price.
- * Never multiply an already adjusted unit price.
+ * Apply the inpatient 1.25 multiplier once from the catalog base price.
+ * Emergency OPD uses the catalog price unchanged.
  */
-export function applyEmergencyPrice(basePrice, { emergencyPricing = false } = {}) {
+export function applyAdmissionPrice(basePrice, { inpatientPricing = false } = {}) {
   const baseUnitPrice = roundMoney(basePrice)
-  if (!emergencyPricing) {
+  if (!inpatientPricing) {
     return { baseUnitPrice, priceMultiplier: 1, unitPrice: baseUnitPrice }
   }
   return {
     baseUnitPrice,
-    priceMultiplier: EMERGENCY_PRICE_MULTIPLIER,
-    unitPrice: roundMoney(baseUnitPrice * EMERGENCY_PRICE_MULTIPLIER),
+    priceMultiplier: INPATIENT_PRICE_MULTIPLIER,
+    unitPrice: roundMoney(baseUnitPrice * INPATIENT_PRICE_MULTIPLIER),
   }
+}
+
+/** @deprecated Prefer applyAdmissionPrice({ inpatientPricing }). */
+export function applyEmergencyPrice(basePrice, { emergencyPricing = false, inpatientPricing } = {}) {
+  const useInpatient = inpatientPricing != null ? Boolean(inpatientPricing) : !emergencyPricing
+  return applyAdmissionPrice(basePrice, { inpatientPricing: useInpatient })
 }
 
 export function pricedLineTotals(unitPrice, quantity) {
