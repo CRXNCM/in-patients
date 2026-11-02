@@ -183,8 +183,6 @@ const RECEPTION_PERMISSIONS = [
   'payments.edit',
   'credit.view',
   'credit.create_admission',
-  'credit.record_payment',
-  'credit.settle',
   'clinicalNotes.view',
 ]
 

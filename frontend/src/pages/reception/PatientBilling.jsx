@@ -516,7 +516,7 @@ export default function PatientBilling() {
           <StatCard title="Pending Charges" value={formatCurrency(pendingCharges)} subtitle="Not yet on bill" icon={Clock} iconClassName="bg-warning/15 text-warning" />
         </div>
 
-        {hasPermission('credit.record_payment') && (
+        {creditDesk && (
           <CreditSettlementPanel
             patient={patient}
             outstanding={Math.max(0, totalCharges - (patient.deposit || 0))}

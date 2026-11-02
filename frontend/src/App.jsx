@@ -79,7 +79,7 @@ export default function App() {
                           <Route path="discharged" element={<DischargedPatients />} />
                           <Route path="patient/:patientId" element={<PatientBilling />} />
                         </Route>
-                        <Route element={<RequirePermission permission="credit.view" />}>
+                        <Route element={<RequirePermission permission="credit.record_payment" />}>
                           <Route path="credit-patients" element={<ReceptionCreditPatients />} />
                         </Route>
                         <Route element={<RequirePermission allOf={['patients.view', 'payments.view']} />}>

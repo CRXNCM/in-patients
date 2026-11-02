@@ -51,7 +51,8 @@ export const NAVIGATION = {
           label: 'Credit Patients',
           path: '/reception/credit-patients',
           icon: CreditCard,
-          permission: 'credit.view',
+          permission: 'credit.record_payment',
+          creditDeskOnly: true,
         },
       ],
     },
@@ -292,6 +293,7 @@ export const NAVIGATION = {
 export function isNavItemVisible(user, item) {
   if (item.roles?.length && user?.roleKey && !item.roles.includes(user.roleKey)) return false
   if (item.hideForCreditDesk && isCreditReceptionUser(user)) return false
+  if (item.creditDeskOnly && !isCreditReceptionUser(user)) return false
   if (item.permission && !hasPermission(user, item.permission)) return false
   if (item.anyOf?.length && !hasAnyPermission(user, item.anyOf)) return false
   if (item.allOf?.length && !hasAllPermissions(user, item.allOf)) return false

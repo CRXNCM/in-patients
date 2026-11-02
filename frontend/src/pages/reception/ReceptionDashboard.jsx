@@ -44,11 +44,6 @@ function ReceptionOperationsDashboard() {
 
   const actions = (
     <div className="flex flex-wrap gap-2">
-      {hasPermission('credit.view') ? (
-        <Button type="button" size="sm" variant="outline" onClick={() => navigate('/reception/credit-patients')}>
-          Credit patients
-        </Button>
-      ) : null}
       {hasPermission('admissions.create') || hasPermission('admissions.create_emergency') ? (
         <Button type="button" size="sm" onClick={() => navigate('/reception/add-patient')}>
           Add Patient
