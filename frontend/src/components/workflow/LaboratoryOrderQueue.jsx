@@ -15,7 +15,7 @@ import { AuditTrail } from '@/components/shared/ServiceTimeline'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { useWorkflowRequests } from '@/context/WorkflowRequestsContext'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, newClientId } from '@/lib/utils'
 import { formatStayLocation } from '@/services/pharmacyFulfillment'
 import { stayVisibleToUser } from '@/lib/stayScope'
 
@@ -118,7 +118,7 @@ export default function LaboratoryOrderQueue({
 
   const actionId = (orderId, lineId, kind) => {
     const key = `${kind}:${orderId}:${lineId}`
-    if (!actionIds.current.has(key)) actionIds.current.set(key, crypto.randomUUID())
+    if (!actionIds.current.has(key)) actionIds.current.set(key, newClientId())
     return actionIds.current.get(key)
   }
   const clearAction = (orderId, lineId, kind) => {

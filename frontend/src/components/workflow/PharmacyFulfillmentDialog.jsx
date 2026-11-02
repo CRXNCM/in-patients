@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { StatusBadge } from '@/components/shared/CommonComponents'
 import { AuditTrail } from '@/components/shared/ServiceTimeline'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, newClientId } from '@/lib/utils'
 import {
   EXCEPTION_REASONS,
   applyHandover,
@@ -68,7 +68,7 @@ export function PharmacyFulfillmentDialog({ order, canFulfill, onOpenChange, onS
 
   const bodyFor = (line) => {
     const draft = draftOf(line)
-    if (!actionIds.current[line.lineId]) actionIds.current[line.lineId] = crypto.randomUUID()
+    if (!actionIds.current[line.lineId]) actionIds.current[line.lineId] = newClientId()
     return {
       clientActionId: actionIds.current[line.lineId],
       lineId: line.lineId,

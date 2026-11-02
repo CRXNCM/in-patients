@@ -14,7 +14,7 @@ import { usePatients } from '@/context/PatientsContext'
 import { useToast } from '@/context/ToastContext'
 import { useWorkflowRequests } from '@/context/WorkflowRequestsContext'
 import { isEmergencyOpdAdmission, stayLocationLabel } from '@/lib/admissions'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, newClientId } from '@/lib/utils'
 import { isActiveStay } from '@/lib/patientLocation'
 import {
   applyReturn,
@@ -155,7 +155,7 @@ export default function MedicineReturnsPage() {
 
   const submit = async () => {
     if (!selected || busy) return
-    if (!actionId.current) actionId.current = crypto.randomUUID()
+    if (!actionId.current) actionId.current = newClientId()
     const preview = applyReturn(selected.order, { id: 'preview', name: 'Pharmacist' }, {
       clientActionId: actionId.current,
       lineId: selected.line.lineId,
@@ -224,7 +224,7 @@ export default function MedicineReturnsPage() {
 
   const submitVerify = async () => {
     if (!verifyTarget || busy) return
-    if (!verifyActionId.current) verifyActionId.current = crypto.randomUUID()
+    if (!verifyActionId.current) verifyActionId.current = newClientId()
     const preview = verifyReturn(verifyTarget.order, { id: 'preview', name: 'Pharmacist' }, {
       clientActionId: verifyActionId.current,
       returnId: verifyTarget.entry.id,

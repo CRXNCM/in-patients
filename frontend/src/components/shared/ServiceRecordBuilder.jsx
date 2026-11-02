@@ -13,7 +13,7 @@ import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useWorkflowRequests } from '@/context/WorkflowRequestsContext'
 import { useToast } from '@/context/ToastContext'
 import { RoomTransferPanel } from '@/components/shared/RoomTransferPanel'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, newClientId } from '@/lib/utils'
 import { BILLING_TYPES } from '@/data/mockData'
 import { cn } from '@/lib/utils'
 import {
@@ -341,7 +341,7 @@ export function ServiceRecordBuilder({
     const routeFromRecord = source === 'nurse' && !autoApprove && departmental.length
     try {
       if (routeFromRecord) {
-        if (!submissionRef.current) submissionRef.current = crypto.randomUUID()
+        if (!submissionRef.current) submissionRef.current = newClientId()
         const routed = await routeNurseServices({
           patientId,
           submissionId: submissionRef.current,

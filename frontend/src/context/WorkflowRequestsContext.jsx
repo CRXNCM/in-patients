@@ -3,6 +3,7 @@ import { api, hasToken, USE_API } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { useLiveSync } from '@/context/LiveSyncContext'
 import { workflowActor } from '@/lib/workflowAccess'
+import { newClientId } from '@/lib/utils'
 import {
   approveLaboratoryItem,
   buildLaboratoryOrder,
@@ -21,7 +22,7 @@ import {
 const WorkflowRequestsContext = React.createContext(null)
 
 function localId(prefix) {
-  return `${prefix}-${crypto.randomUUID()}`
+  return `${prefix}-${newClientId()}`
 }
 
 export function WorkflowRequestsProvider({ children }) {
