@@ -15,9 +15,11 @@ import { ErrorState } from '@/components/shared/ErrorState'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { useReceptionDashboard } from '@/hooks/useReceptionDashboard'
 import { useAuth } from '@/context/AuthContext'
+import { isCreditReceptionUser } from '@/lib/permissions'
 import { useToast } from '@/context/ToastContext'
 import { api } from '@/api/client'
 import { PatientLink } from '@/components/shared/PatientLink'
+import CreditReceptionDashboard from '@/pages/reception/CreditReceptionDashboard'
 
 function isForbiddenError(message) {
   return /forbidden/i.test(message || '')
@@ -29,16 +31,21 @@ function locationLabel(row) {
 }
 
 export default function ReceptionDashboard() {
+  const { user } = useAuth()
+  if (isCreditReceptionUser(user)) return <CreditReceptionDashboard />
+  return <ReceptionOperationsDashboard />
+}
+
+function ReceptionOperationsDashboard() {
   const navigate = useNavigate()
-  const { hasPermission, user } = useAuth()
-  const creditDesk = user?.roleSlug === 'credit-reception'
+  const { hasPermission } = useAuth()
   const { toast } = useToast()
   const { data, loading, error, reload } = useReceptionDashboard()
 
   const actions = (
     <div className="flex flex-wrap gap-2">
       {hasPermission('credit.view') ? (
-        <Button type="button" size="sm" variant={creditDesk ? 'default' : 'outline'} onClick={() => navigate('/reception/credit-patients')}>
+        <Button type="button" size="sm" variant="outline" onClick={() => navigate('/reception/credit-patients')}>
           Credit patients
         </Button>
       ) : null}
@@ -51,11 +58,9 @@ export default function ReceptionDashboard() {
   )
 
   const hero = {
-    kicker: creditDesk ? 'Credit Reception' : 'Reception',
-    title: creditDesk ? 'Credit Reception' : 'Reception Dashboard',
-    description: creditDesk
-      ? 'Collect company and patient payments on credit stays. Partial payments print an invoice; a full settlement turns the stay into a normal cash patient.'
-      : 'Manage admitted patients, approve nurse records, and process billing',
+    kicker: 'Reception',
+    title: 'Reception Dashboard',
+    description: 'Manage admitted patients, approve nurse records, and process billing',
   }
 
   if (loading) {

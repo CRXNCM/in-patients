@@ -6,44 +6,24 @@ import { SearchInput } from '@/components/ui/search-input'
 import { PageHeader, DataTable, StatusBadge } from '@/components/shared/CommonComponents'
 import { CreditBadge } from '@/components/shared/CreditBadge'
 import { PatientLink } from '@/components/shared/PatientLink'
-import { usePatients } from '@/context/PatientsContext'
-import { useServiceEntries } from '@/context/ServiceEntriesContext'
-import { computeCreditState, creditCompanyLabel, creditStatusLabel } from '@/lib/credit'
+import { useCreditPatientRows } from '@/hooks/useCreditPatientRows'
+import { creditCompanyLabel, creditStatusLabel } from '@/lib/credit'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { stayLocationLabel } from '@/lib/admissions'
 
 export default function ReceptionCreditPatients() {
   const navigate = useNavigate()
-  const { patients, dischargedPatients } = usePatients()
-  const { getPatientBalance } = useServiceEntries()
+  const { rows: allRows } = useCreditPatientRows({ includeDischarged: true })
   const [search, setSearch] = useState('')
 
   const rows = useMemo(() => {
-    const list = [...patients, ...dischargedPatients].filter((patient) => {
-      const credit = computeCreditState(patient)
-      return credit.isCreditPatient || credit.formerCreditPatient
-    })
     const q = search.trim().toLowerCase()
-    const filtered = q
-      ? list.filter((patient) => {
-        const haystack = `${patient.name} ${patient.id} ${patient.creditCompanyName || ''} ${patient.formerCreditCompanyName || ''}`.toLowerCase()
-        return haystack.includes(q)
-      })
-      : list
-    return filtered.map((patient) => {
-      const credit = computeCreditState(patient)
-      const balance = getPatientBalance(patient)
-      const outstanding = Math.max(0, (balance.totalCharges || 0) - (patient.deposit || 0))
-      return {
-        ...patient,
-        creditStatus: credit.depositStatus,
-        formerCreditPatient: credit.formerCreditPatient,
-        isCreditPatient: credit.isCreditPatient,
-        outstanding,
-        remaining: balance.remainingBalance,
-      }
+    if (!q) return allRows
+    return allRows.filter((patient) => {
+      const haystack = `${patient.name} ${patient.id} ${patient.creditCompanyName || ''} ${patient.formerCreditCompanyName || ''}`.toLowerCase()
+      return haystack.includes(q)
     })
-  }, [dischargedPatients, getPatientBalance, patients, search])
+  }, [allRows, search])
 
   const columns = [
     {

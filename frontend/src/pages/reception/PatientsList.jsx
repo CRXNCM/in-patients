@@ -10,6 +10,7 @@ import { computeCreditState } from '@/lib/credit'
 import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
 import { stayLocationLabel } from '@/lib/admissions'
 import { useAuth } from '@/context/AuthContext'
+import { isCreditReceptionUser } from '@/lib/permissions'
 import { PatientLink } from '@/components/shared/PatientLink'
 import { EditPatientPersonalInfoButton } from '@/components/shared/EditPatientPersonalInfoDialog'
 
@@ -71,9 +72,9 @@ export default function PatientsList() {
   return (
     <div>
       <PageHeader
-        title={user?.roleSlug === 'credit-reception' ? 'Credit patients' : 'All Patients'}
+        title={isCreditReceptionUser(user) ? 'Credit patients' : 'All Patients'}
         description={
-          user?.roleSlug === 'credit-reception'
+          isCreditReceptionUser(user)
             ? 'Patients admitted on credit, plus stays that used to be credit and are now cash patients.'
             : 'Approved charges only — pending nurse records excluded from balance'
         }
@@ -88,7 +89,7 @@ export default function PatientsList() {
       <DataTable
         columns={columns}
         data={
-          user?.roleSlug === 'credit-reception'
+          isCreditReceptionUser(user)
             ? patients.filter((row) => {
               const credit = computeCreditState(row)
               return credit.isCreditPatient || credit.formerCreditPatient

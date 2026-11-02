@@ -7,13 +7,14 @@ import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { PatientLink } from '@/components/shared/PatientLink'
 import { EditPatientPersonalInfoButton } from '@/components/shared/EditPatientPersonalInfoDialog'
 import { useAuth } from '@/context/AuthContext'
+import { isCreditReceptionUser } from '@/lib/permissions'
 import { computeCreditState } from '@/lib/credit'
 
 export default function DischargedPatients() {
   const navigate = useNavigate()
   const { dischargedPatients } = usePatients()
   const { hasPermission, user } = useAuth()
-  const rows = user?.roleSlug === 'credit-reception'
+  const rows = isCreditReceptionUser(user)
     ? dischargedPatients.filter((row) => {
       const credit = computeCreditState(row)
       return credit.isCreditPatient || credit.formerCreditPatient

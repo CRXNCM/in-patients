@@ -75,11 +75,9 @@ export async function recordCreditPayment(patient, body, actorName, { existingRe
 
   let company = null
   if (payerType === 'credit_company') {
-    const resolved = await resolveCreditPayerCompany(body?.creditCompanyId, patient)
+    const resolved = await resolveCreditPayerCompany(patient.creditCompanyId, patient)
     if (resolved.error) return { error: resolved.error, status: 400 }
     company = resolved.company
-    patient.creditCompanyId = String(company._id)
-    patient.creditCompanyName = company.name
   }
 
   const amount = Number(body.amount)

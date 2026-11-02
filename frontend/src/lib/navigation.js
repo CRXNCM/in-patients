@@ -23,7 +23,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import { hasAllPermissions, hasAnyPermission, hasPermission } from '@/lib/permissions'
+import { hasAllPermissions, hasAnyPermission, hasPermission, isCreditReceptionUser } from '@/lib/permissions'
 
 /**
  * Single source of truth for role home-page navigation.
@@ -43,6 +43,7 @@ export const NAVIGATION = {
           icon: Users,
           permission: 'patients.view',
           match: ['/reception/patient'],
+          hideForCreditDesk: true,
         },
         { id: 'reception-admit', label: 'Add Patient', path: '/reception/add-patient', icon: UserPlus, permission: 'admissions.create' },
         {
@@ -64,6 +65,7 @@ export const NAVIGATION = {
           path: '/reception/critical-balances',
           icon: AlertTriangle,
           allOf: ['patients.view', 'payments.view'],
+          hideForCreditDesk: true,
         },
         {
           id: 'reception-inpatient-admissions',
@@ -101,7 +103,14 @@ export const NAVIGATION = {
           icon: LogOut,
           permission: 'admissions.discharge',
         },
-        { id: 'reception-discharged', label: 'Discharged', path: '/reception/discharged', icon: Archive, permission: 'patients.view' },
+        {
+          id: 'reception-discharged',
+          label: 'Discharged',
+          path: '/reception/discharged',
+          icon: Archive,
+          permission: 'patients.view',
+          hideForCreditDesk: true,
+        },
       ],
     },
   ],
@@ -282,6 +291,7 @@ export const NAVIGATION = {
 
 export function isNavItemVisible(user, item) {
   if (item.roles?.length && user?.roleKey && !item.roles.includes(user.roleKey)) return false
+  if (item.hideForCreditDesk && isCreditReceptionUser(user)) return false
   if (item.permission && !hasPermission(user, item.permission)) return false
   if (item.anyOf?.length && !hasAnyPermission(user, item.anyOf)) return false
   if (item.allOf?.length && !hasAllPermissions(user, item.allOf)) return false

@@ -228,7 +228,7 @@ export default function PatientBilling() {
   const approvedBillItems = getApprovedLineItems(patientId)
   const roomAssignments = getRoomAssignments(patientId)
   const isDischarged = patient.status === 'discharged'
-  const canTransfer = patient.status === 'admitted' && !isEmergencyOpdAdmission(patient)
+  const canTransfer = patient.status === 'admitted' && !isEmergencyOpdAdmission(patient) && hasPermission('rooms.assign_beds')
   const canConvert = patient.status === 'admitted' && isEmergencyOpdAdmission(patient) && hasPermission('admissions.convert_inpatient')
   const canAddCharges = patient.status !== 'discharged' && hasPermission('admissions.edit')
 
@@ -486,7 +486,7 @@ export default function PatientBilling() {
 
         <AssignedDoctorsPanel
           patient={patient}
-          canAdd
+          canAdd={hasPermission('doctors.assign')}
           onChanged={(res) => {
             if (res?.patient) applyPatientUpdate(res.patient)
           }}

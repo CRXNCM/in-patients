@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { FormField } from '@/components/ui/form-field'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { api, USE_API } from '@/api/client'
 import { usePatients } from '@/context/PatientsContext'
 import { computeCreditState, creditCompanyLabel, creditStatusLabel } from '@/lib/credit'
 import { formatCurrency } from '@/lib/utils'
@@ -32,9 +31,7 @@ export function CreditSettlementPanel({
     ? hospitalConfig.defaultPaymentMethod
     : paymentMethods[0]
 
-  const [companies, setCompanies] = useState([])
   const [payerType, setPayerType] = useState('company')
-  const [creditCompanyId, setCreditCompanyId] = useState(patient.creditCompanyId || '')
   const [amount, setAmount] = useState(outstanding > 0 ? String(outstanding) : '')
   const [method, setMethod] = useState(defaultPaymentMethod)
   const [referenceNumber, setReferenceNumber] = useState('')
@@ -42,25 +39,8 @@ export function CreditSettlementPanel({
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    setCreditCompanyId(patient.creditCompanyId || '')
-  }, [patient.creditCompanyId])
-
-  useEffect(() => {
     if (outstanding > 0) setAmount(String(outstanding))
   }, [outstanding, patient.id])
-
-  useEffect(() => {
-    if (!USE_API || !credit.isCreditPatient) return undefined
-    let cancelled = false
-    api.listCreditCompanies({ active: true })
-      .then((payload) => {
-        if (!cancelled) setCompanies(payload.companies || payload || [])
-      })
-      .catch(() => {
-        if (!cancelled) setCompanies([])
-      })
-    return () => { cancelled = true }
-  }, [credit.isCreditPatient])
 
   if (!credit.isCreditPatient) return null
 
@@ -73,8 +53,8 @@ export function CreditSettlementPanel({
       referenceNumber: trimText(referenceNumber),
     }
     const nextErrors = validateDeposit(form, deposits, { referenceRequiredMethods, paymentMethods })
-    if (payerType === 'company' && !trimText(creditCompanyId)) {
-      nextErrors.creditCompanyId = 'Select the company that is paying.'
+    if (payerType === 'company' && !patient.creditCompanyId && !patient.creditCompanyName) {
+      nextErrors.creditCompanyId = 'This stay has no credit company on file.'
     }
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors)
@@ -86,7 +66,7 @@ export function CreditSettlementPanel({
     try {
       const result = await addCreditPayment(patient.id, {
         payerType: payerType === 'company' ? 'company' : 'self',
-        creditCompanyId: payerType === 'company' ? creditCompanyId : undefined,
+        creditCompanyId: payerType === 'company' ? patient.creditCompanyId : undefined,
         amount: Number(form.amount),
         method: form.method,
         referenceNumber: form.referenceNumber || undefined,
@@ -144,15 +124,7 @@ export function CreditSettlementPanel({
           </FormField>
           {payerType === 'company' ? (
             <FormField label="Paying company" required error={errors.creditCompanyId}>
-              <NativeSelect value={creditCompanyId} onChange={(event) => setCreditCompanyId(event.target.value)}>
-                <option value="">Select a company</option>
-                {patient.creditCompanyId && !companies.some((row) => row.id === patient.creditCompanyId) ? (
-                  <option value={patient.creditCompanyId}>{patient.creditCompanyName || 'Current company'}</option>
-                ) : null}
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>{company.name}</option>
-                ))}
-              </NativeSelect>
+              <Input value={creditCompanyLabel(patient, 'No company on this stay')} disabled readOnly />
             </FormField>
           ) : (
             <p className="self-end text-sm text-muted-foreground">
