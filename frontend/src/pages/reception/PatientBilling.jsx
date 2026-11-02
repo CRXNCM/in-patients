@@ -694,7 +694,6 @@ export default function PatientBilling() {
           </CardContent>
         </Card>
 
-        {!creditDesk && (
         <div className="flex flex-wrap justify-end gap-3 mb-8">
           <Button size="lg" variant="outline" onClick={() => printInvoice('summary')}>
             <Printer className="h-4 w-4 mr-2" /> Print Summary Invoice
@@ -703,9 +702,7 @@ export default function PatientBilling() {
             <Printer className="h-4 w-4 mr-2" /> Print Detailed Invoice
           </Button>
         </div>
-        )}
 
-      {!creditDesk && (
       <Tabs value={invoiceVariant} onValueChange={setInvoiceVariant}>
         <Card className="overflow-hidden">
           <CardHeader className="border-b bg-muted/30">
@@ -749,7 +746,6 @@ export default function PatientBilling() {
           </CardContent>
         </Card>
       </Tabs>
-      )}
 
       <Dialog open={showDepositDialog} onOpenChange={setShowDepositDialog}>
         <DialogContent>
