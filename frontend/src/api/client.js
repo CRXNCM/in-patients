@@ -1,5 +1,27 @@
-const API_URL = String(import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const USE_API = import.meta.env.VITE_USE_API !== 'false'
+
+function isLoopbackHost(host) {
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1'
+}
+
+function configuredApiOrigin() {
+  return String(import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+}
+
+export function apiOrigin() {
+  const configured = configuredApiOrigin()
+  if (typeof window === 'undefined') return configured
+  const pageHost = window.location.hostname
+  if (!isLoopbackHost(pageHost)) return ''
+  if (!configured) return ''
+  try {
+    const host = new URL(configured, window.location.origin).hostname
+    if (isLoopbackHost(host)) return ''
+  } catch {
+    return ''
+  }
+  return configured
+}
 
 function getToken() {
   return sessionStorage.getItem('medbill_token')
@@ -19,7 +41,7 @@ export async function apiFetch(path, options = {}) {
   const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers })
+  const res = await fetch(`${apiOrigin()}${path}`, { ...options, headers })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error || res.statusText || 'Request failed')
   return data
