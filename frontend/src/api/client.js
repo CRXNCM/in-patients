@@ -328,4 +328,5 @@ export const api = {
   bulkCreateBeds: (body) => apiFetch('/api/beds/bulk', { method: 'POST', body: JSON.stringify(body) }),
 }
 
-export { API_URL, USE_API }
+export { USE_API }
+export const API_URL = apiOrigin()
