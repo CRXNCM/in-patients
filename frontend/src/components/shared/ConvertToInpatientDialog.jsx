@@ -13,7 +13,7 @@ import { api, USE_API } from '@/api/client'
 import { bedTypes, depositTypes } from '@/data/mockData'
 import { formatCurrency } from '@/lib/utils'
 import {
-  validateAdmission,
+  validateInpatientConversion,
   firstError,
   trimText,
   MIN_INITIAL_DEPOSIT,
@@ -100,19 +100,10 @@ export function ConvertToInpatientDialog({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const trimmed = {
-      name: patient.name,
-      gender: patient.gender,
-      age: patient.age,
-      ...form,
-      admissionType: 'normal',
-    }
-    const validationErrors = validateAdmission(trimmed, {
+    const validationErrors = validateInpatientConversion(form, {
       rooms,
-      existingPatients: [],
       rules: { minimumInitialDeposit, referenceRequiredMethods, paymentMethods },
     })
-    if (!form.doctorIds?.length) validationErrors.doctorIds = 'Doctor assignment is required.'
     if (Object.keys(validationErrors).length) {
       setErrors(validationErrors)
       toast({ title: 'Please complete conversion details', description: firstError(validationErrors), variant: 'destructive' })

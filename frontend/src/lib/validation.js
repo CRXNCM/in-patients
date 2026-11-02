@@ -148,6 +148,29 @@ export function validatePatientRegistration(form) {
 
 export function validateAdmission(form, { rooms = [], existingPatients = [], rules = {} } = {}) {
   const errors = { ...validatePatientRegistration(form) }
+
+  if (trimText(form.admissionDate)) {
+    const admissionErr = validateAdmissionDate(form.admissionDate)
+    if (admissionErr) errors.admissionDate = admissionErr
+  }
+
+  const emergencyOpd = String(form.admissionType || '').toLowerCase() === 'emergency-opd'
+  if (!emergencyOpd) Object.assign(errors, validateInpatientPlacement(form, { rooms, rules }))
+
+  const mrn = trimText(form.mrn)
+  const nationalId = trimText(form.nationalId)
+  if (mrn && existingPatients.some((p) => trimText(p.mrn) === mrn)) {
+    errors.mrn = 'A patient with this MRN already exists.'
+  }
+  if (nationalId && existingPatients.some((p) => trimText(p.nationalId) === nationalId)) {
+    errors.nationalId = 'A patient with this National ID already exists.'
+  }
+
+  return errors
+}
+
+export function validateInpatientPlacement(form, { rooms = [], rules = {} } = {}) {
+  const errors = {}
   const minimumDeposit = Number.isFinite(Number(rules.minimumInitialDeposit))
     ? Number(rules.minimumInitialDeposit)
     : MIN_INITIAL_DEPOSIT
@@ -158,19 +181,10 @@ export function validateAdmission(form, { rooms = [], existingPatients = [], rul
     ? rules.paymentMethods
     : null
 
-  if (trimText(form.admissionDate)) {
-    const admissionErr = validateAdmissionDate(form.admissionDate)
-    if (admissionErr) errors.admissionDate = admissionErr
-  }
-
-  const emergencyOpd = String(form.admissionType || '').toLowerCase() === 'emergency-opd'
-
-  if (!emergencyOpd && !trimText(form.bedType)) errors.bedType = 'Room type is required.'
+  if (!trimText(form.bedType)) errors.bedType = 'Room type is required.'
 
   const paymentMode = String(form.admissionPaymentMode || 'paid').toLowerCase()
-  if (emergencyOpd) {
-    /* Emergency OPD skips bed, doctor, and deposit collection. */
-  } else if (paymentMode === 'credit') {
+  if (paymentMode === 'credit') {
     const raw = trimText(form.initialDeposit)
     if (raw === '') {
       /* credit with blank amount is treated as 0 */
@@ -200,29 +214,25 @@ export function validateAdmission(form, { rooms = [], existingPatients = [], rul
     }
   }
 
-  if (!emergencyOpd) {
-    const room = rooms.find((r) => r.roomType === form.bedType)
-    if (!room) {
-      errors.bedType = 'Selected room type does not exist.'
-    } else if (form.bedNumber) {
-      const bed = room.beds.find((b) => b.label === trimText(form.bedNumber) || b.id === `BED-${trimText(form.bedNumber)}`)
-      if (!bed) errors.bedNumber = 'Selected bed does not belong to this room type.'
-      else if (bed.status !== 'available') errors.bedNumber = 'Selected bed is not available.'
-    } else {
-      const hasAvailable = room.beds.some((b) => b.status === 'available')
-      if (!hasAvailable) errors.bedNumber = 'No available beds in the selected room type.'
-    }
+  const room = rooms.find((r) => r.roomType === form.bedType)
+  if (!room) {
+    errors.bedType = 'Selected room type does not exist.'
+  } else if (form.bedNumber) {
+    const bed = room.beds.find((b) => b.label === trimText(form.bedNumber) || b.id === `BED-${trimText(form.bedNumber)}`)
+    if (!bed) errors.bedNumber = 'Selected bed does not belong to this room type.'
+    else if (bed.status !== 'available') errors.bedNumber = 'Selected bed is not available.'
+  } else {
+    const hasAvailable = room.beds.some((b) => b.status === 'available')
+    if (!hasAvailable) errors.bedNumber = 'No available beds in the selected room type.'
   }
 
-  const mrn = trimText(form.mrn)
-  const nationalId = trimText(form.nationalId)
-  if (mrn && existingPatients.some((p) => trimText(p.mrn) === mrn)) {
-    errors.mrn = 'A patient with this MRN already exists.'
-  }
-  if (nationalId && existingPatients.some((p) => trimText(p.nationalId) === nationalId)) {
-    errors.nationalId = 'A patient with this National ID already exists.'
-  }
+  return errors
+}
 
+export function validateInpatientConversion(form, { rooms = [], rules = {} } = {}) {
+  const errors = validateInpatientPlacement(form, { rooms, rules })
+  const doctorIds = Array.isArray(form.doctorIds) ? form.doctorIds.map((id) => trimText(id)).filter(Boolean) : []
+  if (!doctorIds.length) errors.doctorIds = 'Doctor assignment is required.'
   return errors
 }
 
