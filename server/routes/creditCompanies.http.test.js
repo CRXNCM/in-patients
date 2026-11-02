@@ -55,6 +55,7 @@ describe('credit companies and credit admission', { skip: !hasDb }, () => {
   let admin
   let reception
   let nurse
+  let emergencyNurse
   let companyId
   const bedLabel = `${PREFIX}GW-01`
   const created = { roles: [], users: [], beds: [] }
@@ -91,7 +92,15 @@ describe('credit companies and credit admission', { skip: !hasDb }, () => {
       active: true,
       system: false,
     })
-    created.roles.push(adminRole._id, receptionRole._id, nurseRole._id)
+    const emergencyRole = await Role.create({
+      name: `${PREFIX}emergency-nurse`,
+      slug: `${PREFIX}emergency-nurse`,
+      accessRole: 'Nurse',
+      permissions: ['admissions.convert_inpatient_self', 'admissions.request_inpatient'],
+      active: true,
+      system: false,
+    })
+    created.roles.push(adminRole._id, receptionRole._id, nurseRole._id, emergencyRole._id)
 
     admin = await User.create({
       email: `${PREFIX}admin@example.invalid`,
@@ -120,7 +129,16 @@ describe('credit companies and credit admission', { skip: !hasDb }, () => {
       roleId: nurseRole._id,
       status: 'active',
     })
-    created.users.push(admin._id, reception._id, nurse._id)
+    emergencyNurse = await User.create({
+      email: `${PREFIX}em@example.invalid`,
+      username: `${PREFIX}em`,
+      password: await bcrypt.hash('password', 8),
+      name: 'Company Emergency Nurse',
+      role: 'Nurse',
+      roleId: emergencyRole._id,
+      status: 'active',
+    })
+    created.users.push(admin._id, reception._id, nurse._id, emergencyNurse._id)
 
     const bed = await Bed.create({
       label: bedLabel,
@@ -184,6 +202,13 @@ describe('credit companies and credit admission', { skip: !hasDb }, () => {
     const list = await request(app, '/api/credit-companies?active=true', { token: sign(reception) })
     assert.equal(list.status, 200)
     assert.equal(list.body.companies.some((row) => row.id === companyId), true)
+
+    const wardList = await request(app, '/api/credit-companies?active=true', { token: sign(nurse) })
+    assert.equal(wardList.status, 403)
+
+    const emergencyList = await request(app, '/api/credit-companies?active=true', { token: sign(emergencyNurse) })
+    assert.equal(emergencyList.status, 200)
+    assert.equal(emergencyList.body.companies.some((row) => row.id === companyId), true)
   })
 
   it('requires an active company on credit admission and keeps address optional', async () => {

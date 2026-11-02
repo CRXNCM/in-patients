@@ -7,7 +7,14 @@ const router = Router()
 router.get(
   '/',
   authRequired,
-  requireAnyPermission('credit.view', 'credit.create_admission', 'credit.manage_companies'),
+  requireAnyPermission(
+    'credit.view',
+    'credit.create_admission',
+    'credit.manage_companies',
+    'admissions.convert_inpatient',
+    'admissions.convert_inpatient_self',
+    'admissions.request_inpatient'
+  ),
   async (req, res) => {
     try {
       res.json({ companies: await listCreditCompanies(req.query) })
