@@ -282,7 +282,7 @@ async function loadCompanies(CreditCompanyModel, ids) {
 async function attachStayFinances(PatientModel, ServiceRecordModel, filter, CreditCompanyModel) {
   const query = PatientModel.find(filter)
     .select(
-      'patientId name address room bed status admissionDate depositTotal isCreditPatient admissionPaymentMode requiredInitialDeposit creditCompanyId creditCompanyName'
+      'patientId name address room bed status admissionDate depositTotal isCreditPatient admissionPaymentMode requiredInitialDeposit creditCompanyId creditCompanyName formerCreditPatient formerCreditCompanyId formerCreditCompanyName creditSettledAt'
     )
     .sort({ admissionDate: -1 })
   const stays = typeof query.lean === 'function' ? await query.lean() : await query
@@ -306,6 +306,7 @@ async function attachStayFinances(PatientModel, ServiceRecordModel, filter, Cred
       admissionPaymentMode: doc.admissionPaymentMode,
       requiredInitialDeposit: doc.requiredInitialDeposit,
       depositTotal,
+      formerCreditPatient: doc.formerCreditPatient,
     })
     const company = companies.get(String(doc.creditCompanyId || ''))
     const remaining = remainingCredit(depositTotal, totalCharges)
@@ -323,12 +324,14 @@ async function attachStayFinances(PatientModel, ServiceRecordModel, filter, Cred
       totalCharges,
       remaining,
       outstanding: outstandingForStay(depositTotal, totalCharges),
-      isCreditPatient: Boolean(doc.isCreditPatient),
+      isCreditPatient: Boolean(doc.isCreditPatient || credit.isCreditPatient),
       admittedOnCredit: credit.admittedOnCredit,
+      formerCreditPatient: Boolean(doc.formerCreditPatient || credit.formerCreditPatient),
+      creditSettledAt: doc.creditSettledAt?.toISOString?.() || doc.creditSettledAt || null,
       creditOutstanding: remaining,
       depositStatus: credit.depositStatus,
-      creditCompanyId: doc.creditCompanyId || '',
-      creditCompanyName: company?.name || doc.creditCompanyName || '',
+      creditCompanyId: doc.creditCompanyId || doc.formerCreditCompanyId || '',
+      creditCompanyName: company?.name || doc.creditCompanyName || doc.formerCreditCompanyName || '',
       creditCompanyCode: company?.code || '',
       creditCompanyContact: company?.contactPerson || '',
       creditCompanyPhone: company?.phone || '',
@@ -403,6 +406,8 @@ function mapCreditRow(row) {
     outstanding: row.outstanding,
     isCreditPatient: row.isCreditPatient,
     admittedOnCredit: row.admittedOnCredit,
+    formerCreditPatient: row.formerCreditPatient,
+    creditSettledAt: row.creditSettledAt,
     creditOutstanding: row.creditOutstanding,
     depositStatus: row.depositStatus,
     creditCompanyId: row.creditCompanyId,
@@ -420,7 +425,10 @@ export async function buildManagerCreditReport(auth, query = {}, injected = {}) 
   forbid(roleHasPermission(auth?.role, 'credit.view'))
   const deps = { ...defaultDeps(), ...injected }
   const filter = inpatientFilter({ ...query, credit: '' })
-  filter.isCreditPatient = true
+  filter.$and = [
+    ...(filter.$and || []),
+    { $or: [{ isCreditPatient: true }, { formerCreditPatient: true }, { admissionPaymentMode: 'credit' }] },
+  ]
   let rows = (await attachStayFinances(deps.Patient, deps.ServiceRecord, filter, deps.CreditCompany)).map(mapCreditRow)
   const depositStatus = String(query.depositStatus || '').trim()
   if (depositStatus) {

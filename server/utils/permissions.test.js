@@ -60,6 +60,12 @@ describe('permission catalog', () => {
     assert.ok(!emergencyNurse.includes('admissions.discharge'))
     assert.ok(!emergencyNurse.includes('users.create'))
     assert.ok(reception.includes('admissions.convert_inpatient'))
+    const creditReception = defaultPermissionsForSlug('credit-reception')
+    assert.ok(creditReception.includes('credit.record_payment'))
+    assert.ok(creditReception.includes('credit.settle'))
+    assert.ok(creditReception.includes('payments.create'))
+    assert.ok(!creditReception.includes('admissions.create'))
+    assert.ok(!creditReception.includes('admissions.edit'))
   })
 })
 

@@ -30,12 +30,18 @@ function locationLabel(row) {
 
 export default function ReceptionDashboard() {
   const navigate = useNavigate()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
+  const creditDesk = user?.roleSlug === 'credit-reception'
   const { toast } = useToast()
   const { data, loading, error, reload } = useReceptionDashboard()
 
   const actions = (
     <div className="flex flex-wrap gap-2">
+      {hasPermission('credit.view') ? (
+        <Button type="button" size="sm" variant={creditDesk ? 'default' : 'outline'} onClick={() => navigate('/reception/credit-patients')}>
+          Credit patients
+        </Button>
+      ) : null}
       {hasPermission('admissions.create') || hasPermission('admissions.create_emergency') ? (
         <Button type="button" size="sm" onClick={() => navigate('/reception/add-patient')}>
           Add Patient
@@ -45,9 +51,11 @@ export default function ReceptionDashboard() {
   )
 
   const hero = {
-    kicker: 'Reception',
-    title: 'Reception Dashboard',
-    description: 'Manage admitted patients, approve nurse records, and process billing',
+    kicker: creditDesk ? 'Credit Reception' : 'Reception',
+    title: creditDesk ? 'Credit Reception' : 'Reception Dashboard',
+    description: creditDesk
+      ? 'Collect company and patient payments on credit stays. Partial payments print an invoice; a full settlement turns the stay into a normal cash patient.'
+      : 'Manage admitted patients, approve nurse records, and process billing',
   }
 
   if (loading) {

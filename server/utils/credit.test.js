@@ -16,7 +16,7 @@ describe('credit state', () => {
     assert.equal(state.depositStatus, 'unpaid')
   })
 
-  it('keeps a credit admission marked as unpaid after a deposit is paid', () => {
+  it('marks a credit admission as partially paid after a deposit is recorded', () => {
     const partial = computeCreditState({
       admissionPaymentMode: 'credit',
       requiredInitialDeposit: 15000,
@@ -24,7 +24,18 @@ describe('credit state', () => {
     })
     assert.equal(partial.isCreditPatient, true)
     assert.equal(partial.outstandingDeposit, 0)
-    assert.equal(partial.depositStatus, 'unpaid')
+    assert.equal(partial.depositStatus, 'partially-paid')
+  })
+
+  it('marks a settled former credit stay as paid', () => {
+    const settled = computeCreditState({
+      admissionPaymentMode: 'paid',
+      formerCreditPatient: true,
+      depositTotal: 8000,
+    })
+    assert.equal(settled.isCreditPatient, false)
+    assert.equal(settled.formerCreditPatient, true)
+    assert.equal(settled.depositStatus, 'paid')
   })
 
   it('does not mark a paid admission as a credit patient', () => {

@@ -436,6 +436,16 @@ export const initialRoomAssignments = buildInitialRoomAssignments(patients)
 
 export const users = [
   { id: 1, name: 'Sara Bekele', email: 'reception@cc', role: 'Reception', status: 'active' },
+  {
+    id: 10,
+    name: 'Credit Reception Lulit',
+    email: 'credit-reception@cc',
+    role: 'Reception',
+    roleName: 'Credit Reception',
+    roleSlug: 'credit-reception',
+    status: 'active',
+    permissions: ['patients.view', 'admissions.view', 'rooms.view', 'payments.view', 'payments.create', 'credit.view', 'credit.record_payment', 'credit.settle', 'clinicalNotes.view'],
+  },
   { id: 3, name: 'Admin User', email: 'admin@cc', role: 'Admin', status: 'active' },
   { id: 4, name: 'Manager User', email: 'manager@cc', role: 'Manager', status: 'active' },
   {

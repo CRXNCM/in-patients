@@ -14,7 +14,7 @@ import { api } from '@/api/client'
 import { useManagerFinanceQuery } from '@/hooks/useManagerFinanceQuery'
 import { filterControlClass } from '@/pages/manager/financeShared'
 import { PatientLink } from '@/components/shared/PatientLink'
-import { creditCompanyLabel } from '@/lib/credit'
+import { creditCompanyLabel, creditStatusLabel } from '@/lib/credit'
 
 function remainingClass(remaining) {
   if (remaining < 0) return 'text-warning'
@@ -112,7 +112,7 @@ export default function ManagerCreditPatients() {
     {
       key: 'depositStatus',
       header: 'Credit Status',
-      render: (row) => (row.depositStatus === 'partially-paid' ? 'Partially paid' : row.depositStatus === 'unpaid' ? 'Unpaid' : row.depositStatus || 'Unpaid'),
+      render: (row) => creditStatusLabel(row.depositStatus),
     },
     { key: 'status', header: 'Patient Status', render: (row) => <StatusBadge status={row.status} /> },
     {
@@ -128,7 +128,7 @@ export default function ManagerCreditPatients() {
     <MotionPage>
       <PageHeader
         title="Credit Patients"
-        description="Current stays admitted on credit."
+        description="Current credit stays and former credit patients after settlement. Credit status is Unpaid, Partially paid, or Paid."
       />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -240,7 +240,8 @@ export default function ManagerCreditPatients() {
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <Field label="Credit outstanding" value={formatCurrency(detail.creditOutstanding)} />
                   <Field label="Current balance" value={formatCurrency(detail.remaining)} />
-                  <Field label="Credit status" value={detail.depositStatus === 'partially-paid' ? 'Partially paid' : detail.depositStatus === 'paid' ? 'Paid' : 'Unpaid'} />
+                  <Field label="Credit status" value={creditStatusLabel(detail.depositStatus)} />
+                  {detail.formerCreditPatient ? <Field label="History" value="Used to be a credit patient" /> : null}
                 </div>
               </div>
             </div>

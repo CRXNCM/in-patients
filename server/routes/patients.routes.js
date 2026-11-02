@@ -12,6 +12,7 @@ import { DoctorAssignment } from '../models/DoctorAssignment.js'
 import { listAssignments, assignDoctor, assignDoctorsOnAdmit, endAssignment } from '../services/doctorAssignments.js'
 import { claimAvailableBed, releaseBed } from '../services/beds.js'
 import { applyCreditFlags, normalizeAdmissionPaymentMode } from '../utils/credit.js'
+import { applyCreditPaymentOutcome, recordCreditPayment } from '../services/creditSettlement.js'
 import { resolveActiveCreditCompany } from '../services/creditCompanies.js'
 import { MaternityBaby } from '../models/MaternityBaby.js'
 import {
@@ -847,6 +848,34 @@ router.patch('/:id/doctors/:assignmentId/end', authRequired, requirePermission('
   }
 })
 
+router.post('/:id/credit-payments', authRequired, requireAnyPermission('credit.record_payment', 'credit.settle'), async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ patientId: req.params.id })
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const depositBlock = inpatientActionError(patient, 'deposits')
+    if (depositBlock) return res.status(400).json({ error: depositBlock })
+
+    const [existingRefs, rules] = await Promise.all([
+      Deposit.find({ referenceNumber: { $exists: true, $ne: '' } }).distinct('referenceNumber'),
+      loadResolvedSettings(HospitalSettings),
+    ])
+    const result = await recordCreditPayment(patient, req.body, req.user.name, { existingRefs, rules })
+    if (result.error) return res.status(result.status || 400).json({ error: result.error })
+
+    const assignedDoctors = await listAssignments(patient.patientId)
+    res.status(201).json({
+      deposit: toFrontendDeposit(result.deposit),
+      invoice: result.invoice,
+      settled: result.settled,
+      outstanding: result.outstanding,
+      patient: await mapPatientWithBaby(patient, result.balance, assignedDoctors),
+    })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to record the credit payment.' })
+  }
+})
+
 router.post('/:id/deposits', authRequired, requireAnyPermission('payments.create', 'credit.record_payment'), async (req, res) => {
   try {
     const { amount, method, date, referenceNumber } = req.body
@@ -862,6 +891,7 @@ router.post('/:id/deposits', authRequired, requireAnyPermission('payments.create
     const depositErrors = validateDepositBody({ amount, method, referenceNumber }, existingRefs, rules)
     if (depositErrors.length) return res.status(400).json({ error: depositErrors[0] })
 
+    const onCredit = patient.admissionPaymentMode === 'credit' || patient.isCreditPatient
     const deposit = await Deposit.create({
       patientId: patient.patientId,
       amount: Number(amount),
@@ -869,17 +899,37 @@ router.post('/:id/deposits', authRequired, requireAnyPermission('payments.create
       referenceNumber: referenceNumber?.trim() || undefined,
       date: date || todayStr(),
       receivedBy: req.user.name,
+      payerType: onCredit ? 'self' : '',
+      purpose: onCredit ? 'credit_payment' : 'deposit',
     })
 
     patient.depositTotal += Number(amount)
-    applyCreditFlags(patient, patient.depositTotal)
+    const outcome = onCredit
+      ? await applyCreditPaymentOutcome(patient, req.user.name)
+      : { balance: await calcPatientBalance(patient.patientId), settled: false }
+    if (onCredit) {
+      patient.creditEvents = [...(patient.creditEvents || []), {
+        action: outcome.settled ? 'credit_settled' : 'credit_payment',
+        payerType: 'self',
+        amount: Number(amount),
+        method: deposit.method,
+        outstandingAfter: outcome.outstanding,
+        settled: Boolean(outcome.settled),
+        at: new Date().toISOString(),
+        by: req.user.name,
+        note: `Patient deposit ${amount}`,
+      }]
+    } else {
+      applyCreditFlags(patient, patient.depositTotal)
+    }
     patient.updatedBy = req.user.name
     await patient.save()
 
     const assignedDoctors = await listAssignments(patient.patientId)
     res.status(201).json({
       deposit: toFrontendDeposit(deposit),
-      patient: await mapPatientWithBaby(patient, await calcPatientBalance(patient.patientId), assignedDoctors),
+      patient: await mapPatientWithBaby(patient, outcome.balance || await calcPatientBalance(patient.patientId), assignedDoctors),
+      settled: Boolean(outcome.settled),
     })
   } catch (err) {
     console.error(err)

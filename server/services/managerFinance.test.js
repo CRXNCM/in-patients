@@ -124,7 +124,8 @@ describe('buildManagerCreditReport', () => {
       {},
       { Patient, ServiceRecord }
     )
-    assert.equal(captured[0].isCreditPatient, true)
+    assert.equal(captured[0].isCreditPatient, undefined)
+    assert.ok(captured[0].$and)
     assert.equal(data.summary.patients, 1)
     assert.equal(data.summary.creditOutstanding, 2000)
     assert.equal(data.rows[0].creditOutstanding, data.rows[0].remaining)

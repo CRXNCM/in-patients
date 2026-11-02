@@ -151,6 +151,18 @@ export function sanitizePermissions(value) {
   return [...new Set(value.map((key) => String(key || '').trim()).filter((key) => ALLOWED.has(key)))]
 }
 
+const CREDIT_RECEPTION_PERMISSIONS = [
+  'patients.view',
+  'admissions.view',
+  'rooms.view',
+  'payments.view',
+  'payments.create',
+  'credit.view',
+  'credit.record_payment',
+  'credit.settle',
+  'clinicalNotes.view',
+]
+
 const RECEPTION_PERMISSIONS = [
   'patients.view',
   'patients.create',
@@ -231,6 +243,12 @@ export const PREDEFINED_ROLE_PRESETS = [
     permissions: RECEPTION_PERMISSIONS,
   },
   {
+    slug: 'credit-reception',
+    label: 'Credit Reception',
+    description: 'Collect company and self payments for credit patients, print invoices, and convert settled stays to cash patients.',
+    permissions: CREDIT_RECEPTION_PERMISSIONS,
+  },
+  {
     slug: 'nurse',
     label: 'Nurse',
     description: 'View inpatients, record care, and assign visiting doctors.',
@@ -274,6 +292,7 @@ export const DEFAULT_ROLE_PERMISSIONS = {
   'super-admin': ALL_PERMISSION_KEYS,
   admin: ALL_PERMISSION_KEYS,
   reception: RECEPTION_PERMISSIONS,
+  'credit-reception': CREDIT_RECEPTION_PERMISSIONS,
   'night-reception': [
     'patients.view',
     'patients.create',

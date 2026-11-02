@@ -7,11 +7,18 @@ import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { PatientLink } from '@/components/shared/PatientLink'
 import { EditPatientPersonalInfoButton } from '@/components/shared/EditPatientPersonalInfoDialog'
 import { useAuth } from '@/context/AuthContext'
+import { computeCreditState } from '@/lib/credit'
 
 export default function DischargedPatients() {
   const navigate = useNavigate()
   const { dischargedPatients } = usePatients()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
+  const rows = user?.roleSlug === 'credit-reception'
+    ? dischargedPatients.filter((row) => {
+      const credit = computeCreditState(row)
+      return credit.isCreditPatient || credit.formerCreditPatient
+    })
+    : dischargedPatients
   const canEditPersonalInfo = hasPermission('patients.edit') || hasPermission('admissions.create')
 
   const columns = [
@@ -58,7 +65,7 @@ export default function DischargedPatients() {
       />
       <DataTable
         columns={columns}
-        data={dischargedPatients}
+        data={rows}
         onRowClick={(row) => navigate(`/reception/patient/${row.id}`)}
       />
     </div>

@@ -31,6 +31,8 @@ import { RoomHistoryTable, RoomTransferPanel } from '@/components/shared/RoomTra
 import { DischargeReviewPanel } from '@/components/shared/DischargeWorkflow'
 import { AssignedDoctorsPanel } from '@/components/shared/AssignedDoctorsPanel'
 import { CreditBadge, CreditSummary } from '@/components/shared/CreditBadge'
+import { CreditPaymentInvoice } from '@/components/shared/CreditPaymentInvoice'
+import { CreditSettlementPanel } from '@/components/reception/CreditSettlementPanel'
 import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
 import { ClinicalNotesPanel } from '@/components/shared/ClinicalNotesPanel'
 import { isMaternityAdmission, subjectLabel } from '@/lib/maternity'
@@ -228,7 +230,7 @@ export default function PatientBilling() {
   const isDischarged = patient.status === 'discharged'
   const canTransfer = patient.status === 'admitted' && !isEmergencyOpdAdmission(patient)
   const canConvert = patient.status === 'admitted' && isEmergencyOpdAdmission(patient) && hasPermission('admissions.convert_inpatient')
-  const canAddCharges = patient.status !== 'discharged'
+  const canAddCharges = patient.status !== 'discharged' && hasPermission('admissions.edit')
 
   const today = new Date().toISOString().split('T')[0]
   const doctorVisitDates = (() => {
@@ -508,6 +510,25 @@ export default function PatientBilling() {
           <StatCard title="Pending Charges" value={formatCurrency(pendingCharges)} subtitle="Not yet on bill" icon={Clock} iconClassName="bg-warning/15 text-warning" />
         </div>
 
+        {hasPermission('credit.record_payment') && (
+          <CreditSettlementPanel
+            patient={patient}
+            outstanding={Math.max(0, totalCharges - (patient.deposit || 0))}
+            deposits={deposits}
+            onPaid={(result) => {
+              if (result?.patient) applyPatientUpdate(result.patient)
+              const payment = {
+                ...(result.deposit || result),
+                ...(result.invoice || {}),
+                settled: result.settled,
+                outstandingAfter: result.outstandingAfter ?? result.outstanding,
+              }
+              setPrintDeposit(payment)
+              queuePrint('deposit')
+            }}
+          />
+        )}
+
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -624,6 +645,7 @@ export default function PatientBilling() {
                       <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Date</th>
                       <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Amount</th>
                       <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Type</th>
+                      <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Payer</th>
                       <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Received By</th>
                       <th className="px-4 py-3 text-right font-semibold text-muted-foreground">Receipt</th>
                     </tr>
@@ -634,6 +656,10 @@ export default function PatientBilling() {
                         <td className="px-4 py-3">{formatDate(d.date)}</td>
                         <td className="px-4 py-3 font-semibold tabular-nums text-success">{formatCurrency(d.amount)}</td>
                         <td className="px-4 py-3">{d.method}</td>
+                        <td className="px-4 py-3">
+                          {d.payerType === 'credit_company' ? (d.creditCompanyName || 'Company') : d.payerType === 'self' ? 'Patient' : '—'}
+                          {d.invoiceNumber ? <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">{d.invoiceNumber}</span> : null}
+                        </td>
                         <td className="px-4 py-3">{d.receivedBy}</td>
                         <td className="px-4 py-3 text-right">
                           <Button size="sm" variant="outline" onClick={() => handlePrintDeposit(d)}>
@@ -813,7 +839,11 @@ export default function PatientBilling() {
 
       {printDeposit && (
         <PrintPortal className="print-deposit">
-          <DepositReceipt patient={patient} deposit={printDeposit} />
+          {printDeposit.invoiceNumber || printDeposit.payerType ? (
+            <CreditPaymentInvoice patient={patient} payment={printDeposit} />
+          ) : (
+            <DepositReceipt patient={patient} deposit={printDeposit} />
+          )}
         </PrintPortal>
       )}
       <ConvertToInpatientDialog

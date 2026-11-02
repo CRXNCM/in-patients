@@ -22,6 +22,7 @@ import AddPatient from '@/pages/reception/AddPatient'
 import PendingDischarges from '@/pages/reception/PendingDischarges'
 import DischargedPatients from '@/pages/reception/DischargedPatients'
 import CriticalBalances from '@/pages/reception/CriticalBalances'
+import ReceptionCreditPatients from '@/pages/reception/ReceptionCreditPatients'
 import PendingInpatientAdmissions from '@/pages/reception/PendingInpatientAdmissions'
 
 import NurseDashboard from '@/pages/nurse/NurseDashboard'
@@ -33,6 +34,7 @@ import NurseServiceHistory from '@/pages/nurse/NurseServiceHistory'
 import PharmacyQueuePage from '@/pages/pharmacy/PharmacyQueuePage'
 import MedicineReturnsPage from '@/pages/pharmacy/MedicineReturnsPage'
 import LaboratoryQueuePage from '@/pages/laboratory/LaboratoryQueuePage'
+import LaboratoryPatientsPage from '@/pages/laboratory/LaboratoryPatientsPage'
 import { AdminLaboratoryRequests, AdminPharmacyRequests } from '@/pages/admin/AdminWorkflowRequests'
 
 import AdminDashboard from '@/pages/admin/AdminDashboard'
@@ -76,6 +78,9 @@ export default function App() {
                           <Route path="patients" element={<PatientsList />} />
                           <Route path="discharged" element={<DischargedPatients />} />
                           <Route path="patient/:patientId" element={<PatientBilling />} />
+                        </Route>
+                        <Route element={<RequirePermission permission="credit.view" />}>
+                          <Route path="credit-patients" element={<ReceptionCreditPatients />} />
                         </Route>
                         <Route element={<RequirePermission allOf={['patients.view', 'payments.view']} />}>
                           <Route path="critical-balances" element={<CriticalBalances />} />
@@ -127,6 +132,7 @@ export default function App() {
                     <Route element={<RequireAuth role="laboratory" />}>
                       <Route path="/laboratory" element={<AppLayout role="laboratory" />}>
                         <Route index element={<LaboratoryQueuePage />} />
+                        <Route path="patients" element={<LaboratoryPatientsPage />} />
                         <Route path="queue" element={<Navigate to="/laboratory" replace />} />
                       </Route>
                     </Route>

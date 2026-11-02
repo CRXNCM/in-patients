@@ -45,6 +45,13 @@ export const NAVIGATION = {
           match: ['/reception/patient'],
         },
         { id: 'reception-admit', label: 'Add Patient', path: '/reception/add-patient', icon: UserPlus, permission: 'admissions.create' },
+        {
+          id: 'reception-credit',
+          label: 'Credit Patients',
+          path: '/reception/credit-patients',
+          icon: CreditCard,
+          permission: 'credit.view',
+        },
       ],
     },
     {
@@ -175,6 +182,12 @@ export const NAVIGATION = {
           icon: FlaskConical,
           end: true,
           badge: 'laboratoryPending',
+        },
+        {
+          id: 'laboratory-patients',
+          label: 'Patients',
+          path: '/laboratory/patients',
+          icon: Users,
         },
       ],
     },

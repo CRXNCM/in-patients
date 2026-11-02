@@ -95,6 +95,8 @@ export const api = {
     apiFetch(`/api/patients/${id}/baby`, { method: 'PUT', body: JSON.stringify(body) }),
   addDeposit: (id, body) =>
     apiFetch(`/api/patients/${id}/deposits`, { method: 'POST', body: JSON.stringify(body) }),
+  addCreditPayment: (id, body) =>
+    apiFetch(`/api/patients/${id}/credit-payments`, { method: 'POST', body: JSON.stringify(body) }),
   transferRoom: (id, body) =>
     apiFetch(`/api/patients/${id}/transfer-room`, { method: 'POST', body: JSON.stringify(body) }),
   setDoctorVisit: (id, date, disabled) =>

@@ -6,6 +6,50 @@ function isReleased(status) {
   return status === 'approved' || status === 'processing' || status === 'completed'
 }
 
+export function groupLaboratoryPatients(orders = []) {
+  const byId = new Map()
+  for (const order of orders) {
+    const patientId = String(order?.patientId || '').trim()
+    if (!patientId) continue
+    const items = Array.isArray(order.items) ? order.items : []
+    const pendingTests = items.filter((item) => item.status === 'pending').length
+    const releasedTests = items.filter((item) => isReleased(item.status)).length
+    const existing = byId.get(patientId)
+    const next = existing || {
+      id: patientId,
+      patientId,
+      name: order.patientName || patientId,
+      admissionNumber: order.admissionNumber || '',
+      admissionType: order.admissionType || '',
+      ward: order.ward || '',
+      room: order.room || '',
+      bed: order.bed || '',
+      requestCount: 0,
+      testCount: 0,
+      pendingTests: 0,
+      releasedTests: 0,
+      lastRequestedAt: '',
+      tests: [],
+    }
+    next.requestCount += 1
+    next.testCount += items.length
+    next.pendingTests += pendingTests
+    next.releasedTests += releasedTests
+    next.tests.push(...items.map((item) => item.name).filter(Boolean))
+    if (String(order.requestedAt || '') >= String(next.lastRequestedAt || '')) {
+      next.lastRequestedAt = order.requestedAt || next.lastRequestedAt
+      next.name = order.patientName || next.name
+      next.admissionNumber = order.admissionNumber || next.admissionNumber
+      next.admissionType = order.admissionType || next.admissionType
+      next.ward = order.ward || next.ward
+      next.room = order.room || next.room
+      next.bed = order.bed || next.bed
+    }
+    byId.set(patientId, next)
+  }
+  return [...byId.values()].sort((a, b) => String(b.lastRequestedAt || '').localeCompare(String(a.lastRequestedAt || '')))
+}
+
 export function laboratoryOverallStatus(items = []) {
   if (!items.length) return 'pending'
   const open = items.filter((item) => item.status !== 'cancelled' && item.status !== 'rejected')

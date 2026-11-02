@@ -41,6 +41,7 @@ export function toFrontendPatient(doc, balance) {
     admissionPaymentMode: doc.admissionPaymentMode,
     requiredInitialDeposit: doc.requiredInitialDeposit,
     depositTotal: doc.depositTotal,
+    formerCreditPatient: doc.formerCreditPatient,
   })
   return {
     id: doc.patientId,
@@ -55,6 +56,12 @@ export function toFrontendPatient(doc, balance) {
     emergencyPhone: doc.emergencyPhone || '',
     creditCompanyId: doc.creditCompanyId || '',
     creditCompanyName: doc.creditCompanyName || '',
+    formerCreditPatient: Boolean(doc.formerCreditPatient) || credit.formerCreditPatient,
+    formerCreditCompanyId: doc.formerCreditCompanyId || '',
+    formerCreditCompanyName: doc.formerCreditCompanyName || '',
+    creditSettledAt: doc.creditSettledAt?.toISOString?.() || doc.creditSettledAt || null,
+    creditSettledBy: doc.creditSettledBy || null,
+    creditEvents: doc.creditEvents || [],
     room: doc.room || null,
     bed: doc.bed || null,
     admissionDate: doc.admissionDate,
@@ -105,6 +112,11 @@ export function toFrontendDeposit(doc) {
     referenceNumber: doc.referenceNumber || '',
     receivedBy: doc.receivedBy,
     isInitial: doc.isInitial,
+    payerType: doc.payerType || '',
+    creditCompanyId: doc.creditCompanyId || '',
+    creditCompanyName: doc.creditCompanyName || '',
+    invoiceNumber: doc.invoiceNumber || '',
+    purpose: doc.purpose || 'deposit',
     createdAt: doc.createdAt?.toISOString?.() || null,
   }
 }

@@ -9,6 +9,11 @@ const depositSchema = new mongoose.Schema(
     date: { type: String, required: true },
     receivedBy: String,
     isInitial: { type: Boolean, default: false },
+    payerType: { type: String, enum: ['self', 'credit_company', ''], default: '' },
+    creditCompanyId: { type: String, default: '' },
+    creditCompanyName: { type: String, default: '' },
+    invoiceNumber: { type: String, default: '', index: true },
+    purpose: { type: String, enum: ['deposit', 'credit_payment'], default: 'deposit' },
   },
   { timestamps: true }
 )

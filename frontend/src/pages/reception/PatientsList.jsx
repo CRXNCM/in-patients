@@ -6,6 +6,7 @@ import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { CreditBadge } from '@/components/shared/CreditBadge'
+import { computeCreditState } from '@/lib/credit'
 import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
 import { stayLocationLabel } from '@/lib/admissions'
 import { useAuth } from '@/context/AuthContext'
@@ -14,7 +15,7 @@ import { EditPatientPersonalInfoButton } from '@/components/shared/EditPatientPe
 
 export default function PatientsList() {
   const navigate = useNavigate()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
   const { patients } = usePatients()
   const { getPatientBalance, getBalanceStatus } = useServiceEntries()
 
@@ -70,8 +71,12 @@ export default function PatientsList() {
   return (
     <div>
       <PageHeader
-        title="All Patients"
-        description="Approved charges only — pending nurse records excluded from balance"
+        title={user?.roleSlug === 'credit-reception' ? 'Credit patients' : 'All Patients'}
+        description={
+          user?.roleSlug === 'credit-reception'
+            ? 'Patients admitted on credit, plus stays that used to be credit and are now cash patients.'
+            : 'Approved charges only — pending nurse records excluded from balance'
+        }
         action={
           hasPermission('admissions.create') ? (
             <Button onClick={() => navigate('/reception/add-patient')}>
@@ -80,7 +85,18 @@ export default function PatientsList() {
           ) : null
         }
       />
-      <DataTable columns={columns} data={patients} onRowClick={(row) => navigate(`/reception/patient/${row.id}`)} />
+      <DataTable
+        columns={columns}
+        data={
+          user?.roleSlug === 'credit-reception'
+            ? patients.filter((row) => {
+              const credit = computeCreditState(row)
+              return credit.isCreditPatient || credit.formerCreditPatient
+            })
+            : patients
+        }
+        onRowClick={(row) => navigate(`/reception/patient/${row.id}`)}
+      />
     </div>
   )
 }

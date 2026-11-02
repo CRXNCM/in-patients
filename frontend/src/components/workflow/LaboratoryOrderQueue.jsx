@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ClipboardList, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -82,8 +83,10 @@ export default function LaboratoryOrderQueue({
     rejectLaboratory,
     cancelLaboratory,
   } = useWorkflowRequests()
-  const [status, setStatus] = useState(canProcess ? 'open' : 'all')
-  const [search, setSearch] = useState('')
+  const [params] = useSearchParams()
+  const patientFilter = params.get('patient') || ''
+  const [status, setStatus] = useState(patientFilter ? 'all' : (canProcess ? 'open' : 'all'))
+  const [search, setSearch] = useState(patientFilter)
   const [priority, setPriority] = useState('all')
   const [ward, setWard] = useState('all')
   const [date, setDate] = useState('')

@@ -6,6 +6,7 @@ export const DEFAULT_ROLES = [
   { name: 'Super Admin', slug: 'super-admin', accessRole: 'Admin', system: true, description: 'Full hospital administration access.' },
   { name: 'Admin', slug: 'admin', accessRole: 'Admin', system: true, description: 'Hospital administration and configuration.' },
   { name: 'Reception', slug: 'reception', accessRole: 'Reception', system: true, description: 'Admissions, deposits, and reception billing.' },
+  { name: 'Credit Reception', slug: 'credit-reception', accessRole: 'Reception', system: true, description: 'Collect company and patient payments on credit stays, print payment invoices, and convert settled stays to cash patients.' },
   { name: 'Night Reception', slug: 'night-reception', accessRole: 'Reception', system: false, description: 'Reception access for night-shift staff.' },
   { name: 'Nurse', slug: 'nurse', accessRole: 'Nurse', system: true, description: 'Inpatient nursing documentation.' },
   { name: 'Emergency Nurse', slug: 'emergency-nurse', accessRole: 'Nurse', system: true, description: 'Emergency OPD registration, inpatient admission requests, and controlled self-conversion when Reception is unavailable.' },

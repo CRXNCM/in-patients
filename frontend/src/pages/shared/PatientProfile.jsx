@@ -483,12 +483,17 @@ function PatientProfile() {
               </div>
               {showCredit ? (
                 <p className="mt-4 text-sm text-muted-foreground">
-                  Credit status: {credit?.isCreditPatient || listed?.isCreditPatient ? 'Credit patient' : 'Not on credit'}
+                  Credit status:{' '}
+                  {credit?.isCreditPatient || listed?.isCreditPatient
+                    ? 'Credit patient'
+                    : listed?.formerCreditPatient || credit?.formerCreditPatient
+                      ? 'Former credit patient (now cash)'
+                      : 'Not on credit'}
                 </p>
               ) : null}
-              {showCredit && (credit?.admissionPaymentMode === 'credit' || listed?.admissionPaymentMode === 'credit' || credit?.isCreditPatient || listed?.isCreditPatient) ? (
+              {showCredit && (credit?.admissionPaymentMode === 'credit' || listed?.admissionPaymentMode === 'credit' || credit?.isCreditPatient || listed?.isCreditPatient || listed?.formerCreditPatient) ? (
                 <p className="mt-2 text-sm">
-                  Credit company: {credit?.creditCompanyName || patient.creditCompanyName || listed?.creditCompanyName || 'Company not recorded'}
+                  Credit company: {credit?.creditCompanyName || patient.creditCompanyName || listed?.creditCompanyName || listed?.formerCreditCompanyName || 'Company not recorded'}
                 </p>
               ) : null}
             </CardContent>

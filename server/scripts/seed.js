@@ -20,6 +20,7 @@ import { loadCatalogSeed } from '../utils/catalogSnapshot.js'
 
 const DEMO_USERS = [
   { email: 'reception@cc', name: 'Sara Bekele', role: 'Reception', slug: 'reception' },
+  { email: 'credit-reception@cc', name: 'Credit Reception Lulit', role: 'Reception', slug: 'credit-reception' },
   { email: 'nurse@cc', name: 'Nurse Almaz Tsegaye', role: 'Nurse', slug: 'nurse' },
   { email: 'emergency-nurse@cc', name: 'Emergency Nurse Hanna', role: 'Nurse', slug: 'emergency-nurse' },
   { email: 'admin@cc', name: 'Admin User', role: 'Admin', slug: 'admin' },

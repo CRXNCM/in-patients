@@ -263,6 +263,22 @@ export function PatientsProvider({ children }) {
     [deposits]
   )
 
+  const addCreditPayment = React.useCallback(
+    async (patientId, body) => {
+      const res = await api.addCreditPayment(patientId, body)
+      const entry = res.deposit || res
+      setDeposits((prev) => ({
+        ...prev,
+        [patientId]: [...(prev[patientId] || []), { ...entry, ...(res.invoice || {}) }],
+      }))
+      if (res.patient) {
+        setPatients((prev) => prev.map((p) => (p.id === patientId ? { ...p, ...res.patient } : p)))
+      }
+      return { ...entry, ...res.invoice, settled: res.settled, outstandingAfter: res.outstanding, invoice: res.invoice, patient: res.patient }
+    },
+    []
+  )
+
   const addDeposit = React.useCallback(
     async (patientId, { amount, method, referenceNumber, receivedBy = 'Sara Bekele', isInitial = false }) => {
       if (USE_API) {
@@ -283,7 +299,7 @@ export function PatientsProvider({ children }) {
             prev.map((p) => (p.id === patientId ? { ...p, deposit: p.deposit + Number(amount) } : p))
           )
         }
-        return entry
+        return { ...entry, settled: res.settled }
       }
 
       const entry = {
@@ -723,6 +739,7 @@ export function PatientsProvider({ children }) {
         getPatient,
         getPatientDeposits,
         addDeposit,
+        addCreditPayment,
         getTotalDeposit,
         transferRoom,
         transferPatientRoom,
