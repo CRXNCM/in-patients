@@ -23,14 +23,6 @@ function event(action, by, note = '') {
   return { action, by, at: new Date().toISOString(), note }
 }
 
-function isTransactionUnsupported(err) {
-  return (
-    err?.code === 20 ||
-    err?.codeName === 'IllegalOperation' ||
-    /replica set|transaction numbers|Transactions? are/i.test(err?.message || '')
-  )
-}
-
 async function runOptionallyInTransaction(work) {
   const session = await mongoose.startSession()
   try {
@@ -40,12 +32,10 @@ async function runOptionallyInTransaction(work) {
     })
     return result
   } catch (err) {
-    if (isTransactionUnsupported(err)) {
-      return work(null)
-    }
-    throw err
+    if (err?.status) throw err
+    return await work(null)
   } finally {
-    await session.endSession()
+    await session.endSession().catch(() => {})
   }
 }
 
@@ -253,15 +243,16 @@ async function completeDischargeWork(patientId, userName, session) {
   }
 
   if (bed) {
-    if (!bed.patientId || bed.patientId === patientId) {
-      bed.status = 'available'
-      bed.patientId = null
-      await bed.save(opt)
-    } else if (bed.patientId && bed.patientId !== patientId) {
+    if (bed.patientId && bed.patientId !== patientId) {
       const error = new Error('Bed is occupied by a different patient. Cannot complete discharge.')
       error.status = 409
       throw error
     }
+    await Bed.updateOne(
+      { _id: bed._id },
+      { $set: { status: 'available', patientId: null } },
+      opt
+    )
   }
 
   const now = new Date()
@@ -302,9 +293,11 @@ async function completeDischargeWork(patientId, userName, session) {
       )
     }
     if (bed) {
-      bed.status = 'occupied'
-      bed.patientId = patientId
-      await bed.save(opt)
+      await Bed.updateOne(
+        { _id: bed._id },
+        { $set: { status: 'occupied', patientId } },
+        opt
+      )
     }
     const error = new Error('Discharge was already completed.')
     error.status = 409

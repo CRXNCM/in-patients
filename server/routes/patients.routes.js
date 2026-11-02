@@ -112,7 +112,8 @@ async function assignmentsByPatientIds(patientIds) {
 }
 
 function mapPatient(doc, balance, assignedDoctors = [], baby = null) {
-  return toFrontendPatient({ ...doc.toObject(), assignedDoctors, baby }, balance)
+  const raw = typeof doc?.toObject === 'function' ? doc.toObject() : doc
+  return toFrontendPatient({ ...raw, assignedDoctors, baby }, balance)
 }
 
 async function mapPatientWithBaby(doc, balance, assignedDoctors = []) {
@@ -847,7 +848,7 @@ router.post('/:id/deposits', authRequired, requireAnyPermission('payments.create
 function sendDischargeError(res, err, fallback) {
   if (err.status) return res.status(err.status).json({ error: err.message })
   console.error(err)
-  return res.status(500).json({ error: fallback })
+  return res.status(500).json({ error: err.message || fallback })
 }
 
 router.post('/:id/discharge-request', authRequired, requireRole('Nurse'), async (req, res) => {
