@@ -23,22 +23,20 @@ A modern, professional hospital in-patient billing and deposit management dashbo
 ## Getting Started
 
 ```bash
-# API (MongoDB required)
-cd server
+# First time: install API, UI, and the concurrent runner
+cd server && npm install && copy .env.example .env && npm run seed && cd ..
+cd frontend && npm install && cd ..
 npm install
-# copy .env.example → .env
-npm run seed
-npm run dev
 
-# SPA (other terminal)
-cd frontend
-npm install
+# One command: API + UI together, reachable on this PC and the LAN
 npm run dev
 ```
 
-`npm run seed` loads users, rooms, departments, and the full service catalog snapshot (`server/data/catalogSeed.json`: 16 categories, 1,145 items). On a database that already has patients, use `npm run seed:catalog` instead — it adds missing categories and items and does not wipe records. After you change the catalog here, refresh the snapshot with `npm run catalog:export`.
+On this PC open [http://localhost:5173](http://localhost:5173). On other PCs on the same Wi-Fi / network, use the **Network** URL Vite prints, for example `http://192.168.1.20:5173`. Windows Firewall may ask to allow Node.js on private networks — allow it.
 
-Open [http://localhost:5173](http://localhost:5173). From the repo root you can use `npm run dev:server` and `npm run dev:frontend`.
+If `frontend/.env` sets `VITE_API_URL=http://localhost:5000`, remove that line so other PCs talk to this machine instead of their own localhost.
+
+`npm run seed` loads users, rooms, departments, and the full service catalog snapshot (`server/data/catalogSeed.json`: 16 categories, 1,145 items). On a database that already has patients, use `npm run seed:catalog` instead — it adds missing categories and items and does not wipe records. After you change the catalog here, refresh the snapshot with `npm run catalog:export`.
 
 ```bash
 cd frontend

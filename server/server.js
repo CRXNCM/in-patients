@@ -2,6 +2,8 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { connectDB } from './config/db.js'
+import { corsOriginDelegate } from './utils/corsOrigin.js'
+import { listenUrls } from './utils/lanUrls.js'
 import authRoutes from './routes/auth.routes.js'
 import patientRoutes from './routes/patients.routes.js'
 import bedRoutes from './routes/beds.routes.js'
@@ -31,8 +33,9 @@ import { ensureDefaultRoles, ensureWorkflowStaff } from './services/roles.js'
 
 const app = express()
 const PORT = process.env.PORT || 5000
+const HOST = process.env.HOST || '0.0.0.0'
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173', credentials: true }))
+app.use(cors({ origin: corsOriginDelegate, credentials: true }))
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/api/health', (_req, res) => {
@@ -74,7 +77,11 @@ async function start() {
   await connectDB(uri)
   await ensureDefaultRoles()
   await ensureWorkflowStaff()
-  app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`))
+  app.listen(PORT, HOST, () => {
+    const urls = listenUrls(PORT, HOST)
+    console.log(`API listening on ${HOST}:${PORT}`)
+    for (const url of urls) console.log(`  ${url}`)
+  })
 }
 
 start().catch((err) => {

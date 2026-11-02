@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const API_URL = String(import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const USE_API = import.meta.env.VITE_USE_API !== 'false'
 
 function getToken() {

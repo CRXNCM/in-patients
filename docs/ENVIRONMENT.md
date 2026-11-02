@@ -15,7 +15,8 @@ Template: `server/.env.example`.
 | `MONGODB_URI` | **Yes** | none — process exits if missing | Mongo connection string |
 | `JWT_SECRET` | **Yes in practice** | none — `jwt.sign` / `jwt.verify` use `process.env.JWT_SECRET` | HMAC secret for access tokens |
 | `PORT` | No | `5000` | HTTP listen port |
-| `CORS_ORIGIN` | No | `http://localhost:5173` | Allowed browser origin |
+| `HOST` | No | `0.0.0.0` | Bind address (`0.0.0.0` is reachable on the LAN) |
+| `CORS_ORIGIN` | No | localhost + private LAN origins | Extra allowed browser origins, comma-separated |
 
 Example values in `.env.example` are local-dev placeholders (`mongodb://127.0.0.1:27017/medbill`, `JWT_SECRET=change-this-in-production`). **Do not reuse that secret in production.**
 
@@ -29,13 +30,13 @@ Template: `frontend/.env.example`. Vite exposes only variables prefixed with `VI
 
 | Variable | Required | Default in code | Purpose |
 |----------|----------|-----------------|---------|
-| `VITE_API_URL` | No | `http://localhost:5000` | API origin (no trailing path) |
+| `VITE_API_URL` | No | empty (same origin; Vite proxies `/api`) | Set only if the SPA should call the API on a different host |
 | `VITE_USE_API` | No | API **enabled** unless the value is exactly `'false'` | Set `false` to run mock-only SPA |
 
 Examples:
 
 ```
-VITE_API_URL=http://localhost:5000
+# VITE_API_URL=
 VITE_USE_API=false
 ```
 
