@@ -34,6 +34,18 @@ function departmentGroups(items = []) {
   ]
 }
 
+function actionableItems(items = []) {
+  return items.filter((item) => item.approveMode !== 'none' && (item.approveMode === 'line' ? item.sourceRecordId && item.lineId : item.billingRecordId))
+}
+
+async function approveItem(item) {
+  if (item.approveMode === 'line') {
+    await api.approveReceptionItem(item.sourceRecordId, item.lineId, 'Approved by reception')
+    return
+  }
+  await api.approveRecord(item.billingRecordId, 'Approved by reception')
+}
+
 export default function PendingApprovals() {
   const { toast } = useToast()
   const { refreshRecords } = useServiceEntries()
@@ -44,6 +56,7 @@ export default function PendingApprovals() {
   const [selected, setSelected] = useState(null)
   const [rejectTarget, setRejectTarget] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -78,6 +91,8 @@ export default function PendingApprovals() {
   }
 
   const decide = async (item, decision) => {
+    if (busy) return
+    setBusy(true)
     try {
       if (item.approveMode === 'line') {
         if (decision === 'approved') await api.approveReceptionItem(item.sourceRecordId, item.lineId, 'Approved by reception')
@@ -97,6 +112,46 @@ export default function PendingApprovals() {
       await reload()
     } catch (err) {
       toast({ title: 'Could not save the decision', description: err.message, variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const approveAll = async (row) => {
+    const items = actionableItems(row?.items)
+    if (!items.length || busy) return
+    setBusy(true)
+    let charged = 0
+    let failed = 0
+    let lastError = ''
+    try {
+      for (const item of items) {
+        try {
+          await approveItem(item)
+          charged += 1
+        } catch (err) {
+          failed += 1
+          lastError = err.message
+        }
+      }
+      if (charged && !failed) {
+        toast({
+          title: charged === 1 ? 'Item charged' : `${charged} items charged`,
+          description: 'Every eligible item on this request was approved.',
+          variant: 'success',
+        })
+      } else if (charged && failed) {
+        toast({
+          title: `${charged} charged, ${failed} could not be saved`,
+          description: lastError,
+          variant: 'destructive',
+        })
+      } else {
+        toast({ title: 'Could not approve the request', description: lastError, variant: 'destructive' })
+      }
+      await reload()
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -125,22 +180,30 @@ export default function PendingApprovals() {
         const returnItem = row.wholeRecord && row.actionRecordId
           ? (row.items || []).find((item) => item.billingRecordId === row.actionRecordId)
           : null
+        const ready = actionableItems(row.items)
         if (returnItem) {
           return (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="text-emerald-600" onClick={(event) => { event.stopPropagation(); decide(returnItem, 'approved') }}>
+              <Button variant="outline" size="sm" className="text-emerald-600" disabled={busy} onClick={(event) => { event.stopPropagation(); decide(returnItem, 'approved') }}>
                 <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
               </Button>
-              <Button variant="outline" size="sm" className="text-red-600" onClick={(event) => { event.stopPropagation(); setRejectTarget(returnItem) }}>
+              <Button variant="outline" size="sm" className="text-red-600" disabled={busy} onClick={(event) => { event.stopPropagation(); setRejectTarget(returnItem) }}>
                 <XCircle className="h-4 w-4 mr-1" /> Reject
               </Button>
             </div>
           )
         }
         return (
-          <Button variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); setSelected(row) }}>
-            <Eye className="h-4 w-4 mr-1" /> Review Items
-          </Button>
+          <div className="flex gap-2">
+            {ready.length > 1 ? (
+              <Button variant="outline" size="sm" className="text-emerald-600" disabled={busy} onClick={(event) => { event.stopPropagation(); approveAll(row) }}>
+                <CheckCircle2 className="h-4 w-4 mr-1" /> Approve all
+              </Button>
+            ) : null}
+            <Button variant="outline" size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); setSelected(row) }}>
+              <Eye className="h-4 w-4 mr-1" /> Review Items
+            </Button>
+          </div>
         )
       },
     },
@@ -148,7 +211,7 @@ export default function PendingApprovals() {
 
   return (
     <div>
-      <PageHeader title="Pending Approvals" description="One row for each nurse request. Charge eligible items individually." />
+      <PageHeader title="Pending Approvals" description="One row for each nurse request. Charge eligible items individually, or approve all eligible items at once." />
       {loading ? <LoadingState message="Loading reception requests…" /> : null}
       {error ? <ErrorState title="Reception requests could not be loaded" message={error} onRetry={() => setNonce((value) => value + 1)} /> : null}
       {!loading && !error && requests.length === 0 ? (
@@ -182,10 +245,10 @@ export default function PendingApprovals() {
                     </div>
                     {item.approveMode !== 'none' ? (
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="text-emerald-600" onClick={() => decide(item, 'approved')}>
+                        <Button size="sm" variant="outline" className="text-emerald-600" disabled={busy} onClick={() => decide(item, 'approved')}>
                           <CheckCircle2 className="h-4 w-4 mr-1" /> {item.department === 'Return' ? 'Approve' : 'Approve / Charge'}
                         </Button>
-                        <Button size="sm" variant="outline" className="text-red-600" onClick={() => setRejectTarget(item)}>
+                        <Button size="sm" variant="outline" className="text-red-600" disabled={busy} onClick={() => setRejectTarget(item)}>
                           <XCircle className="h-4 w-4 mr-1" /> Reject
                         </Button>
                       </div>
@@ -196,7 +259,12 @@ export default function PendingApprovals() {
             </section>
           )) : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
+            {actionableItems(selected?.items).length > 0 ? (
+              <Button variant="outline" className="mr-auto text-emerald-600" disabled={busy} onClick={() => approveAll(selected)}>
+                <CheckCircle2 className="h-4 w-4 mr-1" /> Approve all eligible ({actionableItems(selected?.items).length})
+              </Button>
+            ) : null}
+            <Button variant="outline" disabled={busy} onClick={() => setSelected(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

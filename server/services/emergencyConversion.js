@@ -9,6 +9,7 @@ import { normalizeAdmissionPaymentMode } from '../utils/credit.js'
 import { validateConvertToInpatientBody } from '../utils/validation.js'
 import { isEmergencyOpdAdmission } from '../utils/admissions.js'
 import { todayStr } from '../utils/dates.js'
+import { releaseHeldPharmacyReturns } from './pharmacyReturns.js'
 
 function httpError(status, message) {
   const err = new Error(message)
@@ -125,6 +126,7 @@ export async function convertEmergencyOpdToInpatient({
     }
     patient.conversionEvents = [...(patient.conversionEvents || []), conversionEvent]
     await patient.save()
+    await releaseHeldPharmacyReturns(patient.patientId, userName)
 
     await ensureAutomaticDailyCharges(patient, null, { range: true })
     const balance = await calcPatientBalance(patient.patientId)

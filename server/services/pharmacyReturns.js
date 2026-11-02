@@ -2,7 +2,8 @@ import { PharmacyOrder } from '../models/PharmacyOrder.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { Patient } from '../models/Patient.js'
 import { todayStr } from '../utils/dates.js'
-import { overallStatus } from '../../frontend/src/services/pharmacyFulfillment.js'
+import { isEmergencyOpdAdmission } from '../utils/admissions.js'
+import { HELD_UNTIL_INPATIENT, overallStatus } from '../../frontend/src/services/pharmacyFulfillment.js'
 
 function plainPharmacyOrder(doc) {
   if (!doc) return null
@@ -75,6 +76,34 @@ export async function attachReturnBilling(doc, returnId, actorName) {
   }
 
   const quantity = Number(entry.acceptedQuantity)
+  if (isEmergencyOpdAdmission(patient)) {
+    if (entry.billingStatus === HELD_UNTIL_INPATIENT) {
+      return { order: plainPharmacyOrder(doc) }
+    }
+    const held = {
+      action: HELD_UNTIL_INPATIENT,
+      by: actorName,
+      at,
+      lineId: entry.lineId,
+      quantity,
+      note: 'Accepted quantity stays in pharmacy until this Emergency OPD stay is converted to inpatient.',
+      clientActionId: `hold:${entry.id}`,
+    }
+    returns[index] = {
+      ...entry,
+      billingStatus: HELD_UNTIL_INPATIENT,
+      billingRecordId: '',
+      billingNote: 'Reception can review this return only after conversion to inpatient.',
+      history: [...(entry.history || []), held],
+    }
+    doc.returns = returns
+    doc.history = [...(doc.history || []).map(plainEntry), held]
+    doc.markModified('returns')
+    doc.markModified('history')
+    await doc.save()
+    return { order: plainPharmacyOrder(doc) }
+  }
+
   const total = Math.round(quantity * price * 100) / 100
   const billingKey = `pharmacy-return:${doc._id}:${entry.id}`
   let record
@@ -181,4 +210,30 @@ export async function syncPharmacyReturnDecision(record, decision, actorName, no
   order.markModified('returns')
   order.markModified('history')
   await order.save()
+}
+
+export async function releaseHeldPharmacyReturns(patientId, actorName) {
+  const docs = await PharmacyOrder.find({
+    patientId,
+    'returns.billingStatus': HELD_UNTIL_INPATIENT,
+  })
+  for (const doc of docs) {
+    const heldIds = (doc.returns || [])
+      .map(plainEntry)
+      .filter((entry) => entry.billingStatus === HELD_UNTIL_INPATIENT)
+      .map((entry) => entry.id)
+    for (const returnId of heldIds) {
+      const current = await PharmacyOrder.findById(doc._id)
+      const result = await attachReturnBilling(current, returnId, actorName)
+      if (result.error) {
+        const err = new Error(result.error)
+        err.status = result.status || 400
+        throw err
+      }
+    }
+  }
+  await PharmacyOrder.updateMany(
+    { patientId },
+    { $set: { admissionType: 'normal', convertedFromEmergency: true } },
+  )
 }

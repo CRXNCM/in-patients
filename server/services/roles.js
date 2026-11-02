@@ -35,6 +35,7 @@ export async function ensureDefaultRoles() {
 const WORKFLOW_STAFF = [
   { email: 'pharmacist@cc', name: 'Dawit Lemma', role: 'Pharmacist', slug: 'pharmacist' },
   { email: 'laboratory@cc', name: 'Bethlehem Assefa', role: 'Laboratory', slug: 'laboratory' },
+  { email: 'emergency-nurse@cc', name: 'Emergency Nurse Hanna', role: 'Nurse', slug: 'emergency-nurse' },
 ]
 
 export async function ensureWorkflowStaff() {

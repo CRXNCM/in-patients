@@ -1,5 +1,20 @@
+import { isEmergencyOpdAdmission } from '../lib/admissions.js'
+
 function trimText(value) {
   return String(value ?? '').trim()
+}
+
+export const HELD_UNTIL_INPATIENT = 'held_until_inpatient'
+
+export function isEmergencyPharmacyStay(orderOrPatient) {
+  return isEmergencyOpdAdmission(orderOrPatient?.admissionType || orderOrPatient)
+}
+
+export function isHeldUntilInpatient(entryOrStatus) {
+  const status = typeof entryOrStatus === 'string'
+    ? entryOrStatus
+    : entryOrStatus?.billingStatus
+  return status === HELD_UNTIL_INPATIENT
 }
 
 export const EXCEPTION_REASONS = [
@@ -466,6 +481,8 @@ export function describeMedicineReturn(order, entry) {
     patientId: order?.patientId || '',
     patientName: order?.patientName || '',
     admissionId: order?.admissionId || '',
+    admissionType: order?.admissionType || '',
+    convertedFromEmergency: Boolean(order?.convertedFromEmergency),
     ward: order?.ward || '',
     room: order?.room || '',
     bed: order?.bed || '',
@@ -501,12 +518,13 @@ export function describeMedicineReturn(order, entry) {
   }
 }
 
-export function listMedicineReturns(orders = [], { includePending = true } = {}) {
+export function listMedicineReturns(orders = [], { includePending = true, forReception = false } = {}) {
   const rows = []
   for (const order of orders) {
     for (const entry of order.returns || []) {
       const row = describeMedicineReturn(order, entry)
       if (!includePending && row.physicalStatus === 'pending_verification') continue
+      if (forReception && isHeldUntilInpatient(row)) continue
       rows.push(row)
     }
   }

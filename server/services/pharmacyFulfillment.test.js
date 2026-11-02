@@ -5,6 +5,8 @@ import {
   applyHandover,
   applyReturn,
   buildPharmacyOrder,
+  HELD_UNTIL_INPATIENT,
+  listMedicineReturns,
   medicineSummary,
   overallStatus,
   partitionServiceLines,
@@ -311,4 +313,33 @@ test('quantity cannot be negative or above the outstanding request', () => {
     quantity: 11,
   }, at)
   assert.match(over.error, /full remaining|partial/i)
+})
+
+test('reception cannot see Emergency OPD returns held until conversion', () => {
+  const order = {
+    ...orderFrom(twoMedicines),
+    admissionType: 'emergency-opd',
+    returns: [{
+      id: 'ret-hold',
+      lineId: 'line-a',
+      presentedQuantity: 2,
+      acceptedQuantity: 2,
+      physicalStatus: 'verified',
+      billingStatus: HELD_UNTIL_INPATIENT,
+      at,
+    }, {
+      id: 'ret-sent',
+      lineId: 'line-b',
+      presentedQuantity: 1,
+      acceptedQuantity: 1,
+      physicalStatus: 'verified',
+      billingStatus: 'pending_reception',
+      at,
+    }],
+  }
+  const pharmacy = listMedicineReturns([order], { includePending: true, forReception: false })
+  const reception = listMedicineReturns([order], { includePending: false, forReception: true })
+  assert.equal(pharmacy.some((row) => row.id === 'ret-hold'), true)
+  assert.equal(reception.some((row) => row.id === 'ret-hold'), false)
+  assert.equal(reception.some((row) => row.id === 'ret-sent'), true)
 })

@@ -16,6 +16,7 @@ import { WardSubmission } from '../models/WardSubmission.js'
 import pharmacyRoutes from './pharmacy.routes.js'
 import recordRoutes from './records.routes.js'
 import { calcPatientBalance } from '../services/autoCharges.js'
+import { releaseHeldPharmacyReturns } from '../services/pharmacyReturns.js'
 import { todayStr } from '../utils/dates.js'
 
 const PREFIX = 'med-ret-'
@@ -58,16 +59,17 @@ describe('pharmacy medicine returns', { skip: !hasDb }, () => {
   let outsider
   let orderId
   const patientId = `${PREFIX}PAT`
+  const emergencyPatientId = `${PREFIX}EMG`
   const created = { roles: [], users: [] }
 
   before(async () => {
     await connectDB(process.env.MONGODB_URI)
     await User.deleteMany({ email: { $regex: `^${PREFIX}` } })
     await Role.deleteMany({ slug: { $regex: `^${PREFIX}` } })
-    await Patient.deleteMany({ patientId })
-    await PharmacyOrder.deleteMany({ patientId })
-    await ServiceRecord.deleteMany({ patientId })
-    await Deposit.deleteMany({ patientId })
+    await Patient.deleteMany({ patientId: { $in: [patientId, emergencyPatientId] } })
+    await PharmacyOrder.deleteMany({ patientId: { $in: [patientId, emergencyPatientId] } })
+    await ServiceRecord.deleteMany({ patientId: { $in: [patientId, emergencyPatientId] } })
+    await Deposit.deleteMany({ patientId: { $in: [patientId, emergencyPatientId] } })
 
     const pharmacistRole = await Role.create({
       name: `${PREFIX}pharm`,
@@ -190,10 +192,10 @@ describe('pharmacy medicine returns', { skip: !hasDb }, () => {
   })
 
   after(async () => {
-    await ServiceRecord.deleteMany({ patientId })
-    await PharmacyOrder.deleteMany({ patientId })
-    await Deposit.deleteMany({ patientId })
-    await Patient.deleteMany({ patientId })
+    await ServiceRecord.deleteMany({ patientId: { $in: [patientId, emergencyPatientId] } })
+    await PharmacyOrder.deleteMany({ patientId: { $in: [patientId, emergencyPatientId] } })
+    await Deposit.deleteMany({ patientId: { $in: [patientId, emergencyPatientId] } })
+    await Patient.deleteMany({ patientId: { $in: [patientId, emergencyPatientId] } })
     await User.deleteMany({ _id: { $in: created.users } })
     await Role.deleteMany({ _id: { $in: created.roles } })
     await mongoose.disconnect()
@@ -365,5 +367,71 @@ describe('pharmacy medicine returns', { skip: !hasDb }, () => {
     assert.equal(history.body.some((row) => row.id === 'present-discharged'), true)
     const receptionHistory = await request(app, '/api/pharmacy/returns', { token: sign(reception) })
     assert.equal(receptionHistory.body.some((row) => row.id === 'present-discharged'), true)
+  })
+
+  it('holds Emergency OPD return billing in pharmacy until conversion', async () => {
+    await Patient.create({
+      patientId: emergencyPatientId,
+      name: 'Emergency Return Patient',
+      gender: 'Male',
+      address: 'Addis Ababa',
+      admissionDate: todayStr(),
+      status: 'admitted',
+      admissionType: 'emergency-opd',
+      depositTotal: 0,
+    })
+    const order = await PharmacyOrder.create({
+      submissionId: `${PREFIX}emg-sub`,
+      patientId: emergencyPatientId,
+      patientName: 'Emergency Return Patient',
+      admissionId: 'adm-emg',
+      admissionNumber: emergencyPatientId,
+      admissionType: 'emergency-opd',
+      requestedByName: 'Emergency Nurse',
+      requestedAt: new Date().toISOString(),
+      items: [{
+        lineId: 'med-1',
+        catalogItemId: 'cat-1',
+        name: 'Amoxicillin',
+        unit: 'tablet',
+        requestedQuantity: 10,
+        suppliedQuantity: 8,
+        unitPrice: 12.5,
+        billedQuantity: 8,
+        receptionStatus: 'approved',
+        billingRecordId: 'charge-emg',
+        status: 'fulfilled',
+      }],
+      returns: [],
+      history: [],
+    })
+    const presented = await request(app, `/api/pharmacy/orders/${order._id}/returns`, {
+      token: sign(pharmacist),
+      method: 'POST',
+      body: { clientActionId: 'present-emg', lineId: 'med-1', admissionId: 'adm-emg', quantity: 2, reasonCode: 'unused' },
+    })
+    assert.equal(presented.status, 200, presented.body.error)
+    const verified = await request(app, `/api/pharmacy/orders/${order._id}/returns/present-emg/verify`, {
+      token: sign(pharmacist),
+      method: 'POST',
+      body: { clientActionId: 'verify-emg', acceptedQuantity: 2 },
+    })
+    assert.equal(verified.status, 200, verified.body.error)
+    const entry = verified.body.returns.find((row) => row.id === 'present-emg')
+    assert.equal(entry.billingStatus, 'held_until_inpatient')
+    assert.equal(entry.billingRecordId || '', '')
+    assert.equal(await ServiceRecord.countDocuments({ patientId: emergencyPatientId, workflowKind: 'pharmacy-return' }), 0)
+
+    const pharmacyList = await request(app, '/api/pharmacy/returns', { token: sign(pharmacist) })
+    assert.equal(pharmacyList.body.some((row) => row.id === 'present-emg' && row.billingStatus === 'held_until_inpatient'), true)
+    const receptionList = await request(app, '/api/pharmacy/returns', { token: sign(reception) })
+    assert.equal(receptionList.body.some((row) => row.id === 'present-emg'), false)
+
+    await Patient.updateOne({ patientId: emergencyPatientId }, { admissionType: 'normal', convertedFromEmergency: true })
+    await releaseHeldPharmacyReturns(emergencyPatientId, 'Return Desk')
+    assert.equal(await ServiceRecord.countDocuments({ patientId: emergencyPatientId, workflowKind: 'pharmacy-return' }), 1)
+    const afterConvert = await request(app, '/api/pharmacy/returns', { token: sign(reception) })
+    const row = afterConvert.body.find((item) => item.id === 'present-emg')
+    assert.equal(row?.billingStatus, 'pending_reception')
   })
 })

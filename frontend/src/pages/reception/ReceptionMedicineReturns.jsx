@@ -46,7 +46,7 @@ export default function ReceptionMedicineReturns() {
   }, [load])
 
   const pending = rows.filter((row) => row.billingStatus === 'pending_reception')
-  const history = rows.filter((row) => row.billingStatus !== 'pending_reception')
+  const history = rows.filter((row) => row.billingStatus !== 'pending_reception' && row.billingStatus !== 'held_until_inpatient')
 
   const decide = async (decision) => {
     if (!selected?.billingRecordId) return
@@ -77,7 +77,7 @@ export default function ReceptionMedicineReturns() {
     <div>
       <PageHeader
         title="Medicine Returns"
-        description="Review pharmacy-verified returns. Approving posts a credit for the accepted quantity and does not change the original charge or payment."
+        description="Review pharmacy-verified inpatient returns. Emergency OPD returns appear here only after the stay is converted to inpatient."
       />
       {loading ? <LoadingState message="Loading medicine returns…" /> : null}
       {error ? <ErrorState title="Medicine returns could not be loaded" message={error} onRetry={load} /> : null}

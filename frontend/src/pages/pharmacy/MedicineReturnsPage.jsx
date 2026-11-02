@@ -8,13 +8,75 @@ import { NativeSelect } from '@/components/ui/native-select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { SearchInput } from '@/components/ui/search-input'
 import { EmptyState, PageHeader, StatusBadge } from '@/components/shared/CommonComponents'
+import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { usePatients } from '@/context/PatientsContext'
 import { useToast } from '@/context/ToastContext'
 import { useWorkflowRequests } from '@/context/WorkflowRequestsContext'
+import { isEmergencyOpdAdmission, stayLocationLabel } from '@/lib/admissions'
 import { formatDateTime } from '@/lib/utils'
 import { isActiveStay } from '@/lib/patientLocation'
-import { applyReturn, formatStayLocation, medicineSummary, RETURN_REASONS, verifyReturn } from '@/services/pharmacyFulfillment'
+import {
+  applyReturn,
+  formatStayLocation,
+  HELD_UNTIL_INPATIENT,
+  isEmergencyPharmacyStay,
+  isHeldUntilInpatient,
+  medicineSummary,
+  RETURN_REASONS,
+  verifyReturn,
+} from '@/services/pharmacyFulfillment'
+
+function isEmergencyReturn({ order, entry }, patients) {
+  if (isHeldUntilInpatient(entry)) return true
+  if (isEmergencyPharmacyStay(order)) return true
+  const patient = patients.find((item) => item.id === order.patientId)
+  return isEmergencyOpdAdmission(patient)
+}
+
+function PatientPickList({ items, onChoose }) {
+  if (items.length === 0) return null
+  return (
+    <ul className="max-h-40 divide-y overflow-y-auto rounded-md border">
+      {items.slice(0, 30).map((item) => (
+        <li key={item.id}>
+          <button type="button" className="w-full px-3 py-2 text-left hover:bg-muted" onClick={() => onChoose(item.id)}>
+            <span className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">{item.name}</span>
+              <AdmissionTypeBadge patient={item} />
+            </span>
+            <span className="block text-xs text-muted-foreground">{item.id} · {stayLocationLabel(item)}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ReturnRows({ rows, empty, actions }) {
+  if (rows.length === 0) return <p className="text-sm text-muted-foreground">{empty}</p>
+  return (
+    <ul className="divide-y rounded-md border">
+      {rows.map(({ entry, order, line }) => (
+        <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-3">
+          <div>
+            <p className="text-sm font-medium">{line?.name || 'Medicine'} · presented {entry.presentedQuantity ?? entry.quantity}{entry.physicalStatus && entry.physicalStatus !== 'pending_verification' ? ` · accepted ${entry.acceptedQuantity ?? 0}` : ''}</p>
+            <p className="text-xs text-muted-foreground">
+              {order.patientName} · {order.patientId} · Request {order.submissionId} · {entry.verifiedByName || entry.pharmacistName} · {formatDateTime(entry.verifiedAt || entry.at)}
+            </p>
+            <p className="text-xs text-muted-foreground">{entry.reason}{entry.discrepancyReason ? ` · ${entry.discrepancyReason}` : ''}{entry.billingNote ? ` · ${entry.billingNote}` : ''}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <AdmissionTypeBadge admissionType={isHeldUntilInpatient(entry) ? 'emergency-opd' : order.admissionType} convertedFromEmergency={order.convertedFromEmergency} />
+            <StatusBadge status={entry.physicalStatus} />
+            {entry.physicalStatus !== 'pending_verification' ? <StatusBadge status={entry.billingStatus || 'not_eligible'} /> : null}
+            {actions?.({ entry, order, line })}
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 export default function MedicineReturnsPage() {
   const { patients, loading: patientsLoading } = usePatients()
@@ -57,6 +119,9 @@ export default function MedicineReturnsPage() {
     .map((line) => ({ order, line })))
   const selected = held.find((item) => item.order.id === selection?.orderId && item.line.lineId === selection?.lineId) || null
 
+  const emergencyPatients = matches.filter((item) => isEmergencyOpdAdmission(item))
+  const inpatientPatients = matches.filter((item) => !isEmergencyOpdAdmission(item))
+
   const pending = pharmacyOrders.flatMap((order) => (order.returns || [])
     .filter((entry) => entry.physicalStatus === 'pending_verification')
     .map((entry) => ({ entry, order, line: order.items?.find((item) => item.lineId === entry.lineId) })))
@@ -66,6 +131,11 @@ export default function MedicineReturnsPage() {
     .filter((entry) => entry.physicalStatus && entry.physicalStatus !== 'pending_verification')
     .map((entry) => ({ entry, order, line: order.items?.find((item) => item.lineId === entry.lineId) })))
     .sort((a, b) => String(b.entry.verifiedAt || b.entry.at).localeCompare(String(a.entry.verifiedAt || a.entry.at)))
+
+  const emergencyPending = pending.filter((row) => isEmergencyReturn(row, patients))
+  const inpatientPending = pending.filter((row) => !isEmergencyReturn(row, patients))
+  const emergencyHistory = history.filter((row) => isEmergencyReturn(row, patients))
+  const inpatientHistory = history.filter((row) => !isEmergencyReturn(row, patients))
 
   const choosePatient = (id) => {
     setPatientId(id)
@@ -170,7 +240,7 @@ export default function MedicineReturnsPage() {
     setVerifyError('')
     setBusy(true)
     try {
-      await verifyMedicineReturn(verifyTarget.order.id, verifyTarget.entry.id, {
+      const saved = await verifyMedicineReturn(verifyTarget.order.id, verifyTarget.entry.id, {
         clientActionId: verifyActionId.current,
         acceptedQuantity: Number(accepted),
         rejectedQuantity: Number(rejected),
@@ -178,10 +248,15 @@ export default function MedicineReturnsPage() {
         verificationNotes: notes,
       })
       const acceptedQty = Number(accepted)
+      const savedEntry = saved?.returns?.find((row) => row.id === verifyTarget.entry.id)
+      const held = savedEntry?.billingStatus === HELD_UNTIL_INPATIENT
+        || isEmergencyOpdAdmission(patients.find((item) => item.id === verifyTarget.order.patientId))
       toast({
         title: acceptedQty > 0 ? 'Return verified' : 'Return not accepted',
         description: acceptedQty > 0
-          ? 'The accepted quantity is waiting for reception. The original handover was not changed.'
+          ? held
+            ? 'The accepted quantity stays in pharmacy until this Emergency OPD stay is converted to inpatient.'
+            : 'The accepted quantity is waiting for reception. The original handover was not changed.'
           : 'Nothing was accepted, so no billing adjustment was created.',
         variant: 'success',
       })
@@ -199,7 +274,7 @@ export default function MedicineReturnsPage() {
     <div>
       <PageHeader
         title="Medicine Returns"
-        description="Record medicine brought back, then verify the quantity pharmacy accepts. Billing stays with reception."
+        description="Emergency OPD returns stay in pharmacy. Reception can review them only after the stay is converted to inpatient."
       />
       {error ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive" role="alert">
@@ -218,16 +293,24 @@ export default function MedicineReturnsPage() {
             {patientsLoading || loading ? <LoadingState message="Loading patients…" /> : matches.length === 0 ? (
               <p className="text-sm text-muted-foreground">No matching active admission.</p>
             ) : (
-              <ul className="max-h-80 divide-y overflow-y-auto rounded-md border">
-                {matches.slice(0, 30).map((item) => (
-                  <li key={item.id}>
-                    <button type="button" className="w-full px-3 py-2 text-left hover:bg-muted" onClick={() => choosePatient(item.id)}>
-                      <span className="block text-sm font-medium">{item.name}</span>
-                      <span className="block text-xs text-muted-foreground">{item.id} · {item.room} · {item.bed}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-orange-800 dark:text-orange-300">Emergency OPD</p>
+                  {emergencyPatients.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No Emergency OPD admissions match.</p>
+                  ) : (
+                    <PatientPickList items={emergencyPatients} onChoose={choosePatient} />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Inpatient</p>
+                  {inpatientPatients.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No inpatient admissions match.</p>
+                  ) : (
+                    <PatientPickList items={inpatientPatients} onChoose={choosePatient} />
+                  )}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -238,9 +321,13 @@ export default function MedicineReturnsPage() {
           ) : (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{patient.name}</CardTitle>
+                <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+                  {patient.name}
+                  <AdmissionTypeBadge patient={patient} />
+                </CardTitle>
                 <CardDescription>
-                  {patient.id} · Admission {patient.admissionId || patient.id} · {patient.status === 'pending-discharge' ? 'Pending discharge' : 'Admitted'} · {patient.room} / {patient.bed}
+                  {patient.id} · Admission {patient.admissionId || patient.id} · {patient.status === 'pending-discharge' ? 'Pending discharge' : 'Admitted'}
+                  {isEmergencyOpdAdmission(patient) ? ' · Emergency OPD returns stay in pharmacy' : ` · ${patient.room} / ${patient.bed}`}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -301,34 +388,36 @@ export default function MedicineReturnsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Pending verification</CardTitle>
-              <CardDescription>Presented returns that pharmacy has not accepted or rejected yet.</CardDescription>
+              <CardDescription>Emergency OPD and inpatient returns are listed separately. Reception does not see Emergency OPD returns yet.</CardDescription>
             </CardHeader>
-            <CardContent>
-              {pending.length === 0 ? <p className="text-sm text-muted-foreground">No returns are waiting for verification.</p> : (
-                <ul className="divide-y rounded-md border">
-                  {pending.map(({ entry, order, line }) => (
-                    <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-3">
-                      <div>
-                        <p className="text-sm font-medium">{line?.name || 'Medicine'} · presented {entry.presentedQuantity}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {order.patientName} · {order.patientId} · Request {order.submissionId} · {entry.pharmacistName} · {formatDateTime(entry.at)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{entry.reason}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status="pending_verification" />
-                        <Button type="button" size="sm" variant="outline" onClick={() => openVerify({ entry, order, line })}>Verify</Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-800 dark:text-orange-300">Emergency OPD</p>
+                <ReturnRows
+                  rows={emergencyPending}
+                  empty="No Emergency OPD returns waiting for verification."
+                  actions={({ entry, order, line }) => (
+                    <Button type="button" size="sm" variant="outline" onClick={() => openVerify({ entry, order, line })}>Verify</Button>
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Inpatient</p>
+                <ReturnRows
+                  rows={inpatientPending}
+                  empty="No inpatient returns waiting for verification."
+                  actions={({ entry, order, line }) => (
+                    <Button type="button" size="sm" variant="outline" onClick={() => openVerify({ entry, order, line })}>Verify</Button>
+                  )}
+                />
+              </div>
               {verifyTarget ? (
                 <div className="mt-4 space-y-3 rounded-lg border bg-muted/30 p-4">
                   <p className="text-sm font-medium">Verify {verifyTarget.line?.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {verifyTarget.order.patientName} · {verifyTarget.order.patientId} · Admission {verifyTarget.order.admissionId || verifyTarget.order.admissionNumber}
                     {' · '}{formatStayLocation(verifyTarget.order)} · Request {verifyTarget.order.submissionId}
+                    {isEmergencyReturn(verifyTarget, patients) ? ' · Held in pharmacy until inpatient conversion' : ''}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Handed over {verifyTarget.line?.suppliedQuantity ?? '—'} · Previously accepted returns {medicineSummary(verifyTarget.order).find((line) => line.lineId === verifyTarget.entry.lineId)?.acceptedReturned ?? 0}
@@ -364,29 +453,21 @@ export default function MedicineReturnsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Verified and rejected returns</CardTitle>
+              <CardTitle className="text-base">Emergency OPD — verified returns</CardTitle>
+              <CardDescription>These stay in pharmacy. Reception cannot approve them until the stay is converted to inpatient.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ReturnRows rows={emergencyHistory.slice(0, 30)} empty="No verified Emergency OPD returns yet." />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Inpatient — verified returns</CardTitle>
               <CardDescription>Physical verification stays separate from the reception billing decision.</CardDescription>
             </CardHeader>
             <CardContent>
-              {history.length === 0 ? <p className="text-sm text-muted-foreground">No verified or rejected returns yet.</p> : (
-                <ul className="divide-y rounded-md border">
-                  {history.slice(0, 30).map(({ entry, order, line }) => (
-                    <li key={entry.id} className="px-3 py-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-medium">{line?.name || 'Medicine'} · presented {entry.presentedQuantity ?? entry.quantity} · accepted {entry.acceptedQuantity ?? 0}</p>
-                        <span className="flex gap-2">
-                          <StatusBadge status={entry.physicalStatus} />
-                          <StatusBadge status={entry.billingStatus || 'not_eligible'} />
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {order.patientName} · {order.patientId} · Request {order.submissionId} · {entry.verifiedByName || entry.pharmacistName} · {formatDateTime(entry.verifiedAt || entry.at)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{entry.reason}{entry.discrepancyReason ? ` · ${entry.discrepancyReason}` : ''}{entry.billingNote ? ` · ${entry.billingNote}` : ''}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ReturnRows rows={inpatientHistory.slice(0, 30)} empty="No verified inpatient returns yet." />
             </CardContent>
           </Card>
         </div>

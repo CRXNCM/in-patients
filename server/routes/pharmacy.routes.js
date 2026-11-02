@@ -163,8 +163,11 @@ router.post('/orders/:id/handover', authRequired, requireRoles('Pharmacist'), as
 router.get('/returns', authRequired, requireRoles('Pharmacist', 'Reception', 'Admin'), async (req, res) => {
   try {
     const docs = await PharmacyOrder.find({ 'returns.0': { $exists: true } }).sort({ updatedAt: -1 }).limit(500)
-    const includePending = req.user.role !== 'Reception'
-    const rows = listMedicineReturns(docs.map(plainPharmacyOrder), { includePending })
+    const forReception = req.user.role === 'Reception'
+    const rows = listMedicineReturns(docs.map(plainPharmacyOrder), {
+      includePending: !forReception,
+      forReception,
+    })
     res.json(rows)
   } catch (err) {
     console.error(err)
