@@ -1,4 +1,5 @@
 import { medicineSummary } from '@/services/pharmacyFulfillment'
+import { groupReceptionHistory } from '@/lib/receptionHistory'
 
 function receptionNote(status) {
   if (status === 'approved') return 'Reception approved'
@@ -29,6 +30,7 @@ export function pharmacyOrderRecord(order) {
     recordDate: String(order.requestedAt || '').slice(0, 10),
     recordedAt: order.requestedAt,
     recordedBy: order.requestedByName || 'Nurse',
+    submissionId: order.submissionId || '',
     services: medicineSummary(order).map((item) => ({
       id: item.lineId,
       category: 'Pharmacy',
@@ -60,6 +62,7 @@ export function laboratoryOrderRecord(order) {
     recordDate: String(order.requestedAt || '').slice(0, 10),
     recordedAt: order.requestedAt,
     recordedBy: order.requestedByName || 'Nurse',
+    submissionId: order.submissionId || '',
     services: (order.items || []).map((item) => ({
       id: item.lineId,
       category: 'Laboratory',
@@ -87,7 +90,5 @@ export function recordsWithWardRequests(records, pharmacyOrders, laboratoryOrder
     if ((kind === 'pharmacy' || kind === 'laboratory') && covered.has(record.workflowOrderId)) return false
     return true
   })
-  return [...chart, ...pharmacy, ...laboratory].sort(
-    (a, b) => new Date(b.recordedAt || b.recordDate || 0) - new Date(a.recordedAt || a.recordDate || 0)
-  )
+  return groupReceptionHistory([...chart, ...pharmacy, ...laboratory])
 }

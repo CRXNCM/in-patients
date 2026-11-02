@@ -152,6 +152,7 @@ export function toFrontendRecord(doc, patientName) {
     recordDate: doc.date,
     type,
     status: doc.status,
+    recordRole: doc.recordRole || '',
     source: doc.source || 'nurse',
     services: (doc.services || []).map((s, i) => ({
       id: s.id || `svc-${doc._id}-${i}`,
@@ -189,6 +190,7 @@ export function toFrontendRecord(doc, patientName) {
     workflowKind: doc.workflowKind || '',
     workflowOrderId: doc.workflowOrderId || '',
     workflowLineId: doc.workflowLineId || '',
+    billingKey: doc.billingKey || '',
     submissionId: doc.submissionId || '',
     recordedAt: doc.recordedAt?.toISOString?.() || doc.createdAt?.toISOString?.() || new Date().toISOString(),
     recordedBy: doc.submittedBy || 'System',

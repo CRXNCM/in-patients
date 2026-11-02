@@ -21,7 +21,7 @@ import { ErrorState } from '@/components/shared/ErrorState'
 import { StatCard, DataTable, StatusBadge, Pagination, usePagedItems } from '@/components/shared/CommonComponents'
 import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
 import { RecordTimeline } from '@/components/shared/RecordTimeline'
-import { groupReceptionHistory, requestSummary } from '@/lib/receptionHistory'
+import { groupReceptionHistory, historyGroupKey, requestSummary } from '@/lib/receptionHistory'
 import { RecordDetailView } from '@/components/shared/RecordTimeline'
 import { DepositReceipt } from '@/components/shared/DepositReceipt'
 import { InvoicePreview } from '@/components/shared/InvoicePreview'
@@ -192,7 +192,7 @@ export default function PatientBilling() {
   const pendingGroups = []
   const pendingSeen = new Map()
   for (const record of pendingRecords) {
-    const key = record.submissionId || record.id
+    const key = historyGroupKey(record) || record.id
     if (!pendingSeen.has(key)) {
       const group = { id: key, records: [record] }
       pendingSeen.set(key, group)

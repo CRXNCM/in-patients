@@ -50,4 +50,44 @@ describe('reception request history grouping', () => {
     ])
     assert.equal(rows.some((row) => row.recordName === 'Room charge'), true)
   })
+
+  it('keeps split approved items from one request together even without a submission id', () => {
+    const rows = groupReceptionHistory([
+      {
+        id: 'split-a',
+        type: 'daily_services',
+        status: 'approved',
+        recordName: 'Patient A',
+        recordedAt: '2026-10-25T10:00:00.000Z',
+        recordedBy: 'Sara Bekele',
+        billingKey: 'reception:parent-1:line-a',
+        services: [{ id: 'a', category: 'Nursing', serviceName: 'Dressing', quantity: 1, total: 15 }],
+      },
+      {
+        id: 'split-b',
+        type: 'daily_services',
+        status: 'approved',
+        recordName: 'Patient A',
+        recordedAt: '2026-10-25T10:01:00.000Z',
+        recordedBy: 'Sara Bekele',
+        billingKey: 'reception:parent-1:line-b',
+        services: [{ id: 'b', category: 'Nursing', serviceName: 'IV cannula', quantity: 1, total: 20 }],
+      },
+      {
+        id: 'parent-1',
+        type: 'daily_services',
+        status: 'logged',
+        recordRole: 'source',
+        recordName: 'Patient A',
+        recordedAt: '2026-10-25T06:00:00.000Z',
+        recordedBy: 'Nurse A',
+        services: [],
+      },
+    ])
+    const group = rows.find((row) => row.groupedRequest)
+    assert.ok(group)
+    assert.equal(rows.length, 1)
+    assert.equal(group.status, 'approved')
+    assert.deepEqual(group.services.map((line) => line.serviceName), ['Dressing', 'IV cannula'])
+  })
 })

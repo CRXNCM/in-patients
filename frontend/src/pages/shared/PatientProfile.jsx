@@ -52,6 +52,7 @@ import { admissionTypeLabel, isEmergencyOpdAdmission } from '@/lib/admissions'
 import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
 import { InpatientConversionPanel } from '@/components/shared/InpatientConversionPanel'
 import { EditPatientPersonalInfoButton } from '@/components/shared/EditPatientPersonalInfoDialog'
+import { groupReceptionHistory } from '@/lib/receptionHistory'
 
 function display(value) {
   if (value === 0) return '0'
@@ -163,6 +164,7 @@ function PatientProfile() {
   const canEditPersonalInfo = hasPermission('patients.edit') || hasPermission('admissions.create')
 
   const liveRecords = listed ? getPatientRecords(patientId) : data?.records || []
+  const historyRecords = groupReceptionHistory(liveRecords)
   const pendingRecords = liveRecords.filter((row) => row.status === 'pending')
   const includeMoney = Boolean(canViewPayments && (data?.permissions?.payments || data?.finance))
   const showCredit = Boolean(canViewCredit && (data?.permissions?.credit || data?.credit || listed))
@@ -630,13 +632,13 @@ function PatientProfile() {
                 }}
               />
             )}
-            {liveRecords.length ? (
+            {historyRecords.length ? (
               maternity ? (
                 <>
                   <div>
                     <h4 className="mb-3 text-sm font-semibold">Mother records</h4>
                     <RecordTimeline
-                      records={motherRecords}
+                      records={groupReceptionHistory(motherRecords)}
                       hideMoney={hideMoney}
                       showSubject
                       onEdit={canEditPatient && !canReviewRecords ? setHistoryEdit : undefined}
@@ -645,7 +647,7 @@ function PatientProfile() {
                   <div>
                     <h4 className="mb-3 text-sm font-semibold">Baby records</h4>
                     <RecordTimeline
-                      records={babyRecords}
+                      records={groupReceptionHistory(babyRecords)}
                       hideMoney={hideMoney}
                       showSubject
                       onEdit={canEditPatient && !canReviewRecords ? setHistoryEdit : undefined}
@@ -654,7 +656,7 @@ function PatientProfile() {
                 </>
               ) : (
                 <RecordTimeline
-                  records={liveRecords}
+                  records={historyRecords}
                   hideMoney={hideMoney}
                   onEdit={canEditPatient && !canReviewRecords ? setHistoryEdit : undefined}
                 />

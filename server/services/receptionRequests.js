@@ -427,6 +427,8 @@ export async function decideRecordItem({ record, lineId, actorName, decision, no
     return { error: 'This item is not eligible until its department releases it.', status: 400 }
   }
   const now = new Date()
+  const submissionId = record.submissionId || `record-${record._id}`
+  if (!record.submissionId) record.submissionId = submissionId
   let saved = existing
   if (!saved) {
     try {
@@ -437,7 +439,7 @@ export async function decideRecordItem({ record, lineId, actorName, decision, no
         recordName: record.recordName,
         date: record.date,
         status: 'pending',
-        submissionId: record.submissionId || '',
+        submissionId,
         recordType: 'daily',
         source: record.source || 'nurse',
         services: [line],
@@ -453,6 +455,7 @@ export async function decideRecordItem({ record, lineId, actorName, decision, no
       if (saved.status === 'approved' || saved.status === 'rejected') return { record: saved, duplicate: true }
     }
   }
+  if (saved && !saved.submissionId) saved.submissionId = submissionId
   if (saved.status === 'pending') {
     saved.status = decision
     saved.approvedBy = actorName
