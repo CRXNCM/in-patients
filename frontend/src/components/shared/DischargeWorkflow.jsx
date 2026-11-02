@@ -23,15 +23,20 @@ import { computeCreditState } from '@/lib/credit'
 import { useAuth } from '@/context/AuthContext'
 import { useBillingConfig } from '@/context/BillingConfigContext'
 import { MotionReveal } from '@/lib/motion'
+import { isEmergencyOpdAdmission, stayLocationLabel } from '@/lib/admissions'
+import { canCompleteStayDischarge, canRequestStayDischarge } from '@/lib/stayScope'
 
 export function RequestDischargeButton({ patient }) {
   const { toast } = useToast()
+  const { user } = useAuth()
   const { requestDischarge } = usePatients()
   const [open, setOpen] = useState(false)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const emergencyStay = isEmergencyOpdAdmission(patient)
 
   if (!patient || patient.status !== 'admitted') return null
+  if (!canRequestStayDischarge(patient, user)) return null
 
   const stayDays = stayDurationDays(patient.admissionDate)
 
@@ -45,8 +50,10 @@ export function RequestDischargeButton({ patient }) {
     try {
       await requestDischarge(patient.id, { notes })
       toast({
-        title: 'Discharge request submitted successfully.',
-        description: `${patient.name} is now pending discharge. The bed remains assigned.`,
+        title: emergencyStay ? 'Ready to complete discharge.' : 'Discharge request submitted successfully.',
+        description: emergencyStay
+          ? `${patient.name} is pending Emergency Nurse discharge. Confirm below to complete it.`
+          : `${patient.name} is now pending discharge. The bed remains assigned.`,
         variant: 'success',
       })
       setOpen(false)
@@ -61,22 +68,23 @@ export function RequestDischargeButton({ patient }) {
   return (
     <>
       <Button variant="outline" onClick={() => setOpen(true)}>
-        <LogOut className="h-4 w-4 mr-2" /> Request Discharge
+        <LogOut className="h-4 w-4 mr-2" /> {emergencyStay ? 'Discharge Patient' : 'Request Discharge'}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Request discharge for this patient?</DialogTitle>
+            <DialogTitle>{emergencyStay ? 'Discharge this Emergency OPD patient?' : 'Request discharge for this patient?'}</DialogTitle>
             <DialogDescription>
-              This sends the request to reception. The patient stays in the current room and bed until reception completes discharge.
+              {emergencyStay
+                ? 'Emergency OPD discharge is completed by the Emergency Nurse. Reception does not handle this stay unless it is converted to inpatient.'
+                : 'This sends the request to reception. The patient stays in the current room and bed until reception completes discharge.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 text-sm">
             <div className="grid grid-cols-2 gap-3">
               <div><p className="text-xs text-muted-foreground">Patient</p><p className="font-medium">{patient.name}</p></div>
               <div><p className="text-xs text-muted-foreground">Patient ID</p><p className="font-mono text-sm font-medium text-primary">{patient.id}</p></div>
-              <div><p className="text-xs text-muted-foreground">Room</p><p className="font-medium">{patient.room}</p></div>
-              <div><p className="text-xs text-muted-foreground">Bed</p><p className="font-medium">{patient.bed}</p></div>
+              <div><p className="text-xs text-muted-foreground">Location</p><p className="font-medium">{stayLocationLabel(patient)}</p></div>
               <div><p className="text-xs text-muted-foreground">Admission date</p><p className="font-medium">{formatDate(patient.admissionDate)}</p></div>
             <div><p className="text-xs text-muted-foreground">Stay duration</p><p className="font-medium">{stayDays} day{stayDays === 1 ? '' : 's'}</p></div>
           </div>
@@ -99,7 +107,7 @@ export function RequestDischargeButton({ patient }) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? 'Submitting…' : 'Submit request'}
+              {submitting ? 'Submitting…' : emergencyStay ? 'Start discharge' : 'Submit request'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -112,8 +120,9 @@ export function DischargeReviewPanel({ patient }) {
   const { toast } = useToast()
   const { approveDischarge, rejectDischarge, getRoomAssignments } = usePatients()
   const { getPatientBalance, getPatientRecords } = useServiceEntries()
-  const { hasPermission } = useAuth()
+  const { user } = useAuth()
   const { settings } = useBillingConfig()
+  const emergencyStay = isEmergencyOpdAdmission(patient)
   const [confirmApprove, setConfirmApprove] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
   const [reason, setReason] = useState('')
@@ -126,7 +135,7 @@ export function DischargeReviewPanel({ patient }) {
   const stayDays = stayDurationDays(patient.admissionDate, discharge.completedAt?.slice?.(0, 10))
   const assignments = getRoomAssignments(patient.id)
   const openAssignment = assignments.find((a) => !a.end_date)
-  const canDischarge = hasPermission('admissions.discharge')
+  const canDischarge = canCompleteStayDischarge(patient, user)
   const isPending = patient.status === 'pending-discharge'
   const remaining = balance.remainingBalance
   const outstanding = remaining < 0 ? Math.abs(remaining) : 0
@@ -134,11 +143,13 @@ export function DischargeReviewPanel({ patient }) {
   const pendingRecordCount = getPatientRecords(patient.id).filter((r) => r.status === 'pending').length
   const pendingBlock = dischargePendingRecordsError(pendingRecordCount)
   const creditState = computeCreditState(patient)
-  const outstandingBlock = dischargeOutstandingBalanceError({
-    outstanding,
-    isCreditPatient: creditState.isCreditPatient,
-    allowCreditOutstanding: settings.allowDischargeWithOutstandingBalance !== false,
-  })
+  const outstandingBlock = emergencyStay
+    ? null
+    : dischargeOutstandingBalanceError({
+      outstanding,
+      isCreditPatient: creditState.isCreditPatient,
+      allowCreditOutstanding: settings.allowDischargeWithOutstandingBalance !== false,
+    })
   const dischargeBlock = pendingBlock || outstandingBlock
 
   const handleApprove = async () => {
@@ -152,7 +163,9 @@ export function DischargeReviewPanel({ patient }) {
       await approveDischarge(patient.id)
       toast({
         title: 'Discharge completed',
-        description: `${patient.name} is discharged. The bed is now available.`,
+        description: emergencyStay
+          ? `${patient.name} has been discharged from Emergency OPD.`
+          : `${patient.name} is discharged. The bed is now available.`,
         variant: 'success',
       })
       setConfirmApprove(false)
@@ -173,8 +186,10 @@ export function DischargeReviewPanel({ patient }) {
     try {
       await rejectDischarge(patient.id, reason)
       toast({
-        title: 'Discharge request rejected',
-        description: `${patient.name} is admitted again. The bed remains occupied.`,
+        title: emergencyStay ? 'Discharge cancelled' : 'Discharge request rejected',
+        description: emergencyStay
+          ? `${patient.name} remains in Emergency OPD.`
+          : `${patient.name} is admitted again. The bed remains occupied.`,
         variant: 'success',
       })
       setRejectOpen(false)
@@ -190,11 +205,13 @@ export function DischargeReviewPanel({ patient }) {
     <MotionReveal>
     <Card className={isPending ? 'mb-6 border-warning/40 shadow-md' : 'mb-6'}>
       <CardHeader>
-        <CardTitle>Discharge Request</CardTitle>
+        <CardTitle>{emergencyStay ? 'Emergency Discharge' : 'Discharge Request'}</CardTitle>
         <CardDescription>
           {isPending
-            ? 'Awaiting reception review. The patient still occupies the assigned room and bed.'
-            : 'This inpatient stay has been completed.'}
+            ? emergencyStay
+              ? 'Awaiting Emergency Nurse confirmation. Reception does not discharge Emergency OPD stays.'
+              : 'Awaiting reception review. The patient still occupies the assigned room and bed.'
+            : 'This stay has been completed.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -203,7 +220,7 @@ export function DischargeReviewPanel({ patient }) {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
             <div><p className="text-xs text-muted-foreground">Patient</p><p className="font-medium">{patient.name}</p></div>
             <div><p className="text-xs text-muted-foreground">Patient ID</p><p className="font-mono font-medium text-primary">{patient.id}</p></div>
-            <div><p className="text-xs text-muted-foreground">Room / Bed</p><p className="font-medium">{patient.room} · {patient.bed}</p></div>
+            <div><p className="text-xs text-muted-foreground">Location</p><p className="font-medium">{stayLocationLabel(patient)}</p></div>
             <div><p className="text-xs text-muted-foreground">Admission date</p><p className="font-medium">{formatDate(patient.admissionDate)}</p></div>
             <div><p className="text-xs text-muted-foreground">Stay duration</p><p className="font-medium">{stayDays} day{stayDays === 1 ? '' : 's'}</p></div>
             <div className="flex items-center gap-2"><StatusBadge status={patient.status} /> <CreditBadge patient={patient} /></div>
@@ -264,28 +281,30 @@ export function DischargeReviewPanel({ patient }) {
           )}
         </div>
 
-        <div>
-          <h3 className="text-sm font-semibold mb-3">Room information</h3>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
-            <div><p className="text-xs text-muted-foreground">Current assignment</p><p className="font-medium">{patient.room} · {patient.bed}</p></div>
-            <div>
-              <p className="text-xs text-muted-foreground">Assignment status</p>
-              <p className="font-medium">{openAssignment ? 'Active' : 'Closed'}</p>
+        {!emergencyStay && (
+          <div>
+            <h3 className="text-sm font-semibold mb-3">Room information</h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+              <div><p className="text-xs text-muted-foreground">Current assignment</p><p className="font-medium">{stayLocationLabel(patient)}</p></div>
+              <div>
+                <p className="text-xs text-muted-foreground">Assignment status</p>
+                <p className="font-medium">{openAssignment ? 'Active' : 'Closed'}</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {isPending && canDischarge && (
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" className="text-destructive" onClick={() => setRejectOpen(true)}>
-              <XCircle className="h-4 w-4 mr-2" /> Reject Discharge
+              <XCircle className="h-4 w-4 mr-2" /> {emergencyStay ? 'Cancel Discharge' : 'Reject Discharge'}
             </Button>
             <Button
               onClick={() => setConfirmApprove(true)}
               disabled={Boolean(dischargeBlock)}
               title={dischargeBlock || undefined}
             >
-              <CheckCircle2 className="h-4 w-4 mr-2" /> Approve & Complete Discharge
+              <CheckCircle2 className="h-4 w-4 mr-2" /> {emergencyStay ? 'Complete Discharge' : 'Approve & Complete Discharge'}
             </Button>
           </div>
         )}
@@ -296,7 +315,9 @@ export function DischargeReviewPanel({ patient }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure you want to complete this discharge?</AlertDialogTitle>
             <AlertDialogDescription>
-              The patient will become discharged. The current room assignment will close, the bed will become available, active inpatient charging will stop, and normal inpatient actions will no longer be available.
+              {emergencyStay
+                ? 'This Emergency OPD stay will be closed. Reception is not involved unless the patient is converted to inpatient first.'
+                : 'The patient will become discharged. The current room assignment will close, the bed will become available, active inpatient charging will stop, and normal inpatient actions will no longer be available.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -311,9 +332,11 @@ export function DischargeReviewPanel({ patient }) {
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Why is this discharge request being rejected?</DialogTitle>
+            <DialogTitle>{emergencyStay ? 'Why cancel this discharge?' : 'Why is this discharge request being rejected?'}</DialogTitle>
             <DialogDescription>
-              The patient will return to admitted status. The bed stays occupied.
+              {emergencyStay
+                ? 'The patient will remain in Emergency OPD as admitted.'
+                : 'The patient will return to admitted status. The bed stays occupied.'}
             </DialogDescription>
           </DialogHeader>
           <div>
@@ -329,7 +352,7 @@ export function DischargeReviewPanel({ patient }) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectOpen(false)} disabled={submitting}>Cancel</Button>
             <Button variant="destructive" onClick={handleReject} disabled={submitting}>
-              {submitting ? 'Rejecting…' : 'Reject Discharge'}
+              {submitting ? (emergencyStay ? 'Cancelling…' : 'Rejecting…') : (emergencyStay ? 'Cancel Discharge' : 'Reject Discharge')}
             </Button>
           </DialogFooter>
         </DialogContent>

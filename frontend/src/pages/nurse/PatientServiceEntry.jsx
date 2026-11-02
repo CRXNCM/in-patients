@@ -4,7 +4,7 @@ import { ArrowLeft, Phone, Calendar, Bed } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { PageHeader, StatusBadge } from '@/components/shared/CommonComponents'
-import { RequestDischargeButton } from '@/components/shared/DischargeWorkflow'
+import { DischargeReviewPanel, RequestDischargeButton } from '@/components/shared/DischargeWorkflow'
 import { AssignedDoctorsPanel } from '@/components/shared/AssignedDoctorsPanel'
 import { CreditBadge } from '@/components/shared/CreditBadge'
 import { ServiceRecordBuilder } from '@/components/shared/ServiceRecordBuilder'
@@ -129,11 +129,14 @@ export default function PatientServiceEntry() {
         }}
       />
 
-      {patient.status === 'pending-discharge' && (
+      {patient.status === 'pending-discharge' && isEmergencyOpdAdmission(patient) ? (
+        <DischargeReviewPanel patient={patient} />
+      ) : null}
+      {patient.status === 'pending-discharge' && !isEmergencyOpdAdmission(patient) ? (
         <MotionReveal className="mb-6 rounded-lg border border-warning/40 bg-warning/5 p-4 text-sm shadow-sm">
-          Discharge request is pending reception review. The patient still occupies {patient.room} / {patient.bed}.
+          Discharge request is pending reception review. The patient still occupies {stayLocationLabel(patient)}.
         </MotionReveal>
-      )}
+      ) : null}
 
       {patient.status !== 'discharged' ? (
         <div className="mb-8">

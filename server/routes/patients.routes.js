@@ -22,7 +22,13 @@ import {
   babyFieldsFromBody,
 } from '../utils/maternity.js'
 import { catalogPricingForPatient, isEmergencyOpdAdmission } from '../utils/admissions.js'
-import { emergencyServicesAutoApprove, stayAccessDenied, stayScopeFilter } from '../utils/stayScope.js'
+import {
+  canCompleteStayDischarge,
+  canRequestStayDischarge,
+  emergencyServicesAutoApprove,
+  stayAccessDenied,
+  stayScopeFilter,
+} from '../utils/stayScope.js'
 import { convertEmergencyOpdToInpatient } from '../services/emergencyConversion.js'
 import {
   actorFromReq,
@@ -846,6 +852,13 @@ function sendDischargeError(res, err, fallback) {
 
 router.post('/:id/discharge-request', authRequired, requireRole('Nurse'), async (req, res) => {
   try {
+    const stay = await Patient.findOne({ patientId: req.params.id })
+    if (!stay) return res.status(404).json({ error: 'Patient not found' })
+    const hidden = stayAccessDenied(stay, req.auth)
+    if (hidden) return res.status(hidden.status).json({ error: hidden.error })
+    if (!canRequestStayDischarge(stay, req.auth)) {
+      return res.status(403).json({ error: 'Emergency OPD discharge is handled by the Emergency Nurse.' })
+    }
     const patient = await requestDischarge(req.params.id, {
       notes: req.body?.notes,
       userName: req.user.name,
@@ -857,8 +870,15 @@ router.post('/:id/discharge-request', authRequired, requireRole('Nurse'), async 
   }
 })
 
-router.post('/:id/discharge/approve', authRequired, requirePermission('admissions.discharge'), async (req, res) => {
+router.post('/:id/discharge/approve', authRequired, requireAnyPermission('admissions.discharge', 'patients.edit'), async (req, res) => {
   try {
+    const stay = await Patient.findOne({ patientId: req.params.id })
+    if (!stay) return res.status(404).json({ error: 'Patient not found' })
+    const hidden = stayAccessDenied(stay, req.auth)
+    if (hidden) return res.status(hidden.status).json({ error: hidden.error })
+    if (!canCompleteStayDischarge(stay, req.auth)) {
+      return res.status(403).json({ error: 'Emergency OPD discharge is handled by the Emergency Nurse.' })
+    }
     const { patient, balance } = await approveDischarge(req.params.id, { userName: req.user.name })
     const assignments = await RoomAssignment.find({ patientId: patient.patientId }).sort({ startDate: 1 })
     const beds = await Bed.find()
@@ -873,8 +893,15 @@ router.post('/:id/discharge/approve', authRequired, requirePermission('admission
   }
 })
 
-router.post('/:id/discharge/reject', authRequired, requirePermission('admissions.discharge'), async (req, res) => {
+router.post('/:id/discharge/reject', authRequired, requireAnyPermission('admissions.discharge', 'patients.edit'), async (req, res) => {
   try {
+    const stay = await Patient.findOne({ patientId: req.params.id })
+    if (!stay) return res.status(404).json({ error: 'Patient not found' })
+    const hidden = stayAccessDenied(stay, req.auth)
+    if (hidden) return res.status(hidden.status).json({ error: hidden.error })
+    if (!canCompleteStayDischarge(stay, req.auth)) {
+      return res.status(403).json({ error: 'Emergency OPD discharge is handled by the Emergency Nurse.' })
+    }
     const patient = await rejectDischarge(req.params.id, {
       reason: req.body?.reason,
       userName: req.user.name,

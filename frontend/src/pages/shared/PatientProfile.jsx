@@ -49,7 +49,7 @@ import { ClinicalNotesPanel } from '@/components/shared/ClinicalNotesPanel'
 import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
 import { isMaternityAdmission } from '@/lib/maternity'
 import { admissionTypeLabel, isEmergencyOpdAdmission } from '@/lib/admissions'
-import { canReviewEmergencyDepartmentRelease } from '@/lib/stayScope'
+import { canCompleteStayDischarge, canRequestStayDischarge, canReviewEmergencyDepartmentRelease } from '@/lib/stayScope'
 import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
 import { InpatientConversionPanel } from '@/components/shared/InpatientConversionPanel'
 import { EditPatientPersonalInfoButton } from '@/components/shared/EditPatientPersonalInfoDialog'
@@ -158,15 +158,15 @@ function PatientProfile() {
   const canAssignBeds = hasPermission('rooms.assign_beds')
   const canViewDoctors = hasPermission('doctors.view')
   const canAssignDoctors = hasPermission('doctors.assign')
-  const canCompleteDischarge = hasPermission('admissions.discharge')
-  const canRequestDischarge = user?.roleKey === 'nurse' && canEditPatient
+  const stayPatient = listed || data?.patient
+  const canCompleteDischarge = canCompleteStayDischarge(stayPatient, user)
+  const canRequestDischarge = canRequestStayDischarge(stayPatient, user)
   const canOpenBilling = user?.roleKey === 'reception' && hasPermission('patients.view')
   const canEditPersonalInfo = hasPermission('patients.edit') || hasPermission('admissions.create')
 
   const liveRecords = listed ? getPatientRecords(patientId) : data?.records || []
   const historyRecords = groupReceptionHistory(liveRecords)
   const pendingRecords = liveRecords.filter((row) => row.status === 'pending')
-  const stayPatient = listed || data?.patient
   const reviewPending = pendingRecords.filter((record) => (
     !isEmergencyOpdAdmission(stayPatient) || canReviewEmergencyDepartmentRelease(stayPatient, user, record)
   ))

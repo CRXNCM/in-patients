@@ -16,6 +16,17 @@ export function stayVisibleToUser(patient, user) {
   return true
 }
 
+export function canRequestStayDischarge(patient, user) {
+  if (String(user?.roleKey || '').toLowerCase() !== 'nurse') return false
+  return stayVisibleToUser(patient, user)
+}
+
+export function canCompleteStayDischarge(patient, user) {
+  if (!stayVisibleToUser(patient, user)) return false
+  if (isEmergencyOpdAdmission(patient)) return isEmergencyDeskUser(user)
+  return hasPermission(user, 'admissions.discharge')
+}
+
 export function canReviewEmergencyDepartmentRelease(patient, user, record) {
   if (!isEmergencyOpdAdmission(patient) || !isEmergencyDeskUser(user)) return false
   if (!record || record.status !== 'pending') return false

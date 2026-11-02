@@ -555,5 +555,44 @@ describe('Emergency OPD admission HTTP', { skip: !hasDb }, () => {
     })
     assert.equal(deskApprove.status, 403)
   })
+
+  it('lets only the Emergency Nurse discharge Emergency OPD without a bed', async () => {
+    const patient = await admitEmergency('Discharge')
+    const patientId = patient.id
+
+    const wardAsk = await request(app, `/api/patients/${patientId}/discharge-request`, {
+      token: sign(wardNurse),
+      method: 'POST',
+      body: { notes: 'ward should not discharge' },
+    })
+    assert.equal(wardAsk.status, 404)
+
+    const start = await request(app, `/api/patients/${patientId}/discharge-request`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: { notes: 'OPD visit complete' },
+    })
+    assert.equal(start.status, 200, start.body.error)
+    assert.equal(start.body.status, 'pending-discharge')
+    assert.equal(start.body.bed, null)
+
+    const deskApprove = await request(app, `/api/patients/${patientId}/discharge/approve`, {
+      token: sign(reception),
+      method: 'POST',
+    })
+    assert.equal(deskApprove.status, 404)
+
+    const deskQueue = await request(app, '/api/patients/pending-discharge', { token: sign(reception) })
+    assert.equal(deskQueue.status, 200)
+    assert.equal((deskQueue.body || []).some((row) => row.id === patientId), false)
+
+    const complete = await request(app, `/api/patients/${patientId}/discharge/approve`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+    })
+    assert.equal(complete.status, 200, complete.body.error)
+    assert.equal(complete.body.patient.status, 'discharged')
+    assert.equal(complete.body.patient.bed, null)
+  })
 })
 

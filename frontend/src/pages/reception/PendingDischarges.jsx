@@ -43,7 +43,7 @@ export default function PendingDischarges() {
     <div>
       <PageHeader
         title="Pending Discharges"
-        description="Nurse requests awaiting reception review. Patients still occupy their room and bed."
+        description="Inpatient nurse requests awaiting reception review. Emergency OPD discharge stays with the Emergency Nurse."
       />
       <DataTable
         columns={columns}

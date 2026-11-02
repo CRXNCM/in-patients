@@ -17,6 +17,7 @@ import { todayStr } from '../utils/dates.js'
 import { HospitalSettings } from '../models/HospitalSettings.js'
 import { loadResolvedSettings } from '../utils/settings.js'
 import { computeCreditState } from '../utils/credit.js'
+import { isEmergencyOpdAdmission } from '../utils/admissions.js'
 
 function event(action, by, note = '') {
   return { action, by, at: new Date().toISOString(), note }
@@ -187,52 +188,61 @@ async function completeDischargeWork(patientId, userName, session) {
     depositTotal: balance.depositTotal ?? patient.depositTotal,
   })
   const rules = await loadResolvedSettings(HospitalSettings)
-  const outstandingError = dischargeOutstandingBalanceError({
-    outstanding,
-    isCreditPatient: credit.isCreditPatient,
-    allowCreditOutstanding: rules.allowDischargeWithOutstandingBalance !== false,
-  })
-  if (outstandingError) {
-    const error = new Error(outstandingError)
-    error.status = 400
-    throw error
+  const emergencyStay = isEmergencyOpdAdmission(patient)
+  if (!emergencyStay) {
+    const outstandingError = dischargeOutstandingBalanceError({
+      outstanding,
+      isCreditPatient: credit.isCreditPatient,
+      allowCreditOutstanding: rules.allowDischargeWithOutstandingBalance !== false,
+    })
+    if (outstandingError) {
+      const error = new Error(outstandingError)
+      error.status = 400
+      throw error
+    }
   }
 
   const assignment = await RoomAssignment.findOne({ patientId, endDate: null }, null, opt)
-  if (!assignment) {
-    const error = new Error('No active room assignment. Cannot complete discharge.')
-    error.status = 400
-    throw error
-  }
-
-  const bed = await Bed.findOne({ label: assignment.bedLabel }, null, opt)
-  if (!bed) {
-    const error = new Error('Assigned bed was not found. Cannot complete discharge.')
-    error.status = 400
-    throw error
+  let bed = null
+  if (!emergencyStay) {
+    if (!assignment) {
+      const error = new Error('No active room assignment. Cannot complete discharge.')
+      error.status = 400
+      throw error
+    }
+    bed = await Bed.findOne({ label: assignment.bedLabel }, null, opt)
+    if (!bed) {
+      const error = new Error('Assigned bed was not found. Cannot complete discharge.')
+      error.status = 400
+      throw error
+    }
   }
 
   await endActiveAssignments(patientId, dischargeDate, userName)
 
-  const closed = await RoomAssignment.findOneAndUpdate(
-    { _id: assignment._id, endDate: null },
-    { $set: { endDate: dischargeDate } },
-    { new: true, ...opt }
-  )
-  if (!closed) {
-    const error = new Error('Room assignment was already closed.')
-    error.status = 409
-    throw error
+  if (assignment) {
+    const closed = await RoomAssignment.findOneAndUpdate(
+      { _id: assignment._id, endDate: null },
+      { $set: { endDate: dischargeDate } },
+      { new: true, ...opt }
+    )
+    if (!closed) {
+      const error = new Error('Room assignment was already closed.')
+      error.status = 409
+      throw error
+    }
   }
 
-  if (bed.status === 'occupied' && (!bed.patientId || bed.patientId === patientId)) {
-    bed.status = 'available'
-    bed.patientId = null
-    await bed.save(opt)
-  } else if (bed.patientId && bed.patientId !== patientId) {
-    const error = new Error('Bed is occupied by a different patient. Cannot complete discharge.')
-    error.status = 409
-    throw error
+  if (bed) {
+    if (bed.status === 'occupied' && (!bed.patientId || bed.patientId === patientId)) {
+      bed.status = 'available'
+      bed.patientId = null
+      await bed.save(opt)
+    } else if (bed.patientId && bed.patientId !== patientId) {
+      const error = new Error('Bed is occupied by a different patient. Cannot complete discharge.')
+      error.status = 409
+      throw error
+    }
   }
 
   const now = new Date()
@@ -261,14 +271,18 @@ async function completeDischargeWork(patientId, userName, session) {
   )
 
   if (!claimed) {
-    await RoomAssignment.findOneAndUpdate(
-      { _id: assignment._id },
-      { $set: { endDate: null } },
-      opt
-    )
-    bed.status = 'occupied'
-    bed.patientId = patientId
-    await bed.save(opt)
+    if (assignment) {
+      await RoomAssignment.findOneAndUpdate(
+        { _id: assignment._id },
+        { $set: { endDate: null } },
+        opt
+      )
+    }
+    if (bed) {
+      bed.status = 'occupied'
+      bed.patientId = patientId
+      await bed.save(opt)
+    }
     const error = new Error('Discharge was already completed.')
     error.status = 409
     throw error

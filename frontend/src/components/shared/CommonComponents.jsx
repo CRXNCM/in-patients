@@ -264,7 +264,7 @@ export function DataTable({ columns, data, onRowClick, emptyState, pageSize }) {
           <tbody>
             {slice.map((row, idx) => (
               <tr
-                key={row.id || idx}
+                key={row.id != null ? `${row.id}-${idx}` : idx}
                 className={cn(
                   'border-b transition-colors duration-140 ease-out-soft hover:bg-muted/40',
                   onRowClick && 'cursor-pointer'

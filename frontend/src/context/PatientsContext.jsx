@@ -13,6 +13,7 @@ import { api, USE_API } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { isOfflineWorkflowUser } from '@/lib/workflowAccess'
 import { stayVisibleToUser } from '@/lib/stayScope'
+import { isEmergencyOpdAdmission } from '@/lib/admissions'
 
 const PatientsContext = React.createContext(null)
 
@@ -640,7 +641,9 @@ export function PatientsProvider({ children }) {
       }
 
       const currentAssignment = roomAssignments.find((a) => a.admission_id === patientId && a.end_date === null)
-      if (!currentAssignment) throw new Error('No active room assignment. Cannot complete discharge.')
+      if (!currentAssignment && !isEmergencyOpdAdmission(patient)) {
+        throw new Error('No active room assignment. Cannot complete discharge.')
+      }
 
       const dischargeDate = new Date().toISOString().split('T')[0]
       const now = new Date().toISOString()
@@ -667,19 +670,21 @@ export function PatientsProvider({ children }) {
         },
       }
 
-      setRoomAssignments((prev) =>
-        prev.map((a) => (a.id === currentAssignment.id ? { ...a, end_date: dischargeDate } : a))
-      )
-      setRooms((prev) =>
-        prev.map((room) => ({
-          ...room,
-          beds: room.beds.map((bed) =>
-            bed.id === currentAssignment.bed_id || bed.label === patient.bed
-              ? { ...bed, status: 'available', patientId: null }
-              : bed
-          ),
-        }))
-      )
+      if (currentAssignment) {
+        setRoomAssignments((prev) =>
+          prev.map((a) => (a.id === currentAssignment.id ? { ...a, end_date: dischargeDate } : a))
+        )
+        setRooms((prev) =>
+          prev.map((room) => ({
+            ...room,
+            beds: room.beds.map((bed) =>
+              bed.id === currentAssignment.bed_id || bed.label === patient.bed
+                ? { ...bed, status: 'available', patientId: null }
+                : bed
+            ),
+          }))
+        )
+      }
       return applyPatientUpdate(updated)
     },
     [applyPatientUpdate, patients, roomAssignments]

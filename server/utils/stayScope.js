@@ -45,6 +45,17 @@ export function emergencyServicesAutoApprove(patient, lines = []) {
   return !lines.some((line) => departmentCategory(line.category))
 }
 
+export function canRequestStayDischarge(patient, auth) {
+  if (accessRoleOf(auth) !== 'Nurse') return false
+  return stayVisibleToAuth(patient, auth)
+}
+
+export function canCompleteStayDischarge(patient, auth) {
+  if (!stayVisibleToAuth(patient, auth)) return false
+  if (isEmergencyOpdAdmission(patient)) return isEmergencyDeskRole(auth?.role)
+  return roleHasPermission(auth?.role, 'admissions.discharge')
+}
+
 export function canReviewStayCharges(patient, auth, record) {
   const emergency = isEmergencyOpdAdmission(patient)
   if (emergency) {

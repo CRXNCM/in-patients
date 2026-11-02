@@ -564,9 +564,9 @@ export default function PatientBilling() {
             columns={[...billingTableColumns, {
               key: 'runningTotal',
               header: 'Running Total',
-              render: (row) => formatCurrency(itemsWithRunning.find((i) => i.id === row.id)?.runningTotal || 0),
+              render: (row) => formatCurrency(row.runningTotal || 0),
             }]}
-            data={approvedBillItems}
+            data={itemsWithRunning}
           />
         </div>
 

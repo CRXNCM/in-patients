@@ -49,11 +49,13 @@ export function computeRecordTotal(record) {
   return (record.services || []).reduce((s, i) => s + i.total, 0)
 }
 
-function buildServiceLine({ category, serviceName, quantity, unitPrice, notes = '', doctorId, specialty, catalogItemId, unit }) {
+function buildServiceLine({ category, serviceName, quantity, unitPrice, notes = '', doctorId, specialty, catalogItemId, unit, recordDate }) {
   const qty = Number(quantity)
   const price = Number(unitPrice)
   return {
-    id: doctorId ? `doc-${doctorId}` : `svc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    id: doctorId
+      ? `doc-${doctorId}${recordDate ? `-${recordDate}` : ''}`
+      : `svc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     catalogItemId: catalogItemId || null,
     category,
     serviceName,
@@ -392,6 +394,7 @@ export function ServiceEntriesProvider({ children }) {
                   notes: `${assignment.specialty || ''} · price snapshot`.trim(),
                   doctorId: assignment.doctorId,
                   specialty: assignment.specialty,
+                  recordDate: date,
                 })
               ),
               returnItems: [],
@@ -655,9 +658,9 @@ export function ServiceEntriesProvider({ children }) {
         .sort((a, b) => new Date(a.recordedAt) - new Date(b.recordedAt))
         .forEach((r) => {
           if (r.type === 'pharmacy_return') {
-            r.returnItems.forEach((item) => {
+            r.returnItems.forEach((item, index) => {
               items.push({
-                id: item.id,
+                id: `${r.id}:${item.id || `ret-${index}`}`,
                 date: r.recordDate,
                 department: 'Pharmacy Return',
                 item: item.serviceName,
@@ -670,9 +673,9 @@ export function ServiceEntriesProvider({ children }) {
               })
             })
           } else {
-            r.services.forEach((s) => {
+            r.services.forEach((s, index) => {
               items.push({
-                id: s.id,
+                id: `${r.id}:${s.id || `svc-${index}`}`,
                 date: r.recordDate,
                 department: s.category,
                 item: s.serviceName,

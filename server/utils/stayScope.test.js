@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  canCompleteStayDischarge,
+  canRequestStayDischarge,
   canReviewStayCharges,
   emergencyServicesAutoApprove,
   isEmergencyDeskRole,
@@ -21,7 +23,7 @@ const wardNurse = {
 const reception = {
   slug: 'reception',
   active: true,
-  permissions: ['patients.view', 'admissions.create', 'admissions.create_emergency', 'admissions.edit'],
+  permissions: ['patients.view', 'admissions.create', 'admissions.create_emergency', 'admissions.edit', 'admissions.discharge'],
 }
 
 describe('emergency stay visibility', () => {
@@ -52,6 +54,17 @@ describe('emergency stay visibility', () => {
     assert.equal(emergencyServicesAutoApprove(stay, [{ category: 'Pharmacy' }]), false)
     assert.equal(emergencyServicesAutoApprove(stay, [{ category: 'Laboratory' }]), false)
     assert.equal(emergencyServicesAutoApprove({ admissionType: 'normal' }, [{ category: 'Nursing' }]), false)
+  })
+
+  it('lets only the Emergency Nurse discharge Emergency OPD', () => {
+    const stay = { admissionType: 'emergency-opd' }
+    const inpatient = { admissionType: 'normal' }
+    assert.equal(canRequestStayDischarge(stay, { user: { role: 'Nurse' }, role: emergencyNurse }), true)
+    assert.equal(canCompleteStayDischarge(stay, { user: { role: 'Nurse' }, role: emergencyNurse }), true)
+    assert.equal(canRequestStayDischarge(stay, { user: { role: 'Nurse' }, role: wardNurse }), false)
+    assert.equal(canCompleteStayDischarge(stay, { user: { role: 'Reception' }, role: reception }), false)
+    assert.equal(canCompleteStayDischarge(inpatient, { user: { role: 'Reception' }, role: reception }), true)
+    assert.equal(canCompleteStayDischarge(inpatient, { user: { role: 'Nurse' }, role: emergencyNurse }), false)
   })
 
   it('lets only the Emergency Nurse review department releases on Emergency OPD', () => {
