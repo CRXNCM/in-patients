@@ -132,7 +132,7 @@ export function buildRoomsFromBeds(beds) {
 
 export function buildRoomHistory(assignments) {
   return [...assignments]
-    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+    .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')))
     .map((a) => ({
       room: a.roomType,
       bed: a.bedLabel,

@@ -99,44 +99,55 @@ export function PatientsProvider({ children }) {
         }
         const admissionDate = patientData.admissionDate || new Date().toISOString().split('T')[0]
         const emergencyOpd = patientData.admissionType === 'emergency-opd'
-        const res = await api.createPatient({
-          name: patientData.name,
-          age: patientData.age,
-          dateOfBirth: patientData.dateOfBirth,
-          gender: patientData.gender,
-          phone: patientData.phone,
-          address: patientData.address,
-          mrn: patientData.mrn,
-          nationalId: patientData.nationalId,
-          admissionDate,
-          bedId: emergencyOpd ? undefined : bedLabel,
-          depositAmount: emergencyOpd ? 0 : patientData.initialDeposit ?? patientData.deposit ?? 0,
-          depositMethod: patientData.depositType || 'Cash',
-          referenceNumber: patientData.referenceNumber,
-          admissionPaymentMode: patientData.admissionPaymentMode || 'paid',
-          creditCompanyId: patientData.admissionPaymentMode === 'credit' ? patientData.creditCompanyId : undefined,
-          doctorIds: patientData.doctorIds || [],
-          admissionType: patientData.admissionType || 'normal',
-        })
-        const patient = withRoomHistory(res.patient)
-        setPatients((prev) => [patient, ...prev])
-        if (res.rooms) setRooms(res.rooms)
-        if (!emergencyOpd && patientData.initialDeposit > 0) {
-          setDeposits((prev) => ({
-            ...prev,
-            [patient.id]: [
-              {
-                id: Date.now(),
-                date: admissionDate,
-                amount: patientData.initialDeposit,
-                method: patientData.depositType,
-                receivedBy: 'Reception',
-                isInitial: true,
-              },
-            ],
-          }))
+        try {
+          const res = await api.createPatient({
+            name: patientData.name,
+            age: patientData.age,
+            dateOfBirth: patientData.dateOfBirth,
+            gender: patientData.gender,
+            phone: patientData.phone,
+            address: patientData.address,
+            mrn: patientData.mrn,
+            nationalId: patientData.nationalId,
+            admissionDate,
+            bedId: emergencyOpd ? undefined : bedLabel,
+            depositAmount: emergencyOpd ? 0 : patientData.initialDeposit ?? patientData.deposit ?? 0,
+            depositMethod: patientData.depositType || 'Cash',
+            referenceNumber: patientData.referenceNumber,
+            admissionPaymentMode: patientData.admissionPaymentMode || 'paid',
+            creditCompanyId: patientData.admissionPaymentMode === 'credit' ? patientData.creditCompanyId : undefined,
+            doctorIds: patientData.doctorIds || [],
+            admissionType: patientData.admissionType || 'normal',
+          })
+          const patient = withRoomHistory(res.patient)
+          setPatients((prev) => [patient, ...prev.filter((row) => row.id !== patient.id)])
+          if (res.rooms) setRooms(res.rooms)
+          if (!emergencyOpd && patientData.initialDeposit > 0) {
+            setDeposits((prev) => ({
+              ...prev,
+              [patient.id]: [
+                {
+                  id: Date.now(),
+                  date: admissionDate,
+                  amount: patientData.initialDeposit,
+                  method: patientData.depositType,
+                  receivedBy: 'Reception',
+                  isInitial: true,
+                },
+              ],
+            }))
+          }
+          return patient
+        } catch (err) {
+          const data = await refreshFromApi().catch(() => null)
+          const match = (data?.patients || []).find((row) => (
+            row.name === patientData.name
+            && row.admissionDate === admissionDate
+            && row.status !== 'discharged'
+          ))
+          if (match) return withRoomHistory(match)
+          throw err
         }
-        return patient
       }
 
       const id = `PAT-${String(Date.now()).slice(-6)}`
@@ -226,7 +237,7 @@ export function PatientsProvider({ children }) {
 
       return patient
     },
-    [rooms]
+    [rooms, refreshFromApi]
   )
 
   const visiblePatients = React.useMemo(

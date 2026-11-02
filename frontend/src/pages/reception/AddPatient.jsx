@@ -9,7 +9,6 @@ import { PageHeader } from '@/components/shared/CommonComponents'
 import { bedTypes, depositTypes } from '@/data/mockData'
 import { useBillingConfig } from '@/context/BillingConfigContext'
 import { usePatients } from '@/context/PatientsContext'
-import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
 import { useAuth } from '@/context/AuthContext'
 import { isEmergencyOpdAdmission } from '@/lib/admissions'
@@ -38,7 +37,6 @@ export default function AddPatient() {
   const { user, hasPermission } = useAuth()
   const { addPatient, patients, rooms } = usePatients()
   const emergencyOnly = hasPermission('admissions.create_emergency') && !hasPermission('admissions.create')
-  const { ensureAutomaticDailyCharges } = useServiceEntries()
   const { settings: hospitalConfig } = useBillingConfig()
 
   const paymentMethods = hospitalConfig.paymentMethods?.length ? hospitalConfig.paymentMethods : depositTypes
@@ -156,6 +154,7 @@ export default function AddPatient() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (submitting) return
     const admissionDate = trimText(form.admissionDate) || todayStr()
     const trimmed = {
       ...form,
@@ -218,10 +217,6 @@ export default function AddPatient() {
         doctorIds: trimmed.doctorIds,
         admissionType: trimmed.admissionType || 'normal',
       })
-
-      if (trimmed.admissionType !== 'emergency-opd') {
-        await ensureAutomaticDailyCharges(patient.id, admissionDate, patient)
-      }
 
       const emergency = isEmergencyOpdAdmission(trimmed.admissionType)
       toast({

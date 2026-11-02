@@ -92,9 +92,28 @@ function requireAdmit(req, res, next) {
 }
 
 async function nextPatientId() {
-  const last = await Patient.findOne().sort({ patientId: -1 })
-  const num = last ? parseInt(last.patientId.replace('PAT-', ''), 10) + 1 : 1
-  return `PAT-${String(num).padStart(3, '0')}`
+  const rows = await Patient.find({ patientId: { $regex: /^PAT-\d+$/ } }).select('patientId').lean()
+  let max = 0
+  for (const row of rows) {
+    const num = Number(String(row.patientId).slice(4))
+    if (Number.isFinite(num) && num > max) max = num
+  }
+  return `PAT-${String(max + 1).padStart(3, '0')}`
+}
+
+async function admitResponsePayload(patientId, assignedDoctors = null) {
+  const patient = await Patient.findOne({ patientId })
+  if (!patient) return null
+  const [balance, assignments, beds, doctors] = await Promise.all([
+    calcPatientBalance(patientId),
+    RoomAssignment.find({ patientId }).sort({ startDate: 1 }),
+    Bed.find(),
+    assignedDoctors ? Promise.resolve(assignedDoctors) : listAssignments(patientId),
+  ])
+  return {
+    patient: { ...mapPatient(patient, balance, doctors), roomHistory: buildRoomHistory(assignments) },
+    rooms: buildRoomsFromBeds(beds),
+  }
 }
 
 function audit(action, by, note = '') {
@@ -579,6 +598,7 @@ router.get('/:id', authRequired, requirePermission('patients.view'), async (req,
 
 router.post('/', authRequired, requireAdmit, async (req, res) => {
   let bedDoc = null
+  let createdPatientId = null
   try {
     const body = req.body
     const rules = await loadResolvedSettings(HospitalSettings)
@@ -598,6 +618,15 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
 
     const admissionType = normalizeAdmissionType(body.admissionType) || 'normal'
     const emergencyOpd = isEmergencyOpdAdmission(admissionType)
+    const deposit = emergencyOpd ? 0 : Number(body.depositAmount)
+    const admissionDate = resolveAdmissionDate(body.admissionDate)
+    const paymentMode = emergencyOpd ? 'paid' : normalizeAdmissionPaymentMode(body.admissionPaymentMode)
+    let creditCompany = null
+    if (paymentMode === 'credit') {
+      const resolved = await resolveActiveCreditCompany(body.creditCompanyId)
+      if (resolved.error) return res.status(400).json({ error: resolved.error })
+      creditCompany = resolved.company
+    }
 
     if (!emergencyOpd) {
       const label = String(body.bedId).replace(/^BED-/, '')
@@ -608,27 +637,17 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
       }
     }
 
-    const patientId = await nextPatientId()
-    const deposit = emergencyOpd ? 0 : Number(body.depositAmount)
-    const admissionDate = resolveAdmissionDate(body.admissionDate)
-    const paymentMode = emergencyOpd ? 'paid' : normalizeAdmissionPaymentMode(body.admissionPaymentMode)
-    let creditCompany = null
-    if (paymentMode === 'credit') {
-      const resolved = await resolveActiveCreditCompany(body.creditCompanyId)
-      if (resolved.error) return res.status(400).json({ error: resolved.error })
-      creditCompany = resolved.company
-    }
+    let patientId = await nextPatientId()
     const requiredInitialDeposit = emergencyOpd || paymentMode === 'credit' ? 0 : rules.minimumInitialDeposit
     const ageValue =
       body.age !== undefined && body.age !== null && body.age !== ''
         ? Number(body.age)
         : computeAgeFromDob(body.dateOfBirth)
 
-    const patient = await Patient.create({
-      patientId,
+    const admitFields = {
       name: String(body.name).trim(),
       age: ageValue,
-      dateOfBirth: body.dateOfBirth || null,
+      dateOfBirth: body.dateOfBirth || undefined,
       gender: body.gender,
       admissionType,
       originalAdmissionType: admissionType,
@@ -654,11 +673,36 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
       status: 'admitted',
       createdBy: req.user.name,
       updatedBy: req.user.name,
-    })
+    }
+
+    let patient
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        patient = await Patient.create({ ...admitFields, patientId })
+        break
+      } catch (err) {
+        if (err?.code === 11000 && err?.keyPattern?.patientId) {
+          patientId = await nextPatientId()
+          continue
+        }
+        if (err?.code === 11000) {
+          const dup = new Error('A patient with this MRN or National ID already exists.')
+          dup.status = 400
+          throw dup
+        }
+        throw err
+      }
+    }
+    if (!patient) {
+      const error = new Error('Could not allocate a patient ID.')
+      error.status = 409
+      throw error
+    }
+    createdPatientId = patient.patientId
+    patientId = patient.patientId
 
     if (bedDoc) {
-      bedDoc.patientId = patientId
-      await bedDoc.save()
+      await Bed.updateOne({ _id: bedDoc._id }, { $set: { patientId } })
 
       await RoomAssignment.create({
         patientId,
@@ -677,7 +721,7 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
         patientId,
         amount: deposit,
         method: body.depositMethod || 'Cash',
-        referenceNumber: body.referenceNumber?.trim() || undefined,
+        referenceNumber: String(body.referenceNumber || '').trim() || undefined,
         date: admissionDate,
         receivedBy: req.user.name,
         isInitial: true,
@@ -689,25 +733,23 @@ router.post('/', authRequired, requireAdmit, async (req, res) => {
       try {
         assignedDoctors = await assignDoctorsOnAdmit(patient, body.doctorIds || [], req.user.name)
       } catch (err) {
-        if (err.status) return res.status(err.status).json({ error: err.message })
-        throw err
+        if (!err.status) throw err
       }
       await ensureAutomaticDailyCharges(patient, null, { range: true })
     }
-    const balance = await calcPatientBalance(patientId)
-    const assignments = await RoomAssignment.find({ patientId }).sort({ startDate: 1 })
-    const beds = await Bed.find()
-
-    res.status(201).json({
-      patient: { ...mapPatient(patient, balance, assignedDoctors), roomHistory: buildRoomHistory(assignments) },
-      rooms: buildRoomsFromBeds(beds),
-    })
+    const payload = await admitResponsePayload(patientId, assignedDoctors)
+    res.status(201).json(payload)
   } catch (err) {
-    if (bedDoc) {
+    if (createdPatientId) {
+      const payload = await admitResponsePayload(createdPatientId).catch(() => null)
+      if (payload && !res.headersSent) return res.status(201).json(payload)
+    } else if (bedDoc) {
       await releaseBed(bedDoc, bedDoc.patientId || 'pending').catch(() => {})
     }
+    if (res.headersSent) return
+    if (err.status) return res.status(err.status).json({ error: err.message })
     console.error(err)
-    res.status(500).json({ error: 'Failed to admit patient' })
+    res.status(500).json({ error: err.message || 'Failed to admit patient' })
   }
 })
 
