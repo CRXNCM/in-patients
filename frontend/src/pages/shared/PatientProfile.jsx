@@ -696,26 +696,28 @@ function PatientProfile() {
         )}
 
         {!creditDesk && (
-        <Card>
-          <SectionHead icon={BedDouble} kicker="History" title="Admission history" description="This application stores one inpatient stay per patient record." />
-          <CardContent>
-            <DataTable columns={admissionColumns} data={admissionRows} />
-          </CardContent>
-        </Card>
+          <>
+            <Card>
+              <SectionHead icon={BedDouble} kicker="History" title="Admission history" description="This application stores one inpatient stay per patient record." />
+              <CardContent>
+                <DataTable columns={admissionColumns} data={admissionRows} />
+              </CardContent>
+            </Card>
 
-        <Card>
-          <SectionHead icon={BedDouble} kicker="Location" title="Room / bed history" />
-          <CardContent>
-            {roomAssignments?.length ? (
-              <DataTable columns={roomColumns} data={roomAssignments} />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Room" value={patient.room} />
-                <Field label="Bed" value={patient.bed} />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            <Card>
+              <SectionHead icon={BedDouble} kicker="Location" title="Room / bed history" />
+              <CardContent>
+                {roomAssignments?.length ? (
+                  <DataTable columns={roomColumns} data={roomAssignments} />
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Room" value={patient.room} />
+                    <Field label="Bed" value={patient.bed} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
         )}
       </MotionReveal>
 
