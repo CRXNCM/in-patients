@@ -483,6 +483,30 @@ export function PatientsProvider({ children }) {
     return mapped
   }, [])
 
+  const updatePatientPersonalInfo = React.useCallback(
+    async (patientId, body) => {
+      if (USE_API) {
+        const res = await api.updatePatientPersonalInfo(patientId, body)
+        return applyPatientUpdate(res.patient)
+      }
+      const current = patients.find((item) => item.id === patientId)
+        || dischargedPatients.find((item) => item.id === patientId)
+      if (!current) throw new Error('Patient not found')
+      return applyPatientUpdate({
+        ...current,
+        name: body.name,
+        gender: body.gender,
+        dateOfBirth: body.dateOfBirth,
+        age: body.age ?? current.age,
+        phone: body.phone,
+        address: body.address,
+        emergencyContact: body.emergencyContact,
+        emergencyPhone: body.emergencyPhone,
+      })
+    },
+    [applyPatientUpdate, dischargedPatients, patients]
+  )
+
   const convertToInpatient = React.useCallback(
     async (patientId, body) => {
       const res = await api.convertToInpatient(patientId, body)
@@ -680,6 +704,7 @@ export function PatientsProvider({ children }) {
         rejectDischarge,
         approveDischarge,
         applyPatientUpdate,
+        updatePatientPersonalInfo,
         saveMaternityBaby,
       }}
     >

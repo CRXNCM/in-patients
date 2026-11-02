@@ -118,6 +118,38 @@ function computeAgeFromDob(dob) {
 
 export { computeAgeFromDob }
 
+const PERSONAL_GENDERS = new Set(['Male', 'Female', 'Other'])
+
+export function validatePersonalInfoBody(body = {}) {
+  const errors = []
+  const name = trimText(body.name)
+  if (!name) errors.push('Full name is required.')
+  else if (name.length < 2) errors.push('Full name must be at least 2 characters.')
+  else if (/^\d+$/.test(name.replace(/\s/g, ''))) errors.push('Name cannot contain only numbers.')
+
+  if (body.gender !== undefined) {
+    const gender = trimText(body.gender)
+    if (!gender) errors.push('Gender is required.')
+    else if (!PERSONAL_GENDERS.has(gender)) errors.push('Gender must be Male, Female, or Other.')
+  }
+
+  const dob = body.dateOfBirth === undefined ? null : trimText(body.dateOfBirth)
+  if (dob) {
+    if (!isValidDateString(dob)) errors.push('Date of birth is not a valid date.')
+    else if (dob > todayStr()) errors.push('Date of birth cannot be in the future.')
+    else {
+      const age = computeAgeFromDob(dob)
+      if (age == null || age < 0 || age > 120) errors.push('Age must be between 0 and 120.')
+    }
+  }
+
+  if (trimText(body.address).length > 200) errors.push('Address must be 200 characters or fewer.')
+  if (trimText(body.phone).length > 40) errors.push('Phone must be 40 characters or fewer.')
+  if (trimText(body.emergencyContact).length > 120) errors.push('Emergency contact must be 120 characters or fewer.')
+  if (trimText(body.emergencyPhone).length > 40) errors.push('Emergency phone must be 40 characters or fewer.')
+  return errors
+}
+
 export function validateDepositBody(body, existingRefs = [], rules = {}) {
   const errors = []
   const enabledMethods = Array.isArray(rules.paymentMethods) && rules.paymentMethods.length

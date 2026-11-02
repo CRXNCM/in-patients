@@ -101,6 +101,22 @@ export function validateTransferDate(date, admissionDate) {
   return null
 }
 
+export function validatePersonalInfo(form, { originalPhone } = {}) {
+  const errors = {}
+  const nameErr = validateName(form.name)
+  if (nameErr) errors.name = nameErr
+  if (!trimText(form.gender)) errors.gender = 'Gender is required.'
+  const dobErr = validateDateOfBirth(form.dateOfBirth)
+  if (dobErr) errors.dateOfBirth = dobErr
+  const phone = trimText(form.phone)
+  if (phone && phone !== trimText(originalPhone)) {
+    const phoneErr = validatePhone(form.phone, { optional: true })
+    if (phoneErr) errors.phone = phoneErr
+  }
+  if (trimText(form.address).length > 200) errors.address = 'Address must be 200 characters or fewer.'
+  return errors
+}
+
 export function validatePatientRegistration(form) {
   const errors = {}
 

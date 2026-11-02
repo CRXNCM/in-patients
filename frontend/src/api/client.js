@@ -72,6 +72,8 @@ export const api = {
       body: JSON.stringify(body),
     }),
   createPatient: (body) => apiFetch('/api/patients', { method: 'POST', body: JSON.stringify(body) }),
+  updatePatientPersonalInfo: (id, body) =>
+    apiFetch(`/api/patients/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) }),
   convertToInpatient: (id, body) =>
     apiFetch(`/api/patients/${id}/convert-to-inpatient`, { method: 'POST', body: JSON.stringify(body) }),
   getConversionRequests: () => apiFetch('/api/conversion-requests'),

@@ -38,11 +38,14 @@ import { loadResolvedSettings } from '../utils/settings.js'
 import {
   validateAdmitBody,
   validateDepositBody,
+  validatePersonalInfoBody,
   validateTransferBody,
   computeAgeFromDob,
   resolveAdmissionDate,
   inpatientActionError,
 } from '../utils/validation.js'
+import { PharmacyOrder } from '../models/PharmacyOrder.js'
+import { LaboratoryOrder } from '../models/LaboratoryOrder.js'
 import {
   toFrontendPatient,
   toFrontendAssignment,
@@ -470,6 +473,53 @@ router.patch('/:id/doctor-visits/:date', authRequired, requirePermission('doctor
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to update doctor visit' })
+  }
+})
+
+function trimField(value) {
+  return String(value ?? '').trim()
+}
+
+async function syncDenormalizedPatientName(patientId, name) {
+  await Promise.all([
+    PharmacyOrder.updateMany({ patientId }, { $set: { patientName: name } }),
+    LaboratoryOrder.updateMany({ patientId }, { $set: { patientName: name } }),
+  ])
+}
+
+router.patch('/:id', authRequired, requireAnyPermission('patients.edit', 'admissions.create'), async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ patientId: req.params.id })
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+
+    const errors = validatePersonalInfoBody(req.body || {})
+    if (errors.length) return res.status(400).json({ error: errors[0] })
+
+    const previousName = patient.name
+    const name = trimField(req.body.name)
+    patient.name = name
+    if (req.body.gender !== undefined) patient.gender = trimField(req.body.gender)
+    if (req.body.phone !== undefined) patient.phone = trimField(req.body.phone)
+    if (req.body.address !== undefined) patient.address = trimField(req.body.address)
+    if (req.body.emergencyContact !== undefined) patient.emergencyContact = trimField(req.body.emergencyContact)
+    if (req.body.emergencyPhone !== undefined) patient.emergencyPhone = trimField(req.body.emergencyPhone)
+    if (req.body.dateOfBirth !== undefined) {
+      const dob = trimField(req.body.dateOfBirth)
+      patient.dateOfBirth = dob || null
+      if (dob) patient.age = computeAgeFromDob(dob)
+    }
+    patient.updatedBy = req.user.name
+    await patient.save()
+    if (previousName !== name) {
+      await syncDenormalizedPatientName(patient.patientId, name)
+    }
+
+    const balance = patient.status === 'discharged' ? null : await calcPatientBalance(patient.patientId)
+    const assignedDoctors = await listAssignments(patient.patientId)
+    res.json({ patient: await mapPatientWithBaby(patient, balance, assignedDoctors) })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to update patient information' })
   }
 })
 

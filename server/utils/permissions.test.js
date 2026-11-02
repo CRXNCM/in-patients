@@ -28,6 +28,7 @@ describe('permission catalog', () => {
     const reception = defaultPermissionsForSlug('reception')
     const nurse = defaultPermissionsForSlug('nurse')
     const manager = defaultPermissionsForSlug('manager')
+    assert.ok(reception.includes('patients.edit'))
     assert.ok(reception.includes('admissions.create'))
     assert.ok(reception.includes('admissions.discharge'))
     assert.ok(reception.includes('payments.create'))

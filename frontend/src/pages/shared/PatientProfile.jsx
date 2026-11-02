@@ -51,6 +51,7 @@ import { isMaternityAdmission } from '@/lib/maternity'
 import { admissionTypeLabel, isEmergencyOpdAdmission } from '@/lib/admissions'
 import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
 import { InpatientConversionPanel } from '@/components/shared/InpatientConversionPanel'
+import { EditPatientPersonalInfoButton } from '@/components/shared/EditPatientPersonalInfoDialog'
 
 function display(value) {
   if (value === 0) return '0'
@@ -159,6 +160,7 @@ function PatientProfile() {
   const canCompleteDischarge = hasPermission('admissions.discharge')
   const canRequestDischarge = user?.roleKey === 'nurse' && canEditPatient
   const canOpenBilling = user?.roleKey === 'reception' && hasPermission('patients.view')
+  const canEditPersonalInfo = hasPermission('patients.edit') || hasPermission('admissions.create')
 
   const liveRecords = listed ? getPatientRecords(patientId) : data?.records || []
   const pendingRecords = liveRecords.filter((row) => row.status === 'pending')
@@ -356,6 +358,22 @@ function PatientProfile() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {canEditPersonalInfo ? (
+                  <EditPatientPersonalInfoButton
+                    patient={{
+                      id: listed?.id || patient.patientId,
+                      name: listed?.name || patient.name,
+                      gender: listed?.gender || patient.gender,
+                      dateOfBirth: listed?.dateOfBirth || patient.dateOfBirth || '',
+                      age: listed?.age ?? patient.age,
+                      phone: listed?.phone || patient.phone || '',
+                      address: listed?.address || patient.address || '',
+                      emergencyContact: listed?.emergencyContact || patient.emergencyContact || '',
+                      emergencyPhone: listed?.emergencyPhone || patient.emergencyPhone || '',
+                    }}
+                    onSaved={() => reload()}
+                  />
+                ) : null}
                 {canOpenBilling && (
                   <Button variant="outline" size="sm" onClick={() => navigate(`/reception/patient/${patient.patientId}`)}>
                     <Receipt className="h-4 w-4" /> View Billing

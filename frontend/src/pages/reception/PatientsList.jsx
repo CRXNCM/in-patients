@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Eye, MoreHorizontal, UserPlus } from 'lucide-react'
+import { Eye, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { StatusBadge, PageHeader, DataTable } from '@/components/shared/CommonComponents'
 import { usePatients } from '@/context/PatientsContext'
@@ -10,6 +10,7 @@ import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
 import { stayLocationLabel } from '@/lib/admissions'
 import { useAuth } from '@/context/AuthContext'
 import { PatientLink } from '@/components/shared/PatientLink'
+import { EditPatientPersonalInfoButton } from '@/components/shared/EditPatientPersonalInfoDialog'
 
 export default function PatientsList() {
   const navigate = useNavigate()
@@ -58,7 +59,9 @@ export default function PatientsList() {
           <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/reception/patient/${row.id}`) }}>
             <Eye className="h-4 w-4 mr-1" /> View
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+          {hasPermission('patients.edit') || hasPermission('admissions.create') ? (
+            <EditPatientPersonalInfoButton patient={row} size="sm" variant="ghost" />
+          ) : null}
         </div>
       ),
     },

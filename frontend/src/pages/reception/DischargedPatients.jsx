@@ -5,10 +5,14 @@ import { PageHeader, DataTable, StatusBadge } from '@/components/shared/CommonCo
 import { usePatients } from '@/context/PatientsContext'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { PatientLink } from '@/components/shared/PatientLink'
+import { EditPatientPersonalInfoButton } from '@/components/shared/EditPatientPersonalInfoDialog'
+import { useAuth } from '@/context/AuthContext'
 
 export default function DischargedPatients() {
   const navigate = useNavigate()
   const { dischargedPatients } = usePatients()
+  const { hasPermission } = useAuth()
+  const canEditPersonalInfo = hasPermission('patients.edit') || hasPermission('admissions.create')
 
   const columns = [
     { key: 'name', header: 'Patient', render: (row) => (
@@ -36,9 +40,12 @@ export default function DischargedPatients() {
       key: 'actions',
       header: 'Action',
       render: (row) => (
-        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/reception/patient/${row.id}`) }}>
-          <Eye className="h-4 w-4 mr-1" /> View
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/reception/patient/${row.id}`) }}>
+            <Eye className="h-4 w-4 mr-1" /> View
+          </Button>
+          {canEditPersonalInfo ? <EditPatientPersonalInfoButton patient={row} size="sm" variant="ghost" /> : null}
+        </div>
       ),
     },
   ]
