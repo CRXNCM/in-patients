@@ -238,6 +238,14 @@ export const api = {
     const query = qs.toString()
     return apiFetch(`/api/manager/credit-patients${query ? `?${query}` : ''}`)
   },
+  getManagerPharmacyUsage: (params = {}) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') qs.set(key, value)
+    })
+    const query = qs.toString()
+    return apiFetch(`/api/manager/pharmacy-usage${query ? `?${query}` : ''}`)
+  },
   getManagerDischargedPatients: (params = {}) => {
     const qs = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {

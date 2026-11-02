@@ -50,6 +50,7 @@ import ManagerCharges from '@/pages/manager/ManagerCharges'
 import ManagerOutstanding from '@/pages/manager/ManagerOutstanding'
 import ManagerCreditPatients from '@/pages/manager/ManagerCreditPatients'
 import ManagerDischarged from '@/pages/manager/ManagerDischarged'
+import ManagerPharmacy from '@/pages/manager/ManagerPharmacy'
 import ReportsPage from '@/pages/manager/ReportsPage'
 import PatientProfile from '@/pages/shared/PatientProfile'
 
@@ -175,6 +176,7 @@ export default function App() {
                         </Route>
                         <Route element={<RequirePermission permission="reports.view" />}>
                           <Route path="reports" element={<ReportsPage />} />
+                          <Route path="pharmacy" element={<ManagerPharmacy />} />
                         </Route>
                       </Route>
                     </Route>

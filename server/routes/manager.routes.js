@@ -20,6 +20,7 @@ import {
   buildManagerCreditReport,
 } from '../services/managerFinance.js'
 import { MANAGER_DISCHARGED_PERMISSIONS, buildManagerDischargedReport } from '../services/managerDischarged.js'
+import { MANAGER_PHARMACY_PERMISSIONS, buildManagerPharmacyReport } from '../services/managerPharmacy.js'
 
 const router = Router()
 
@@ -93,6 +94,21 @@ router.get(
       if (err.status) return res.status(err.status).json({ error: err.message })
       console.error(err)
       res.status(500).json({ error: 'Failed to load credit patients' })
+    }
+  }
+)
+
+router.get(
+  '/pharmacy-usage',
+  authRequired,
+  requirePermission(...MANAGER_PHARMACY_PERMISSIONS),
+  async (req, res) => {
+    try {
+      res.json(await buildManagerPharmacyReport(req.auth, req.query))
+    } catch (err) {
+      if (err.status) return res.status(err.status).json({ error: err.message })
+      console.error(err)
+      res.status(500).json({ error: 'Failed to load pharmacy usage' })
     }
   }
 )
@@ -194,6 +210,34 @@ router.get('/reports/:type', authRequired, requirePermission(MANAGER_DASHBOARD_P
             depositStatus: row.depositStatus,
           }))
           extras = { byCompany: credit.byCompany }
+        }
+        break
+      case 'pharmacy':
+        title = 'Pharmacy usage'
+        {
+          const pharmacy = await buildManagerPharmacyReport(req.auth, {
+            view: req.query.view || 'month',
+            date: req.query.date,
+          })
+          title = `Pharmacy usage — ${pharmacy.startDate} to ${pharmacy.endDate}`
+          summary = {
+            medicines: pharmacy.summary.medicines,
+            patients: pharmacy.summary.patients,
+            issuedQuantity: pharmacy.summary.issuedQuantity,
+            returnedQuantity: pharmacy.summary.returnedQuantity,
+            netQuantity: pharmacy.summary.netQuantity,
+            issuedValue: pharmacy.summary.issuedValue,
+          }
+          rows = pharmacy.topMedicines.map((row) => ({
+            name: row.name,
+            unit: row.unit,
+            issuedQuantity: row.issuedQuantity,
+            returnedQuantity: row.returnedQuantity,
+            netQuantity: row.netQuantity,
+            patientCount: row.patientCount,
+            issuedValue: row.issuedValue,
+          }))
+          extras = { kind: 'pharmacy', topPatients: pharmacy.topPatients, startDate: pharmacy.startDate, endDate: pharmacy.endDate }
         }
         break
       case 'occupancy':

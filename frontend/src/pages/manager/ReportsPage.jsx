@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   FileText, Calendar, CalendarDays, CalendarRange, Building2, Wallet,
-  AlertCircle, History, Bed, FileDown, FileSpreadsheet, Printer, CreditCard,
+  AlertCircle, History, Bed, FileDown, FileSpreadsheet, Printer, CreditCard, Pill,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -34,6 +34,7 @@ const reports = [
   { id: 'outstanding', title: 'Outstanding Balance', description: 'Patients with unpaid or low balances', icon: AlertCircle, color: 'bg-red-500' },
   { id: 'billing', title: 'Patient Billing History', description: 'Detailed billing records per patient', icon: History, color: 'bg-orange-500' },
   { id: 'occupancy', title: 'Room Occupancy', description: 'Bed utilization and occupancy rates', icon: Bed, color: 'bg-violet-500' },
+  { id: 'pharmacy', title: 'Pharmacy usage', description: 'Top medicines handed over, patients who received the most, and net quantity out', icon: Pill, color: 'bg-rose-500' },
   { id: 'credit-patients', title: 'Credit Patients', description: 'Credit admissions by company, dates, and outstanding deposit', icon: CreditCard, color: 'bg-amber-500' },
 ]
 
@@ -79,6 +80,15 @@ function buildMockReport(type, settings) {
             method: d.method || 'Cash',
           }))
         ),
+      }
+    case 'pharmacy':
+      return {
+        ...base,
+        title: 'Pharmacy usage',
+        kind: 'pharmacy',
+        summary: { medicines: 0, patients: 0, issuedQuantity: 0, returnedQuantity: 0, netQuantity: 0, issuedValue: 0 },
+        rows: [],
+        topPatients: [],
       }
     case 'occupancy':
       return {
@@ -168,7 +178,7 @@ export default function ReportsPage() {
 
   const fetchReport = async (reportId) => {
     if (USE_API) {
-      return api.getManagerReport(reportId, reportId === 'credit-patients' ? creditFilters : {})
+      return api.getManagerReport(reportId, reportId === 'credit-patients' ? creditFilters : reportId === 'pharmacy' ? { view: 'month' } : {})
     }
     return buildMockReport(reportId, settings)
   }

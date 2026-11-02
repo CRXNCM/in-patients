@@ -249,6 +249,13 @@ export const NAVIGATION = {
       label: 'Operations',
       items: [
         {
+          id: 'manager-pharmacy',
+          label: 'Pharmacy usage',
+          path: '/manager/pharmacy',
+          icon: Pill,
+          permission: 'reports.view',
+        },
+        {
           id: 'manager-discharged',
           label: 'Discharged Patients',
           path: '/manager/discharged-patients',

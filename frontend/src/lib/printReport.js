@@ -8,7 +8,21 @@ export function printReport(report) {
   const rows = Array.isArray(report.rows) ? report.rows : []
   let tableHtml = ''
 
-  if (rows.length && rows[0].name && rows[0].revenue != null) {
+  if (report.kind === 'pharmacy' || (rows[0] && rows[0].issuedQuantity != null && rows[0].patientCount != null)) {
+    const patients = Array.isArray(report.topPatients) ? report.topPatients : []
+    tableHtml = `<h3>Top medicines handed over</h3>
+      <table><thead><tr><th>Medicine</th><th>Unit</th><th>Issued</th><th>Returned</th><th>Net out</th><th>Patients</th><th>Issued value</th></tr></thead><tbody>${
+        rows.length
+          ? rows.map((r) => `<tr><td>${r.name || ''}</td><td>${r.unit || ''}</td><td>${r.issuedQuantity}</td><td>${r.returnedQuantity}</td><td>${r.netQuantity}</td><td>${r.patientCount}</td><td>${formatCurrency(r.issuedValue || 0)}</td></tr>`).join('')
+          : '<tr><td colspan="7">No pharmacy handovers in this period.</td></tr>'
+      }</tbody></table>
+      <h3>Patients who received the most medicine</h3>
+      <table><thead><tr><th>Patient</th><th>Patient ID</th><th>Issued</th><th>Returned</th><th>Net out</th><th>Different medicines</th><th>Issued value</th></tr></thead><tbody>${
+        patients.length
+          ? patients.map((r) => `<tr><td>${r.patientName || ''}</td><td>${r.patientId || ''}</td><td>${r.issuedQuantity}</td><td>${r.returnedQuantity}</td><td>${r.netQuantity}</td><td>${r.medicineCount}</td><td>${formatCurrency(r.issuedValue || 0)}</td></tr>`).join('')
+          : '<tr><td colspan="7">No patients received medicine in this period.</td></tr>'
+      }</tbody></table>`
+  } else if (rows.length && rows[0].name && rows[0].revenue != null) {
     tableHtml = `<table><thead><tr><th>Item</th><th>Amount</th></tr></thead><tbody>${rows
       .map((r) => `<tr><td>${r.name}</td><td>${formatCurrency(r.revenue)}</td></tr>`)
       .join('')}</tbody></table>`
@@ -48,8 +62,15 @@ export function printReport(report) {
   }
 
   const summaryEntries = report.summary ? Object.entries(report.summary) : []
+  const pharmacySummary = report.kind === 'pharmacy' || (rows[0] && rows[0].issuedQuantity != null && rows[0].patientCount != null)
   const summaryHtml = summaryEntries.length
-    ? `<div class="summary">${summaryEntries.map(([k, v]) => `<p><strong>${k}:</strong> ${typeof v === 'number' ? formatCurrency(v) : v}</p>`).join('')}</div>`
+    ? `<div class="summary">${summaryEntries.map(([k, v]) => {
+      const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, (ch) => ch.toUpperCase())
+      const display = pharmacySummary && typeof v === 'number' && !String(k).toLowerCase().includes('value')
+        ? v
+        : typeof v === 'number' ? formatCurrency(v) : v
+      return `<p><strong>${label}:</strong> ${display}</p>`
+    }).join('')}</div>`
     : ''
 
   win.document.write(`<!DOCTYPE html><html><head><title>${report.title}</title>
@@ -82,10 +103,24 @@ function escapeCsv(value) {
 
 function rowsToCsv(report) {
   const rows = Array.isArray(report.rows) ? report.rows : []
-  if (!rows.length) return 'No data\n'
+  if (!rows.length && report.kind !== 'pharmacy') return 'No data\n'
 
   let headers = []
   let lines = []
+
+  if (report.kind === 'pharmacy' || (rows[0] && rows[0].issuedQuantity != null && rows[0].patientCount != null)) {
+    const patients = Array.isArray(report.topPatients) ? report.topPatients : []
+    const medicineLines = [
+      ['Top medicines'],
+      ['Medicine', 'Unit', 'Issued', 'Returned', 'Net out', 'Patients', 'Issued value'],
+      ...rows.map((r) => [r.name, r.unit || '', r.issuedQuantity, r.returnedQuantity, r.netQuantity, r.patientCount, r.issuedValue || 0]),
+      [''],
+      ['Patients who received the most medicine'],
+      ['Patient', 'Patient ID', 'Issued', 'Returned', 'Net out', 'Different medicines', 'Issued value'],
+      ...patients.map((r) => [r.patientName || '', r.patientId || '', r.issuedQuantity, r.returnedQuantity, r.netQuantity, r.medicineCount, r.issuedValue || 0]),
+    ]
+    return medicineLines.map((line) => line.map(escapeCsv).join(',')).join('\n')
+  }
 
   if (rows[0].name && rows[0].revenue != null) {
     headers = ['Item', 'Amount']
