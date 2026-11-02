@@ -1,6 +1,8 @@
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { PharmacyOrder } from '../models/PharmacyOrder.js'
 import { LaboratoryOrder } from '../models/LaboratoryOrder.js'
+import { isEmergencyOpdAdmission } from '../utils/admissions.js'
+import { departmentReleaseNote } from '../utils/stayScope.js'
 
 function audit(action, by, note = '') {
   return { action, by, at: new Date().toISOString(), note }
@@ -139,7 +141,7 @@ export async function syncPharmacyItemCharge(order, item, actorName, recordDate)
     eligibleQuantity: item.suppliedQuantity || 0,
     billingRecordId: item.billingRecordId || '',
     actorName,
-    note: `Pharmacy released ${item.suppliedQuantity} of ${item.name} for reception approval. This handover is not a billing approval.`,
+    note: departmentReleaseNote(order, 'pharmacy', `Pharmacy released ${item.suppliedQuantity} of ${item.name}.`),
     line: {
       id: item.lineId,
       catalogItemId: item.catalogItemId || '',
@@ -173,7 +175,7 @@ export async function syncLaboratoryItemCharge(order, item, actorName, recordDat
     eligibleQuantity: item.quantity,
     billingRecordId: item.billingRecordId || '',
     actorName,
-    note: `Laboratory approved ${item.name} for reception billing review. The charge is still pending reception approval.`,
+    note: departmentReleaseNote(order, 'laboratory', `Laboratory approved ${item.name}.`),
     line: {
       id: item.lineId,
       catalogItemId: item.catalogItemId || '',
@@ -230,7 +232,9 @@ export function receptionHoldError(record) {
   if (record.departmentCleared) return null
   const departmental = (record.services || []).some((line) => categoryNeedsDepartment(line.category))
   if (record.departmentGate || departmental) {
-    return 'Pharmacy and laboratory items stay off the bill until the department releases them and reception approves that release.'
+    return isEmergencyOpdAdmission(record.admissionType)
+      ? 'Pharmacy and laboratory items return to the Emergency Nurse after the department releases them.'
+      : 'Pharmacy and laboratory items stay off the bill until the department releases them and reception approves that release.'
   }
   return null
 }

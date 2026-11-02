@@ -17,6 +17,7 @@ import { defaultPermissionsForSlug } from '../utils/permissions.js'
 import { applyAdmissionPrice } from '../utils/admissions.js'
 import patientRoutes from './patients.routes.js'
 import conversionRoutes from './conversion.routes.js'
+import recordRoutes from './records.routes.js'
 import { ConversionRequest } from '../models/ConversionRequest.js'
 import { Deposit } from '../models/Deposit.js'
 import { todayStr } from '../utils/dates.js'
@@ -180,6 +181,7 @@ describe('Emergency OPD admission HTTP', { skip: !hasDb }, () => {
     app = express()
     app.use(express.json())
     app.use('/api/patients', patientRoutes)
+    app.use('/api/records', recordRoutes)
     app.use('/api', conversionRoutes)
   })
 
@@ -302,7 +304,7 @@ describe('Emergency OPD admission HTTP', { skip: !hasDb }, () => {
     assert.equal(saved.services[0].priceMultiplier, 1)
 
     const later = await request(app, `/api/patients/${patient.id}/records`, {
-      token: sign(emergencyNurse),
+      token: sign(wardNurse),
       method: 'POST',
       body: {
         services: [{
@@ -474,6 +476,84 @@ describe('Emergency OPD admission HTTP', { skip: !hasDb }, () => {
       },
     })
     assert.ok(again.status === 400 || again.status === 409)
+  })
+
+  it('keeps Emergency OPD off Reception and auto-approves services except pharmacy and laboratory', async () => {
+    const createdStay = await request(app, '/api/patients', {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: {
+        name: `${PREFIX} Desk Hide`,
+        gender: 'Male',
+        age: 41,
+        admissionDate: todayStr(),
+        admissionType: 'emergency-opd',
+      },
+    })
+    assert.equal(createdStay.status, 201, createdStay.body.error)
+    const patientId = createdStay.body.patient.id
+    created.patients.push(createdStay.body.patient.admissionId)
+
+    const deskList = await request(app, '/api/patients', { token: sign(reception) })
+    assert.equal(deskList.status, 200)
+    assert.equal((deskList.body || []).some((row) => row.id === patientId), false)
+
+    const wardList = await request(app, '/api/patients', { token: sign(wardNurse) })
+    assert.equal((wardList.body || []).some((row) => row.id === patientId), false)
+
+    const emList = await request(app, '/api/patients', { token: sign(emergencyNurse) })
+    assert.equal((emList.body || []).some((row) => row.id === patientId), true)
+
+    const deskOne = await request(app, `/api/patients/${patientId}`, { token: sign(reception) })
+    assert.equal(deskOne.status, 404)
+
+    const otherCategory = await ServiceCategory.findOne({
+      slug: { $nin: ['pharmacy', 'laboratory'] },
+      'services.0': { $exists: true },
+    })
+    const otherItem = (otherCategory?.services || []).find((item) => item.active !== false)
+    assert.ok(otherItem, 'catalog needs a non-pharmacy, non-laboratory service')
+
+    const auto = await request(app, `/api/patients/${patientId}/records`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: {
+        services: [{
+          catalogItemId: String(otherItem._id || otherItem.id),
+          category: otherCategory.name,
+          serviceName: otherItem.name,
+          quantity: 1,
+        }],
+      },
+    })
+    assert.equal(auto.status, 201, auto.body.error)
+    assert.equal(auto.body.status, 'approved')
+
+    const lab = await request(app, `/api/patients/${patientId}/records`, {
+      token: sign(emergencyNurse),
+      method: 'POST',
+      body: {
+        services: [{
+          catalogItemId: String(labItem._id || labItem.id),
+          category: 'Laboratory',
+          serviceName: labItem.name,
+          quantity: 1,
+        }],
+      },
+    })
+    assert.equal(lab.status, 201, lab.body.error)
+    assert.equal(lab.body.status, 'pending')
+
+    const deskPending = await request(app, '/api/records/pending', { token: sign(reception) })
+    assert.equal(deskPending.status, 200)
+    assert.equal((deskPending.body || []).some((row) => row.patientId === patientId), false)
+
+    const deskApprove = await request(app, `/api/records/${lab.body.id}/approve`, {
+      token: sign(reception),
+      method: 'POST',
+      body: { note: 'should not work' },
+    })
+    assert.equal(deskApprove.status, 403)
   })
 })
 

@@ -4,6 +4,7 @@ import { PharmacyOrder } from '../models/PharmacyOrder.js'
 import { LaboratoryOrder } from '../models/LaboratoryOrder.js'
 import { partitionServiceLines, buildPharmacyOrder } from '../../frontend/src/services/pharmacyFulfillment.js'
 import { buildLaboratoryOrder } from '../../frontend/src/services/laboratoryOrders.js'
+import { emergencyServicesAutoApprove } from '../utils/stayScope.js'
 
 function audit(action, by, note = '') {
   return { action, by, at: new Date().toISOString(), note }
@@ -80,13 +81,23 @@ export async function detachMixedDepartmentLines(record, actor = {}) {
   if (!record.submissionId) record.submissionId = submissionId
   record.departmentGate = ''
   record.departmentCleared = false
+  const autoApprove = emergencyServicesAutoApprove(patient, parts.other)
+  if (autoApprove) {
+    const now = new Date()
+    record.status = 'approved'
+    record.approvedBy = actorObj.name
+    record.reviewedAt = now
+  }
   record.auditTrail = [
     ...(record.auditTrail || []),
     audit(
       'edited',
       actorObj.name,
-      `Pharmacy and laboratory items were moved to their queues. ${parts.other.length} other service(s) remain for reception.`
+      `Pharmacy and laboratory items were moved to their queues. ${parts.other.length} other service(s) ${autoApprove ? 'were auto-approved for Emergency OPD' : 'remain for reception'}.`
     ),
+    ...(autoApprove
+      ? [audit('approved', actorObj.name, 'Auto-approved Emergency OPD service. Reception reviews this stay only after inpatient conversion.')]
+      : []),
   ]
   record.markModified('services')
   record.markModified('auditTrail')

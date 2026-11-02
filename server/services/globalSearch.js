@@ -6,6 +6,7 @@ import { Department } from '../models/Department.js'
 import { Ward } from '../models/Ward.js'
 import { User } from '../models/User.js'
 import { roleHasPermission } from '../utils/permissions.js'
+import { stayScopeFilter } from '../utils/stayScope.js'
 
 export const SEARCH_LIMIT = 5
 export const MIN_QUERY_LENGTH = 2
@@ -72,9 +73,10 @@ function defaultDeps() {
   return { Patient, Doctor, Room, Bed, Department, Ward, User }
 }
 
-async function searchPatients(PatientModel, q, accessRole) {
+async function searchPatients(PatientModel, q, accessRole, auth) {
   const rx = textFilter(q)
   const docs = await PatientModel.find({
+    ...stayScopeFilter(auth),
     $or: [{ name: rx }, { patientId: rx }, { mrn: rx }, { phone: rx }],
   })
     .sort({ admissionDate: -1, createdAt: -1 })
@@ -252,7 +254,7 @@ export async function buildSearchResults(auth, query, injected = {}) {
 
   if (scopes.patients) {
     jobs.push(
-      searchPatients(deps.Patient, parsed.q, accessRole).then((block) => {
+      searchPatients(deps.Patient, parsed.q, accessRole, auth).then((block) => {
         groups.patients = block
       })
     )

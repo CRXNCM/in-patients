@@ -14,7 +14,9 @@ import { ClinicalNotesPanel } from '@/components/shared/ClinicalNotesPanel'
 import { PatientWorkflowPanel } from '@/components/workflow/PatientWorkflowPanel'
 import { isMaternityAdmission } from '@/lib/maternity'
 import { isEmergencyOpdAdmission, stayLocationLabel } from '@/lib/admissions'
+import { canReviewEmergencyDepartmentRelease } from '@/lib/stayScope'
 import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
+import { useToast } from '@/context/ToastContext'
 import { InpatientConversionPanel } from '@/components/shared/InpatientConversionPanel'
 import { recordsWithWardRequests } from '@/lib/workflowHistory'
 import { usePatients } from '@/context/PatientsContext'
@@ -28,9 +30,10 @@ export default function PatientServiceEntry() {
   const { patientId } = useParams()
   const navigate = useNavigate()
   const { getPatient, applyPatientUpdate } = usePatients()
-  const { hasPermission } = useAuth()
-  const { getPatientRecords, CURRENT_NURSE } = useServiceEntries()
+  const { user, hasPermission } = useAuth()
+  const { getPatientRecords, CURRENT_NURSE, approveRecord, rejectRecord } = useServiceEntries()
   const { pharmacyOrders, laboratoryOrders } = useWorkflowRequests()
+  const { toast } = useToast()
   const [historyEdit, setHistoryEdit] = useState(null)
 
   const patient = getPatient(patientId)
@@ -44,11 +47,23 @@ export default function PatientServiceEntry() {
     )
   }
 
-  const records = recordsWithWardRequests(getPatientRecords(patientId), pharmacyOrders, laboratoryOrders, patient.id)
+  const liveRecords = getPatientRecords(patientId)
+  const records = recordsWithWardRequests(liveRecords, pharmacyOrders, laboratoryOrders, patient.id)
     .filter((record) => record.type !== 'pharmacy_return')
   const maternity = isMaternityAdmission(patient)
   const motherRecords = records.filter((r) => (r.subjectType || 'mother') !== 'baby')
   const babyRecords = records.filter((r) => r.subjectType === 'baby')
+  const departmentReview = liveRecords.filter((record) => canReviewEmergencyDepartmentRelease(patient, user, record))
+
+  const handleConfirmRelease = async (record, decision) => {
+    try {
+      if (decision === 'approved') await approveRecord(record.id, 'Confirmed by Emergency Nurse')
+      else await rejectRecord(record.id, 'Rejected by Emergency Nurse')
+      toast({ title: decision === 'approved' ? 'Confirmed' : 'Rejected', description: 'Pharmacy and laboratory releases stay with Emergency Nurse until this stay is converted.', variant: 'success' })
+    } catch (err) {
+      toast({ title: 'Update failed', description: err.message, variant: 'destructive' })
+    }
+  }
 
   return (
     <MotionPage>
@@ -135,6 +150,32 @@ export default function PatientServiceEntry() {
         </div>
       ) : (
         <p className="mb-8 text-sm text-muted-foreground">This patient is discharged. New inpatient services cannot be recorded.</p>
+      )}
+
+      {departmentReview.length > 0 && (
+        <Card className="mb-6 border-warning/40 bg-warning/5">
+          <CardHeader>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-warning">Pharmacy and laboratory</p>
+            <CardTitle className="mt-1 text-lg">Confirm department releases</CardTitle>
+            <CardDescription>
+              Pharmacy and laboratory send these items back to the Emergency Nurse. Reception does not see this stay until it is converted to inpatient.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {departmentReview.map((record) => (
+              <div key={record.id} className="flex flex-col gap-2 rounded-md border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium">{record.services?.map((line) => line.serviceName).filter(Boolean).join(', ') || record.recordName}</p>
+                  <p className="text-xs text-muted-foreground">{record.recordedBy || 'Department'} · {record.services?.length || 0} item(s)</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => handleConfirmRelease(record, 'approved')}>Confirm</Button>
+                  <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleConfirmRelease(record, 'rejected')}>Reject</Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       <Card>

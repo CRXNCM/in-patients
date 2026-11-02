@@ -6,6 +6,7 @@ import { applyHandover, applyReturn, listMedicineReturns, overallStatus, verifyR
 import { syncPharmacyItemCharge } from '../services/departmentBilling.js'
 import { attachReturnBilling } from '../services/pharmacyReturns.js'
 import { detachPendingMixedDepartmentLines } from '../services/departmentRouting.js'
+import { orderVisibleToAuth } from '../utils/stayScope.js'
 
 const router = Router()
 
@@ -112,7 +113,7 @@ router.get('/orders', authRequired, requireRoles('Pharmacist', 'Nurse', 'Admin')
   try {
     await detachPendingMixedDepartmentLines(req.user)
     const docs = await PharmacyOrder.find().sort({ requestedAt: -1, createdAt: -1 }).limit(500)
-    const orders = docs.map(plainPharmacyOrder).filter((order) => matchesQuery(order, req.query))
+    const orders = docs.map(plainPharmacyOrder).filter((order) => matchesQuery(order, req.query) && orderVisibleToAuth(order, req.auth))
     const page = Number(req.query.page)
     const limit = Number(req.query.limit)
     if (page || limit) {

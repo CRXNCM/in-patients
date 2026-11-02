@@ -4,6 +4,7 @@ import { Deposit } from '../models/Deposit.js'
 import { RoomAssignment } from '../models/RoomAssignment.js'
 import { MaternityBaby } from '../models/MaternityBaby.js'
 import { roleHasPermission } from '../utils/permissions.js'
+import { stayAccessDenied } from '../utils/stayScope.js'
 import { calcPatientBalance } from './autoCharges.js'
 import { listAssignments } from './doctorAssignments.js'
 import { recordAmount } from './receptionDashboard.js'
@@ -113,6 +114,12 @@ export async function buildPatientProfile(auth, patientId, injected = {}) {
   const found = deps.Patient.findOne({ patientId: id })
   const patient = typeof found?.lean === 'function' ? await found.lean() : await found
   if (!patient) notFound()
+  const hidden = stayAccessDenied(patient, auth)
+  if (hidden) {
+    const error = new Error(hidden.error)
+    error.status = hidden.status
+    throw error
+  }
 
   const [records, deposits, assignments, doctors, baby, balance] = await Promise.all([
     deps.ServiceRecord.find({ patientId: id }).sort({ date: -1, createdAt: -1 }),

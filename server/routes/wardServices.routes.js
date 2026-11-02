@@ -10,7 +10,8 @@ import { WardSubmission } from '../models/WardSubmission.js'
 import { authRequired } from '../middleware/auth.js'
 import { inpatientActionError } from '../utils/validation.js'
 import { resolveCatalogServiceLines } from '../utils/catalog.js'
-import { catalogPricingForPatient } from '../utils/admissions.js'
+import { catalogPricingForPatient, isEmergencyOpdAdmission } from '../utils/admissions.js'
+import { emergencyServicesAutoApprove } from '../utils/stayScope.js'
 import { resolveRecordSubject } from '../utils/maternity.js'
 import { todayStr } from '../utils/dates.js'
 import { toFrontendRecord } from '../utils/mappers.js'
@@ -166,27 +167,33 @@ router.post('/patients/:id/ward-services', authRequired, async (req, res) => {
       let record = null
       if (parts.other.length) {
         const routed = parts.pharmacy.length || parts.laboratory.length
+        const autoApprove = emergencyServicesAutoApprove(patient, parts.other)
         const saved = await ServiceRecord.create({
           patientId: patient.patientId,
           subjectType: subject.subjectType,
           babyId: subject.babyId,
           recordName: recordName || patient.name,
           date: recordDate || todayStr(),
-          status: 'pending',
+          status: autoApprove ? 'approved' : 'pending',
           recordType: 'daily',
           source: 'nurse',
           submissionId,
           services: parts.other,
           submittedBy: req.user.name,
+          approvedBy: autoApprove ? req.user.name : null,
           recordedAt: now,
+          reviewedAt: autoApprove ? now : null,
           auditTrail: [
             audit(
               'recorded',
               req.user.name,
               routed
-                ? `Daily record submitted — ${parts.other.length} service(s). Pharmacy and laboratory items were routed to their queues and are not chargeable until each department releases them and reception approves that release.`
+                ? `Daily record submitted — ${parts.other.length} service(s). Pharmacy and laboratory items were routed to their queues and return to ${isEmergencyOpdAdmission(patient) ? 'the Emergency Nurse' : 'reception'} after the department releases them.`
                 : `Daily record submitted — ${parts.other.length} service(s)`
             ),
+            ...(autoApprove
+              ? [audit('approved', req.user.name, 'Auto-approved Emergency OPD service. Reception reviews this stay only after inpatient conversion.')]
+              : []),
           ],
         })
         createdRecordId = saved._id

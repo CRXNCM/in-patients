@@ -12,6 +12,7 @@ import { useWorkflowRequests } from '@/context/WorkflowRequestsContext'
 import { useAuth } from '@/context/AuthContext'
 import { formatDateTime } from '@/lib/utils'
 import { formatStayLocation, queryPharmacyOrders } from '@/services/pharmacyFulfillment'
+import { stayVisibleToUser } from '@/lib/stayScope'
 import { PharmacyFulfillmentDialog } from './PharmacyFulfillmentDialog'
 
 export default function PharmacyQueue({
@@ -31,8 +32,8 @@ export default function PharmacyQueue({
   const fulfill = canFulfill && user?.roleKey === 'pharmacist'
 
   const rows = useMemo(
-    () => queryPharmacyOrders(pharmacyOrders, { status, search, sort }),
-    [pharmacyOrders, status, search, sort]
+    () => queryPharmacyOrders(pharmacyOrders.filter((order) => stayVisibleToUser(order, user)), { status, search, sort }),
+    [pharmacyOrders, status, search, sort, user]
   )
   useEffect(() => { setPage(1) }, [status, search, sort])
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize))

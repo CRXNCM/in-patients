@@ -110,8 +110,10 @@ async function leanFind(query) {
   return query
 }
 
+const NOT_EMERGENCY = { admissionType: { $ne: 'emergency-opd' } }
+
 function inpatientFind(PatientModel) {
-  return PatientModel.find({ status: { $in: INPATIENT_STATUSES } })
+  return PatientModel.find({ status: { $in: INPATIENT_STATUSES }, ...NOT_EMERGENCY })
     .select('patientId name room bed status admissionDate admissionType convertedFromEmergency depositTotal')
     .sort({ admissionDate: -1, createdAt: -1 })
 }
@@ -125,8 +127,8 @@ export async function buildReceptionDashboard(auth, injected = {}) {
   const threshold = includeMoney ? await loadThreshold(deps.HospitalSettings) : DEFAULT_LOW_BALANCE_THRESHOLD
 
   const [admitted, pendingDischarge, pendingApprovals, pendingList, inpatientRows, todayDeposits, pendingInpatientAdmissions] = await Promise.all([
-    deps.Patient.countDocuments({ status: 'admitted' }),
-    deps.Patient.countDocuments({ status: 'pending-discharge' }),
+    deps.Patient.countDocuments({ status: 'admitted', ...NOT_EMERGENCY }),
+    deps.Patient.countDocuments({ status: 'pending-discharge', ...NOT_EMERGENCY }),
     deps.ServiceRecord.countDocuments({ status: 'pending' }),
     leanFind(
       deps.ServiceRecord.find({ status: 'pending' })
@@ -142,9 +144,13 @@ export async function buildReceptionDashboard(auth, injected = {}) {
 
   const nameIds = [...new Set((pendingList || []).map((doc) => doc.patientId).filter(Boolean))]
   const nameDocs = nameIds.length
-    ? await leanFind(deps.Patient.find({ patientId: { $in: nameIds } }).select('patientId name'))
+    ? await leanFind(deps.Patient.find({ patientId: { $in: nameIds } }).select('patientId name admissionType'))
     : []
   const namesById = Object.fromEntries(nameDocs.map((doc) => [doc.patientId, doc.name]))
+  const visiblePending = (pendingList || []).filter((doc) => {
+    const stay = nameDocs.find((row) => row.patientId === doc.patientId)
+    return stay?.admissionType !== 'emergency-opd'
+  })
   const ids = inpatientRows.map((doc) => doc.patientId).filter(Boolean)
   let chargeMap = {}
   let pendingMap = {}
@@ -180,14 +186,20 @@ export async function buildReceptionDashboard(auth, injected = {}) {
     : null
 
   const receptionQueue = buildReceptionRequests({
-    records: pendingList,
-    patients: nameDocs.map((doc) => ({ patientId: doc.patientId, name: doc.name })),
+    records: visiblePending,
+    patients: nameDocs
+      .filter((doc) => doc.admissionType !== 'emergency-opd')
+      .map((doc) => ({ patientId: doc.patientId, name: doc.name })),
   }).filter((request) => request.inQueue)
   const payload = {
     generatedAt: new Date().toISOString(),
     census: { admitted, pendingDischarge },
-    workQueue: { pendingApprovals, pendingDischarges: pendingDischarge, pendingInpatientAdmissions },
-    pendingRecords: pendingList.slice(0, PENDING_PANEL_LIMIT).map((doc) => mapPendingRecord(doc, namesById[doc.patientId] || '')),
+    workQueue: {
+      pendingApprovals: Math.max(0, pendingApprovals - ((pendingList || []).length - visiblePending.length)),
+      pendingDischarges: pendingDischarge,
+      pendingInpatientAdmissions,
+    },
+    pendingRecords: visiblePending.slice(0, PENDING_PANEL_LIMIT).map((doc) => mapPendingRecord(doc, namesById[doc.patientId] || '')),
     receptionQueue: receptionQueue.slice(0, PENDING_PANEL_LIMIT).map(panelRow),
     receptionQueueCount: receptionQueue.length,
     currentInpatients,

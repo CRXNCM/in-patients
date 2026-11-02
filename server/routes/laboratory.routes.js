@@ -10,6 +10,7 @@ import {
 } from '../../frontend/src/services/laboratoryOrders.js'
 import { syncLaboratoryItemCharge, withdrawPendingDepartmentCharge } from '../services/departmentBilling.js'
 import { detachPendingMixedDepartmentLines } from '../services/departmentRouting.js'
+import { orderVisibleToAuth } from '../utils/stayScope.js'
 
 const router = Router()
 
@@ -114,7 +115,7 @@ router.get('/orders', authRequired, requireRoles('Laboratory', 'Nurse', 'Admin')
   try {
     await detachPendingMixedDepartmentLines(req.user)
     const docs = await LaboratoryOrder.find().sort({ requestedAt: -1, createdAt: -1 }).limit(500)
-    const orders = docs.map(plainLaboratoryOrder).filter((order) => matchesQuery(order, req.query))
+    const orders = docs.map(plainLaboratoryOrder).filter((order) => matchesQuery(order, req.query) && orderVisibleToAuth(order, req.auth))
     const page = Number(req.query.page)
     const limit = Number(req.query.limit)
     if (page || limit) {

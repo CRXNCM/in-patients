@@ -22,6 +22,7 @@ import {
   babyFieldsFromBody,
 } from '../utils/maternity.js'
 import { catalogPricingForPatient, isEmergencyOpdAdmission } from '../utils/admissions.js'
+import { emergencyServicesAutoApprove, stayAccessDenied, stayScopeFilter } from '../utils/stayScope.js'
 import { convertEmergencyOpdToInpatient } from '../services/emergencyConversion.js'
 import {
   actorFromReq,
@@ -124,9 +125,10 @@ async function babiesByMotherIds(patientIds) {
 
 router.get('/', authRequired, requirePermission('patients.view'), async (req, res) => {
   try {
+    const scope = stayScopeFilter(req.auth)
     if (req.query.view === 'full') {
       const [patients, beds, allDeposits, assignments] = await Promise.all([
-        Patient.find({ status: { $ne: 'discharged' } }).sort({ admissionDate: -1 }),
+        Patient.find({ status: { $ne: 'discharged' }, ...scope }).sort({ admissionDate: -1 }),
         Bed.find().sort({ roomType: 1, label: 1 }),
         Deposit.find().sort({ date: -1 }),
         RoomAssignment.find().sort({ startDate: 1 }),
@@ -157,7 +159,7 @@ router.get('/', authRequired, requirePermission('patients.view'), async (req, re
       })
     }
 
-    const patients = await Patient.find({ status: { $ne: 'discharged' } }).sort({ admissionDate: -1 })
+    const patients = await Patient.find({ status: { $ne: 'discharged' }, ...scope }).sort({ admissionDate: -1 })
     const doctorMap = await assignmentsByPatientIds(patients.map((p) => p.patientId))
     const babyMap = await babiesByMotherIds(patients.map((p) => p.patientId))
     const list = await Promise.all(
@@ -173,9 +175,9 @@ router.get('/', authRequired, requirePermission('patients.view'), async (req, re
   }
 })
 
-router.get('/pending-discharge', authRequired, requireAnyPermission('admissions.discharge', 'admissions.view'), async (_req, res) => {
+router.get('/pending-discharge', authRequired, requireAnyPermission('admissions.discharge', 'admissions.view'), async (req, res) => {
   try {
-    const patients = await Patient.find({ status: 'pending-discharge' }).sort({ dischargeRequestedAt: -1, admissionDate: -1 })
+    const patients = await Patient.find({ status: 'pending-discharge', ...stayScopeFilter(req.auth) }).sort({ dischargeRequestedAt: -1, admissionDate: -1 })
     const doctorMap = await assignmentsByPatientIds(patients.map((p) => p.patientId))
     const babyMap = await babiesByMotherIds(patients.map((p) => p.patientId))
     const list = await Promise.all(
@@ -191,9 +193,9 @@ router.get('/pending-discharge', authRequired, requireAnyPermission('admissions.
   }
 })
 
-router.get('/discharged', authRequired, requirePermission('patients.view'), async (_req, res) => {
+router.get('/discharged', authRequired, requirePermission('patients.view'), async (req, res) => {
   try {
-    const patients = await Patient.find({ status: 'discharged' }).sort({ dischargeCompletedAt: -1, updatedAt: -1 })
+    const patients = await Patient.find({ status: 'discharged', ...stayScopeFilter(req.auth) }).sort({ dischargeCompletedAt: -1, updatedAt: -1 })
     const doctorMap = await assignmentsByPatientIds(patients.map((p) => p.patientId))
     const babyMap = await babiesByMotherIds(patients.map((p) => p.patientId))
     const list = await Promise.all(
@@ -261,6 +263,8 @@ router.get('/:id/records', authRequired, requirePermission('patients.view'), asy
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const hidden = stayAccessDenied(patient, req.auth)
+    if (hidden) return res.status(hidden.status).json({ error: hidden.error })
     const records = await ServiceRecord.find({ patientId: patient.patientId }).sort({ date: -1, createdAt: -1 })
     res.json(records.map((r) => toFrontendRecord(r, patient.name)))
   } catch (err) {
@@ -273,6 +277,8 @@ router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const hidden = stayAccessDenied(patient, req.auth)
+    if (hidden) return res.status(hidden.status).json({ error: hidden.error })
     const recordBlock = inpatientActionError(patient, 'records')
     if (recordBlock) return res.status(400).json({ error: recordBlock })
 
@@ -291,7 +297,7 @@ router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 
     const { autoApprove, source } = submitterFromAuth(req)
     const gate = departmentGateForLines(lines)
     const needsDepartment = lines.some((line) => categoryNeedsDepartment(line.category))
-    const canAutoApprove = autoApprove && !needsDepartment
+    const canAutoApprove = (autoApprove && !needsDepartment) || emergencyServicesAutoApprove(patient, lines)
     const now = new Date()
 
     const record = await ServiceRecord.create({
@@ -319,7 +325,11 @@ router.post('/:id/records', authRequired, requireAnyPermission('patients.edit', 
             ? `Daily record submitted — ${lines.length} service(s). Pharmacy and laboratory items are not chargeable until the department releases them and reception approves that release.`
             : `Daily record submitted — ${lines.length} service(s)`
         ),
-        ...(canAutoApprove ? [audit('approved', req.user.name, 'Auto-approved reception entry')] : []),
+        ...(canAutoApprove
+          ? [audit('approved', req.user.name, emergencyServicesAutoApprove(patient, lines)
+            ? 'Auto-approved Emergency OPD service. Reception reviews this stay only after inpatient conversion.'
+            : 'Auto-approved reception entry')]
+          : []),
       ],
     })
 
@@ -528,6 +538,8 @@ router.get('/:id', authRequired, requirePermission('patients.view'), async (req,
   try {
     const patient = await Patient.findOne({ patientId: req.params.id })
     if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const hidden = stayAccessDenied(patient, req.auth)
+    if (hidden) return res.status(hidden.status).json({ error: hidden.error })
 
     if (patient.status !== 'discharged') {
       await ensureAutomaticDailyCharges(patient)

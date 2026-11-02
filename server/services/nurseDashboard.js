@@ -1,6 +1,7 @@
 import { Patient } from '../models/Patient.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { DoctorAssignment } from '../models/DoctorAssignment.js'
+import { stayScopeFilter } from '../utils/stayScope.js'
 
 export const NURSE_DASHBOARD_PERMISSION = 'patients.view'
 
@@ -78,6 +79,7 @@ function defaultDeps() {
 export async function buildNurseDashboard(user, injected = {}) {
   const deps = { ...defaultDeps(), ...injected }
   const submittedBy = submitterName(user)
+  const scope = stayScopeFilter(injected.auth || { user })
 
   const [
     admitted,
@@ -87,8 +89,8 @@ export async function buildNurseDashboard(user, injected = {}) {
     needsAttentionDocs,
     inpatientDocs,
   ] = await Promise.all([
-    deps.Patient.countDocuments({ status: 'admitted' }),
-    deps.Patient.countDocuments({ status: 'pending-discharge' }),
+    deps.Patient.countDocuments({ status: 'admitted', ...scope }),
+    deps.Patient.countDocuments({ status: 'pending-discharge', ...scope }),
     submittedBy
       ? deps.ServiceRecord.countDocuments({ submittedBy, status: 'pending', recordType: { $ne: 'return' } })
       : Promise.resolve(0),
@@ -99,12 +101,12 @@ export async function buildNurseDashboard(user, injected = {}) {
           .select('patientId recordName recordType status recordedAt createdAt source submittedBy')
           .lean()
       : Promise.resolve([]),
-    deps.Patient.find({ status: 'pending-discharge' })
+    deps.Patient.find({ status: 'pending-discharge', ...scope })
       .sort({ dischargeRequestedAt: -1, admissionDate: -1, createdAt: -1 })
       .limit(NEEDS_ATTENTION_LIMIT)
       .select('patientId name room bed status admissionDate')
       .lean(),
-    deps.Patient.find({ status: { $in: INPATIENT_STATUSES } })
+    deps.Patient.find({ status: { $in: INPATIENT_STATUSES }, ...scope })
       .sort({ admissionDate: -1, createdAt: -1 })
       .limit(CURRENT_INPATIENTS_LIMIT)
       .select('patientId name room bed status admissionDate admissionType')

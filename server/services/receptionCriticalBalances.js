@@ -35,6 +35,7 @@ function stayFilter(query) {
   const status = String(query.status || '').trim()
   const filter = {
     status: INPATIENT_STATUSES.includes(status) ? status : { $in: INPATIENT_STATUSES },
+    admissionType: { $ne: 'emergency-opd' },
   }
   const q = String(query.q || '').trim()
   if (q) {

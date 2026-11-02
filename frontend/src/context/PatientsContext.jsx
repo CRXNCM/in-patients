@@ -12,6 +12,7 @@ import {
 import { api, USE_API } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
 import { isOfflineWorkflowUser } from '@/lib/workflowAccess'
+import { stayVisibleToUser } from '@/lib/stayScope'
 
 const PatientsContext = React.createContext(null)
 
@@ -227,9 +228,22 @@ export function PatientsProvider({ children }) {
     [rooms]
   )
 
+  const visiblePatients = React.useMemo(
+    () => patients.filter((patient) => stayVisibleToUser(patient, user)),
+    [patients, user]
+  )
+  const visibleDischarged = React.useMemo(
+    () => dischargedPatients.filter((patient) => stayVisibleToUser(patient, user)),
+    [dischargedPatients, user]
+  )
+
   const getPatient = React.useCallback(
-    (id) => patients.find((p) => p.id === id) || dischargedPatients.find((p) => p.id === id),
-    [patients, dischargedPatients]
+    (id) => {
+      const found = patients.find((p) => p.id === id) || dischargedPatients.find((p) => p.id === id)
+      if (found && !stayVisibleToUser(found, user)) return undefined
+      return found
+    },
+    [patients, dischargedPatients, user]
   )
 
   const getPatientDeposits = React.useCallback(
@@ -682,8 +696,8 @@ export function PatientsProvider({ children }) {
   return (
     <PatientsContext.Provider
       value={{
-        patients,
-        dischargedPatients,
+        patients: visiblePatients,
+        dischargedPatients: visibleDischarged,
         rooms,
         roomAssignments,
         loading,

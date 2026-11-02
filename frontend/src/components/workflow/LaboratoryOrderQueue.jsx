@@ -17,6 +17,7 @@ import { useToast } from '@/context/ToastContext'
 import { useWorkflowRequests } from '@/context/WorkflowRequestsContext'
 import { formatDateTime } from '@/lib/utils'
 import { formatStayLocation } from '@/services/pharmacyFulfillment'
+import { stayVisibleToUser } from '@/lib/stayScope'
 
 const PAGE_SIZE = 20
 
@@ -32,9 +33,9 @@ const NOTE_PLACEHOLDERS = {
 }
 
 function receptionLabel(status) {
-  if (status === 'approved') return 'Reception approved'
-  if (status === 'pending') return 'Waiting for reception'
-  if (status === 'rejected') return 'Reception rejected'
+  if (status === 'approved') return 'Charge approved'
+  if (status === 'pending') return 'Waiting for nurse or reception'
+  if (status === 'rejected') return 'Charge rejected'
   return ''
 }
 
@@ -100,10 +101,12 @@ export default function LaboratoryOrderQueue({
     [laboratoryOrders]
   )
   const rows = useMemo(() => {
-    const filtered = laboratoryOrders.filter((order) => matches(order, { status, search, priority, date, ward, sort }))
+    const filtered = laboratoryOrders
+      .filter((order) => stayVisibleToUser(order, user))
+      .filter((order) => matches(order, { status, search, priority, date, ward, sort }))
     filtered.sort((a, b) => String(a.requestedAt).localeCompare(String(b.requestedAt)) * (sort === 'oldest' ? 1 : -1))
     return filtered
-  }, [laboratoryOrders, status, search, priority, date, ward, sort])
+  }, [laboratoryOrders, status, search, priority, date, ward, sort, user])
 
   useEffect(() => { setPage(1) }, [status, search, priority, date, ward, sort])
 

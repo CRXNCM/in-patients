@@ -77,7 +77,7 @@ export default function NursePatientsList() {
     <div>
       <PageHeader
         title="Admitted Patients"
-        description="Active inpatients and Emergency OPD patients. Filter by room type, ward, or stay status."
+        description="Patients for this desk. Emergency OPD stays with the Emergency Nurse until conversion. Ward nurses see inpatients only."
         action={
           hasAnyPermission(['admissions.create', 'admissions.create_emergency']) ? (
             <Button onClick={() => navigate('/nurse/add-patient')}>

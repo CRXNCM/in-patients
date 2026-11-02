@@ -4,6 +4,8 @@ import { LaboratoryOrder } from '../models/LaboratoryOrder.js'
 import { WardSubmission } from '../models/WardSubmission.js'
 import { Patient } from '../models/Patient.js'
 import { categoryNeedsDepartment, markReceptionDecision } from './departmentBilling.js'
+import { isEmergencyOpdAdmission } from '../utils/admissions.js'
+import { stayVisibleToAuth } from '../utils/stayScope.js'
 
 function docId(doc) {
   return String(doc?.id || doc?._id || '')
@@ -346,7 +348,7 @@ export function buildReceptionRequests({
   return requests.sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)))
 }
 
-export async function loadReceptionQueue({ patientId = '' } = {}) {
+export async function loadReceptionQueue({ patientId = '', auth = null } = {}) {
   const pendingFilter = { status: 'pending' }
   if (patientId) pendingFilter.patientId = patientId
   const pending = await ServiceRecord.find(pendingFilter).lean()
@@ -378,13 +380,17 @@ export async function loadReceptionQueue({ patientId = '' } = {}) {
   const patients = patientIds.length
     ? await Patient.find({ patientId: { $in: [...new Set(patientIds)] } }).select('patientId name admissionType convertedFromEmergency').lean()
     : []
+  const visiblePatients = auth
+    ? patients.filter((patient) => stayVisibleToAuth(patient, auth))
+    : patients.filter((patient) => !isEmergencyOpdAdmission(patient))
+  const visibleIds = new Set(visiblePatients.map((patient) => patient.patientId))
   return buildReceptionRequests({
     submissions,
     records: [...byId.values()],
     pharmacyOrders: [...pharmacyOrders, ...linkedPharmacy.filter((order) => !ids.includes(order.submissionId))],
     laboratoryOrders: [...laboratoryOrders, ...linkedLaboratory.filter((order) => !ids.includes(order.submissionId))],
-    patients,
-  }).filter((request) => request.inQueue)
+    patients: visiblePatients,
+  }).filter((request) => request.inQueue && visibleIds.has(request.patientId))
 }
 
 export function panelRow(request) {

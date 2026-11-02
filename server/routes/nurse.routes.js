@@ -10,7 +10,7 @@ router.get(
   requirePermission(NURSE_DASHBOARD_PERMISSION),
   async (req, res) => {
     try {
-      res.json(await buildNurseDashboard(req.user))
+      res.json(await buildNurseDashboard(req.user, { auth: req.auth }))
     } catch (err) {
       console.error(err)
       res.status(500).json({ error: 'Failed to load dashboard' })

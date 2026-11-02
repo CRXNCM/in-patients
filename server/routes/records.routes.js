@@ -9,6 +9,8 @@ import { resolveCatalogServiceLines, resolveCatalogReturnLines } from '../utils/
 import { catalogPricingForPatient } from '../utils/admissions.js'
 import { categoryNeedsDepartment, departmentGateForLines, markReceptionDecision, receptionHoldError } from '../services/departmentBilling.js'
 import { decideRecordItem, loadReceptionQueue } from '../services/receptionRequests.js'
+import { canReviewStayCharges, stayVisibleToAuth } from '../utils/stayScope.js'
+import { isEmergencyOpdAdmission } from '../utils/admissions.js'
 import { syncPharmacyReturnDecision } from '../services/pharmacyReturns.js'
 import { detachMixedDepartmentLines, detachPendingMixedDepartmentLines } from '../services/departmentRouting.js'
 
@@ -18,9 +20,24 @@ function audit(action, by, note = '') {
   return { action, by, at: new Date().toISOString(), note }
 }
 
+async function loadPatientForRecord(record) {
+  if (!record) return null
+  return Patient.findOne({ patientId: record.patientId })
+}
+
+function decideForbidden(patient, auth, record) {
+  if (!canReviewStayCharges(patient, auth, record)) {
+    if (isEmergencyOpdAdmission(patient)) {
+      return 'Emergency OPD pharmacy and laboratory releases go back to the Emergency Nurse. Reception reviews this stay after inpatient conversion.'
+    }
+    return 'Forbidden'
+  }
+  return null
+}
+
 router.get('/reception-requests', authRequired, requireAnyPermission('admissions.edit', 'patients.edit', 'patients.view'), async (req, res) => {
   try {
-    const requests = await loadReceptionQueue({ patientId: String(req.query.patientId || '') })
+    const requests = await loadReceptionQueue({ patientId: String(req.query.patientId || ''), auth: req.auth })
     res.json({ requests })
   } catch (err) {
     console.error(err)
@@ -28,10 +45,13 @@ router.get('/reception-requests', authRequired, requireAnyPermission('admissions
   }
 })
 
-router.post('/:id/items/:lineId/approve', authRequired, requirePermission('admissions.edit'), async (req, res) => {
+router.post('/:id/items/:lineId/approve', authRequired, requireAnyPermission('admissions.edit', 'patients.edit'), async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ error: 'Record not found.' })
     const record = await ServiceRecord.findById(req.params.id)
+    const patientForItem = await loadPatientForRecord(record)
+    const blocked = decideForbidden(patientForItem, req.auth, record)
+    if (blocked) return res.status(403).json({ error: blocked })
     const result = await decideRecordItem({
       record,
       lineId: req.params.lineId,
@@ -48,10 +68,13 @@ router.post('/:id/items/:lineId/approve', authRequired, requirePermission('admis
   }
 })
 
-router.post('/:id/items/:lineId/reject', authRequired, requirePermission('admissions.edit'), async (req, res) => {
+router.post('/:id/items/:lineId/reject', authRequired, requireAnyPermission('admissions.edit', 'patients.edit'), async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ error: 'Record not found.' })
     const record = await ServiceRecord.findById(req.params.id)
+    const patientForItem = await loadPatientForRecord(record)
+    const blocked = decideForbidden(patientForItem, req.auth, record)
+    if (blocked) return res.status(403).json({ error: blocked })
     const result = await decideRecordItem({
       record,
       lineId: req.params.lineId,
@@ -68,12 +91,13 @@ router.post('/:id/items/:lineId/reject', authRequired, requirePermission('admiss
   }
 })
 
-router.get('/pending', authRequired, requireAnyPermission('admissions.edit', 'patients.edit', 'patients.view'), async (_req, res) => {
+router.get('/pending', authRequired, requireAnyPermission('admissions.edit', 'patients.edit', 'patients.view'), async (req, res) => {
   try {
     const records = await ServiceRecord.find({ status: 'pending' }).sort({ recordedAt: -1, createdAt: -1 })
     const patients = await Patient.find({ patientId: { $in: records.map((r) => r.patientId) } })
+    const visible = new Set(patients.filter((patient) => stayVisibleToAuth(patient, req.auth)).map((patient) => patient.patientId))
     const nameMap = Object.fromEntries(patients.map((p) => [p.patientId, p.name]))
-    res.json(records.map((r) => toFrontendRecord(r, nameMap[r.patientId])))
+    res.json(records.filter((record) => visible.has(record.patientId)).map((r) => toFrontendRecord(r, nameMap[r.patientId])))
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to load pending records' })
@@ -162,12 +186,15 @@ router.patch('/:id', authRequired, requireAnyPermission('patients.edit', 'doctor
   }
 })
 
-router.post('/:id/approve', authRequired, requirePermission('admissions.edit'), async (req, res) => {
+router.post('/:id/approve', authRequired, requireAnyPermission('admissions.edit', 'patients.edit'), async (req, res) => {
   try {
-    const note = req.body.note || 'Approved by reception'
     const record = await ServiceRecord.findById(req.params.id)
     if (!record) return res.status(404).json({ error: 'Record not found' })
     if (record.status !== 'pending') return res.status(400).json({ error: 'Record is not pending' })
+    const patientForRecord = await loadPatientForRecord(record)
+    const blocked = decideForbidden(patientForRecord, req.auth, record)
+    if (blocked) return res.status(403).json({ error: blocked })
+    const note = req.body.note || (isEmergencyOpdAdmission(patientForRecord) ? 'Confirmed by Emergency Nurse' : 'Approved by reception')
     const hold = receptionHoldError(record)
     if (hold) return res.status(400).json({ error: hold })
 
@@ -188,12 +215,15 @@ router.post('/:id/approve', authRequired, requirePermission('admissions.edit'), 
   }
 })
 
-router.post('/:id/reject', authRequired, requirePermission('admissions.edit'), async (req, res) => {
+router.post('/:id/reject', authRequired, requireAnyPermission('admissions.edit', 'patients.edit'), async (req, res) => {
   try {
-    const reason = req.body.reason || 'Rejected by reception'
     const record = await ServiceRecord.findById(req.params.id)
     if (!record) return res.status(404).json({ error: 'Record not found' })
     if (record.status !== 'pending') return res.status(400).json({ error: 'Record is not pending' })
+    const patientForRecord = await loadPatientForRecord(record)
+    const blocked = decideForbidden(patientForRecord, req.auth, record)
+    if (blocked) return res.status(403).json({ error: blocked })
+    const reason = req.body.reason || (isEmergencyOpdAdmission(patientForRecord) ? 'Rejected by Emergency Nurse' : 'Rejected by reception')
 
     const now = new Date()
     record.status = 'rejected'

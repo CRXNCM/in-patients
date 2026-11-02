@@ -49,6 +49,7 @@ import { ClinicalNotesPanel } from '@/components/shared/ClinicalNotesPanel'
 import { MaternityAdmissionPanel } from '@/components/shared/MaternityAdmissionPanel'
 import { isMaternityAdmission } from '@/lib/maternity'
 import { admissionTypeLabel, isEmergencyOpdAdmission } from '@/lib/admissions'
+import { canReviewEmergencyDepartmentRelease } from '@/lib/stayScope'
 import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
 import { InpatientConversionPanel } from '@/components/shared/InpatientConversionPanel'
 import { EditPatientPersonalInfoButton } from '@/components/shared/EditPatientPersonalInfoDialog'
@@ -157,7 +158,6 @@ function PatientProfile() {
   const canAssignBeds = hasPermission('rooms.assign_beds')
   const canViewDoctors = hasPermission('doctors.view')
   const canAssignDoctors = hasPermission('doctors.assign')
-  const canReviewRecords = hasPermission('admissions.edit')
   const canCompleteDischarge = hasPermission('admissions.discharge')
   const canRequestDischarge = user?.roleKey === 'nurse' && canEditPatient
   const canOpenBilling = user?.roleKey === 'reception' && hasPermission('patients.view')
@@ -166,6 +166,12 @@ function PatientProfile() {
   const liveRecords = listed ? getPatientRecords(patientId) : data?.records || []
   const historyRecords = groupReceptionHistory(liveRecords)
   const pendingRecords = liveRecords.filter((row) => row.status === 'pending')
+  const stayPatient = listed || data?.patient
+  const reviewPending = pendingRecords.filter((record) => (
+    !isEmergencyOpdAdmission(stayPatient) || canReviewEmergencyDepartmentRelease(stayPatient, user, record)
+  ))
+  const canReviewRecords = hasPermission('admissions.edit')
+    || reviewPending.some((record) => canReviewEmergencyDepartmentRelease(stayPatient, user, record))
   const includeMoney = Boolean(canViewPayments && (data?.permissions?.payments || data?.finance))
   const showCredit = Boolean(canViewCredit && (data?.permissions?.credit || data?.credit || listed))
   const activeStay = listed?.status === 'admitted' || data?.patient?.status === 'admitted'
@@ -596,10 +602,10 @@ function PatientProfile() {
             }
           />
           <CardContent className="space-y-6">
-            {canReviewRecords && pendingRecords.length > 0 && (
+            {canReviewRecords && reviewPending.length > 0 && (
               <div className="space-y-3 rounded-lg border border-warning/40 bg-warning/5 p-4">
                 <p className="text-sm font-semibold text-warning">Pending records</p>
-                {pendingRecords.map((record) => (
+                {reviewPending.map((record) => (
                   <div key={record.id} className="flex flex-col gap-2 rounded-md border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm font-medium">{record.recordName || 'Record'}</p>
