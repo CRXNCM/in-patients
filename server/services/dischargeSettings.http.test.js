@@ -6,6 +6,8 @@ import { connectDB } from '../config/db.js'
 import { Patient } from '../models/Patient.js'
 import { ServiceRecord } from '../models/ServiceRecord.js'
 import { HospitalSettings } from '../models/HospitalSettings.js'
+import { RoomAssignment } from '../models/RoomAssignment.js'
+import { Bed } from '../models/Bed.js'
 import { approveDischarge } from './discharge.js'
 import { todayStr } from '../utils/dates.js'
 
@@ -193,5 +195,58 @@ describe('discharge with outstanding balance setting', { skip: !hasDb }, () => {
     const stillPending = await Patient.findOne({ patientId: paidId }).lean()
     assert.equal(stillPending.status, 'pending-discharge')
     await ServiceRecord.deleteOne({ _id: pending._id })
+  })
+
+  it('completes discharge when the room assignment was already closed', async () => {
+    const closedId = `${PREFIX}CLOSED`
+    const today = todayStr()
+    const label = `${PREFIX}BED-1`
+    await Patient.deleteMany({ patientId: closedId })
+    await RoomAssignment.deleteMany({ patientId: closedId })
+    await Bed.deleteMany({ label })
+    await ServiceRecord.deleteMany({ patientId: closedId })
+    await Bed.create({
+      label,
+      name: label,
+      nameKey: label.toLowerCase(),
+      roomType: 'General Ward',
+      dailyRate: 1500,
+      status: 'available',
+      patientId: null,
+    })
+    await Patient.create({
+      patientId: closedId,
+      name: 'Closed Assignment Patient',
+      gender: 'Male',
+      address: 'Dire Dawa',
+      admissionDate: today,
+      admissionType: 'normal',
+      status: 'pending-discharge',
+      pendingDischarge: true,
+      room: 'General Ward',
+      bed: label,
+      admissionPaymentMode: 'paid',
+      requiredInitialDeposit: 0,
+      depositTotal: 600,
+      isCreditPatient: false,
+      disabledDoctorVisitDates: [today],
+    })
+    await RoomAssignment.create({
+      patientId: closedId,
+      bedId: label,
+      roomType: 'General Ward',
+      bedLabel: label,
+      startDate: today,
+      endDate: today,
+      dailyRate: 1500,
+      reason: 'Converted from Emergency OPD',
+      assignedBy: 'Tester',
+    })
+    const result = await approveDischarge(closedId, { userName: 'Tester' })
+    assert.equal(result.patient.status, 'discharged')
+    await ServiceRecord.deleteMany({ patientId: closedId })
+    await RoomAssignment.deleteMany({ patientId: closedId })
+    await Patient.deleteMany({ patientId: closedId })
+    await Bed.deleteMany({ label })
   })
 })

@@ -153,6 +153,7 @@ export function DischargeReviewPanel({ patient }) {
   const dischargeBlock = pendingBlock || outstandingBlock
 
   const handleApprove = async () => {
+    if (submitting) return
     if (dischargeBlock) {
       toast({ title: 'Cannot complete discharge', description: dischargeBlock, variant: 'destructive' })
       setConfirmApprove(false)
