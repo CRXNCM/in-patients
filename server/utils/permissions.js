@@ -155,8 +155,6 @@ const CREDIT_RECEPTION_PERMISSIONS = [
   'patients.view',
   'admissions.view',
   'rooms.view',
-  'rooms.assign_beds',
-  'doctors.view',
   'payments.view',
   'payments.create',
   'credit.view',

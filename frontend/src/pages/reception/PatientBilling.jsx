@@ -41,6 +41,7 @@ import { AdmissionTypeBadge } from '@/components/shared/AdmissionTypeBadge'
 import { ConvertToInpatientDialog } from '@/components/shared/ConvertToInpatientDialog'
 import { InpatientConversionPanel } from '@/components/shared/InpatientConversionPanel'
 import { useAuth } from '@/context/AuthContext'
+import { isCreditReceptionUser } from '@/lib/permissions'
 import { api, USE_API } from '@/api/client'
 import { hospitalSettings, depositTypes } from '@/data/mockData'
 import { useBillingConfig } from '@/context/BillingConfigContext'
@@ -93,7 +94,8 @@ export default function PatientBilling() {
   const { patientId } = useParams()
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
+  const creditDesk = isCreditReceptionUser(user)
   const { getPatient, getPatientDeposits, addDeposit, setDoctorVisitDisabled, getRoomAssignments, rooms, loading, applyPatientUpdate } = usePatients()
   const {
     getPatientRecords,
@@ -370,7 +372,7 @@ export default function PatientBilling() {
           </MotionReveal>
         )}
 
-        {pendingRecords.length > 0 && (
+        {!creditDesk && pendingRecords.length > 0 && (
           <MotionReveal className="mb-6 rounded-lg border border-warning/40 bg-warning/5 p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-2">
               <Clock className="h-5 w-5 text-warning" />
@@ -443,7 +445,7 @@ export default function PatientBilling() {
               {canConvert && (
                 <Button size="sm" onClick={() => setConvertOpen(true)}>Convert to Inpatient</Button>
               )}
-              {canTransfer && (
+              {!creditDesk && canTransfer && (
                 <RoomTransferPanel
                   patientId={patientId}
                   assignedBy={CURRENT_RECEPTIONIST}
@@ -475,22 +477,26 @@ export default function PatientBilling() {
           />
         )}
 
-        <ClinicalNotesPanel
-          className="mb-8"
-          patientId={patientId}
-          admissionId={patient.admissionId}
-          discharged={isDischarged}
-        />
+        {!creditDesk && (
+          <ClinicalNotesPanel
+            className="mb-8"
+            patientId={patientId}
+            admissionId={patient.admissionId}
+            discharged={isDischarged}
+          />
+        )}
 
-        <MaternityAdmissionPanel patient={patient} canEdit={canAddCharges} />
+        {!creditDesk && <MaternityAdmissionPanel patient={patient} canEdit={canAddCharges} />}
 
-        <AssignedDoctorsPanel
-          patient={patient}
-          canAdd={hasPermission('doctors.assign')}
-          onChanged={(res) => {
-            if (res?.patient) applyPatientUpdate(res.patient)
-          }}
-        />
+        {!creditDesk && (
+          <AssignedDoctorsPanel
+            patient={patient}
+            canAdd={hasPermission('doctors.assign')}
+            onChanged={(res) => {
+              if (res?.patient) applyPatientUpdate(res.patient)
+            }}
+          />
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
           <StatCard title="Total Deposit" value={formatCurrency(patient.deposit)} icon={Wallet} iconClassName="bg-success/15 text-success" />
@@ -529,6 +535,7 @@ export default function PatientBilling() {
           />
         )}
 
+        {!creditDesk && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -543,6 +550,7 @@ export default function PatientBilling() {
             <RoomHistoryTable assignments={roomAssignments} rooms={rooms} />
           </CardContent>
         </Card>
+        )}
 
         {canAddCharges && (
         <div className="mb-8">
@@ -579,6 +587,7 @@ export default function PatientBilling() {
         </Card>
         )}
 
+        {!creditDesk && (
         <div className="mb-6">
           <h3 className="text-lg font-semibold mb-4">Approved Billing — {patient.name}</h3>
           <DataTable
@@ -590,7 +599,9 @@ export default function PatientBilling() {
             data={itemsWithRunning}
           />
         </div>
+        )}
 
+        {!creditDesk && (
         <Card className="mb-6">
           <CardHeader>
             <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">History</p>
@@ -618,6 +629,7 @@ export default function PatientBilling() {
             )}
           </CardContent>
         </Card>
+        )}
 
         <Card className="mb-6">
           <CardHeader className="flex flex-row items-center justify-between">
@@ -682,6 +694,7 @@ export default function PatientBilling() {
           </CardContent>
         </Card>
 
+        {!creditDesk && (
         <div className="flex flex-wrap justify-end gap-3 mb-8">
           <Button size="lg" variant="outline" onClick={() => printInvoice('summary')}>
             <Printer className="h-4 w-4 mr-2" /> Print Summary Invoice
@@ -690,7 +703,9 @@ export default function PatientBilling() {
             <Printer className="h-4 w-4 mr-2" /> Print Detailed Invoice
           </Button>
         </div>
+        )}
 
+      {!creditDesk && (
       <Tabs value={invoiceVariant} onValueChange={setInvoiceVariant}>
         <Card className="overflow-hidden">
           <CardHeader className="border-b bg-muted/30">
@@ -734,6 +749,7 @@ export default function PatientBilling() {
           </CardContent>
         </Card>
       </Tabs>
+      )}
 
       <Dialog open={showDepositDialog} onOpenChange={setShowDepositDialog}>
         <DialogContent>

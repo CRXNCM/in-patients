@@ -35,6 +35,7 @@ import { MotionPage, MotionReveal } from '@/lib/motion'
 import { cn, formatCurrency, formatDate, formatDateTime, stayDurationDays } from '@/lib/utils'
 import { api } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
+import { isCreditReceptionUser } from '@/lib/permissions'
 import { usePatients } from '@/context/PatientsContext'
 import { useServiceEntries } from '@/context/ServiceEntriesContext'
 import { useToast } from '@/context/ToastContext'
@@ -102,6 +103,7 @@ function PatientProfile() {
   const location = useLocation()
   const { toast } = useToast()
   const { user, hasPermission } = useAuth()
+  const creditDesk = isCreditReceptionUser(user)
   const { getPatient, applyPatientUpdate } = usePatients()
   const { getPatientRecords, approveRecord, rejectRecord, CURRENT_NURSE, CURRENT_RECEPTIONIST } = useServiceEntries()
   const listed = getPatient(patientId)
@@ -441,7 +443,7 @@ function PatientProfile() {
             }
             description={stay.admissionReason || undefined}
             action={
-              canAssignBeds && listed && activeStay ? (
+              !creditDesk && canAssignBeds && listed && activeStay ? (
                 <RoomTransferPanel patientId={patient.patientId} assignedBy={user?.name} compact onTransferred={() => reload()} />
               ) : null
             }
@@ -551,7 +553,7 @@ function PatientProfile() {
           </Card>
         ) : null}
 
-        {canViewDoctors && listed ? (
+        {!creditDesk && canViewDoctors && listed ? (
           <AssignedDoctorsPanel
             patient={listed}
             canAdd={canAssignDoctors && !discharged}
@@ -561,7 +563,7 @@ function PatientProfile() {
               reload()
             }}
           />
-        ) : (
+        ) : !creditDesk ? (
           <Card>
             <SectionHead icon={Stethoscope} kicker="Care team" title="Visiting doctors" />
             <CardContent>
@@ -581,9 +583,9 @@ function PatientProfile() {
               )}
             </CardContent>
           </Card>
-        )}
+        ) : null}
 
-        {hasPermission('clinicalNotes.view') ? (
+        {!creditDesk && hasPermission('clinicalNotes.view') ? (
           <ClinicalNotesPanel
             patientId={patient.patientId}
             admissionId={stay.id || patient.admissionId}
@@ -591,8 +593,9 @@ function PatientProfile() {
           />
         ) : null}
 
-        <PatientWorkflowPanel patient={listed || patient} />
+        {!creditDesk && <PatientWorkflowPanel patient={listed || patient} />}
 
+        {!creditDesk && (
         <Card id="service-activity">
           <SectionHead
             icon={FileText}
@@ -677,6 +680,7 @@ function PatientProfile() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {includeMoney && (
           <Card>
@@ -691,6 +695,7 @@ function PatientProfile() {
           </Card>
         )}
 
+        {!creditDesk && (
         <Card>
           <SectionHead icon={BedDouble} kicker="History" title="Admission history" description="This application stores one inpatient stay per patient record." />
           <CardContent>
@@ -711,6 +716,7 @@ function PatientProfile() {
             )}
           </CardContent>
         </Card>
+        )}
       </MotionReveal>
 
       <AlertDialog open={!!rejectRecordId} onOpenChange={() => setRejectRecordId(null)}>
