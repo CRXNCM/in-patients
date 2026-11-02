@@ -36,6 +36,8 @@ npm install
 npm run dev
 ```
 
+`npm run seed` loads users, rooms, departments, and the full service catalog snapshot (`server/data/catalogSeed.json`: 16 categories, 1,145 items). On a database that already has patients, use `npm run seed:catalog` instead — it adds missing categories and items and does not wipe records. After you change the catalog here, refresh the snapshot with `npm run catalog:export`.
+
 Open [http://localhost:5173](http://localhost:5173). From the repo root you can use `npm run dev:server` and `npm run dev:frontend`.
 
 ```bash
